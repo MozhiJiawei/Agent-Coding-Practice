@@ -45,7 +45,7 @@ development_status:
   1-1-project-scaffold-initialization: done
   1-2-pydantic-request-response-models: done
   1-3-fastapi-lifespan-http-client: done
-  1-4-chat-route-global-exception-handler: backlog
+  1-4-chat-route-global-exception-handler: done
   epic-1-retrospective: optional
 
   # ── Epic 2: 会话管理与核心 Agent Loop ──

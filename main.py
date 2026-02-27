@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 import httpx
 from pydantic import BaseModel
-from agent import run_agent
+from agent import run_agent, log_event
 
 
 # Pydantic 模型（PascalCase 命名，snake_case 字段）
@@ -47,12 +47,30 @@ app = FastAPI(lifespan=lifespan)
 
 @app.post("/api/v1/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest, req: Request):
-    client = req.app.state.client  # noqa: F841 — Story 1.4 将传递给 run_agent
-    return ChatResponse(
-        session_id=request.session_id,
-        response="Not implemented",
-        status="error",
-        tool_results=[],
-        timestamp=int(time.time()),
-        duration_ms=0,
-    )
+    start_time = time.time()
+    client = req.app.state.client
+    try:
+        history = sessions.get(request.session_id, [])
+        result = await run_agent(history, request.model_ip, client)
+        if result is None:
+            result = {"response": "Agent not implemented", "status": "error", "tool_results": []}
+        duration_ms = int((time.time() - start_time) * 1000)
+        return ChatResponse(
+            session_id=request.session_id,
+            response=result.get("response", ""),
+            status=result.get("status", "success") if result.get("status") in ("success", "error") else "error",
+            tool_results=result.get("tool_results", []),
+            timestamp=int(time.time()),
+            duration_ms=duration_ms,
+        )
+    except Exception as e:
+        log_event("ERROR", request.session_id, {"error": str(e)})
+        duration_ms = int((time.time() - start_time) * 1000)
+        return ChatResponse(
+            session_id=request.session_id,
+            response=str(e),
+            status="error",
+            tool_results=[],
+            timestamp=int(time.time()),
+            duration_ms=duration_ms,
+        )
