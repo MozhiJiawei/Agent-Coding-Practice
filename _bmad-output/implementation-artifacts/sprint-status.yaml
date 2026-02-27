@@ -52,7 +52,7 @@ development_status:
   epic-2: in-progress
   2-1-session-storage-history-persistence: done
   2-2-new-session-init-hook: done
-  2-3-agent-loop-full-implementation: backlog
+  2-3-agent-loop-full-implementation: done
   epic-2-retrospective: optional
 
   # ── Epic 3: 工具层全量实现 ──

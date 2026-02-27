@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 import httpx
 from pydantic import BaseModel
-from agent import run_agent, log_event
+from agent import run_agent, log_event, SYSTEM_PROMPT
 from tools import init_houses
 
 
@@ -54,9 +54,10 @@ async def chat_endpoint(request: ChatRequest, req: Request):
         if request.session_id not in sessions:
             await init_houses(client)
             sessions[request.session_id] = []
+            sessions[request.session_id].append({"role": "system", "content": SYSTEM_PROMPT})
         history = sessions[request.session_id]
         history.append({"role": "user", "content": request.message})
-        result = await run_agent(history, request.model_ip, client)
+        result = await run_agent(history, request.model_ip, client, session_id=request.session_id)
         if result is None:
             result = {"response": "Agent not implemented", "status": "error", "tool_results": []}
         duration_ms = int((time.time() - start_time) * 1000)

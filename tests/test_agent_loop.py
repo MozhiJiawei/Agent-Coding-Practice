@@ -1,0 +1,479 @@
+"""
+test_agent_loop.py — Task 5 (AC: 2, 3, 4, 5)
+测试 run_agent() Agent Loop 完整行为
+"""
+import json
+import re
+import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+import httpx
+
+from agent import run_agent, SYSTEM_PROMPT, MAX_ITERATIONS, HOUSE_SEARCH_TOOLS
+
+
+# ─────────────────────────────────────────────────────────────
+# Helper: 构造 Mock LLM Response
+# ─────────────────────────────────────────────────────────────
+
+def make_mock_response(content="你好，有什么可以帮助您的？", tool_calls=None, finish_reason="stop"):
+    msg = MagicMock()
+    msg.content = content
+    msg.tool_calls = tool_calls
+    choice = MagicMock()
+    choice.message = msg
+    choice.finish_reason = finish_reason
+    resp = MagicMock()
+    resp.choices = [choice]
+    return resp
+
+
+def make_tool_call(name: str, arguments: dict, call_id: str = "call_001"):
+    call = MagicMock()
+    call.id = call_id
+    call.function.name = name
+    call.function.arguments = json.dumps(arguments)
+    return call
+
+
+@pytest.fixture
+def mock_httpx_client():
+    return MagicMock(spec=httpx.AsyncClient)
+
+
+# ─────────────────────────────────────────────────────────────
+# AC2: SYSTEM_PROMPT 模块级常量
+# ─────────────────────────────────────────────────────────────
+
+class TestSystemPrompt:
+    def test_system_prompt_is_defined(self):
+        assert SYSTEM_PROMPT is not None
+        assert isinstance(SYSTEM_PROMPT, str)
+
+    def test_system_prompt_not_empty(self):
+        assert len(SYSTEM_PROMPT) > 0
+
+    def test_system_prompt_contains_role_definition(self):
+        assert "租房" in SYSTEM_PROMPT or "助手" in SYSTEM_PROMPT
+
+    def test_system_prompt_contains_tool_calling_instruction(self):
+        assert "工具" in SYSTEM_PROMPT or "tool" in SYSTEM_PROMPT.lower()
+
+    def test_system_prompt_contains_intent_classification(self):
+        """必须包含聊天和房源操作的区分指令"""
+        content = SYSTEM_PROMPT.lower()
+        has_chat = "聊天" in SYSTEM_PROMPT or "直接" in SYSTEM_PROMPT or "自然语言" in SYSTEM_PROMPT
+        has_tool = "工具" in SYSTEM_PROMPT or "调用" in SYSTEM_PROMPT
+        assert has_chat or has_tool
+
+    def test_system_prompt_contains_format_instruction(self):
+        """禁止自行生成 JSON 的指令"""
+        assert "JSON" in SYSTEM_PROMPT or "json" in SYSTEM_PROMPT or "格式" in SYSTEM_PROMPT
+
+    def test_system_prompt_no_hardcoded_house_ids(self):
+        ids = re.findall(r'HF_\d+', SYSTEM_PROMPT)
+        assert len(ids) == 0, f"SYSTEM_PROMPT 不应包含预设房源 ID: {ids}"
+
+    def test_system_prompt_token_budget(self):
+        """中文字符数 ≤ 500（粗略估计 token ≤ 800）"""
+        chinese_chars = re.findall(r'[\u4e00-\u9fff]', SYSTEM_PROMPT)
+        assert len(chinese_chars) <= 500, f"中文字符数 {len(chinese_chars)} 超过 500"
+
+    def test_max_iterations_constant(self):
+        assert MAX_ITERATIONS == 10
+
+    def test_house_search_tools_constant(self):
+        assert "search_houses" in HOUSE_SEARCH_TOOLS
+        assert "search_nearby_landmark" in HOUSE_SEARCH_TOOLS
+
+
+# ─────────────────────────────────────────────────────────────
+# AC2: Agent Loop 骨架 — max iterations 退出
+# ─────────────────────────────────────────────────────────────
+
+class TestAgentLoopMaxIterations:
+    @pytest.mark.anyio
+    async def test_max_iterations_returns_error(self, mock_httpx_client):
+        """AC2 NFR3: 达到 MAX_ITERATIONS 时返回 status=error"""
+        tool_call = make_tool_call("search_houses", {"district": "朝阳"})
+        # 返回 tool_calls 的响应，使循环一直迭代
+        mock_response = make_mock_response(
+            content="", tool_calls=[tool_call], finish_reason="tool_calls"
+        )
+        mock_create = AsyncMock(return_value=mock_response)
+
+        with patch("agent.AsyncOpenAI") as mock_cls:
+            mock_cls.return_value.chat.completions.create = mock_create
+            with patch("agent.TOOL_DISPATCH", {"search_houses": AsyncMock(return_value={"houses": []})}):
+                result = await run_agent(
+                    [{"role": "user", "content": "找房"}],
+                    "10.0.0.1",
+                    mock_httpx_client,
+                    "test-session"
+                )
+
+        assert result["status"] == "error"
+        assert "limit" in result["response"].lower() or "exceeded" in result["response"].lower()
+
+    @pytest.mark.anyio
+    async def test_max_iterations_count_is_10(self, mock_httpx_client):
+        """确认恰好 10 次工具调用后退出"""
+        tool_call = make_tool_call("search_houses", {})
+        mock_response = make_mock_response(
+            content="", tool_calls=[tool_call], finish_reason="tool_calls"
+        )
+        mock_create = AsyncMock(return_value=mock_response)
+        mock_tool = AsyncMock(return_value={"houses": []})
+
+        with patch("agent.AsyncOpenAI") as mock_cls:
+            mock_cls.return_value.chat.completions.create = mock_create
+            with patch("agent.TOOL_DISPATCH", {"search_houses": mock_tool}):
+                result = await run_agent(
+                    [{"role": "user", "content": "找房"}],
+                    "10.0.0.1",
+                    mock_httpx_client,
+                )
+
+        assert result["status"] == "error"
+        # 工具最多被调用 MAX_ITERATIONS 次
+        assert mock_tool.call_count == MAX_ITERATIONS
+
+
+# ─────────────────────────────────────────────────────────────
+# AC4: Loop 退出条件 — finish_reason="stop"
+# ─────────────────────────────────────────────────────────────
+
+class TestAgentLoopNormalExit:
+    @pytest.mark.anyio
+    async def test_finish_reason_stop_exits_loop(self, mock_httpx_client):
+        """AC4: finish_reason=stop 且无 tool_calls 时正常退出"""
+        mock_response = make_mock_response("你好！", tool_calls=None, finish_reason="stop")
+        mock_create = AsyncMock(return_value=mock_response)
+
+        with patch("agent.AsyncOpenAI") as mock_cls:
+            mock_cls.return_value.chat.completions.create = mock_create
+            result = await run_agent(
+                [{"role": "user", "content": "你好"}],
+                "10.0.0.1",
+                mock_httpx_client,
+                "test-session"
+            )
+
+        assert result["status"] == "success"
+        assert result["response"] == "你好！"
+
+    @pytest.mark.anyio
+    async def test_llm_called_once_on_simple_chat(self, mock_httpx_client):
+        """纯聊天时 LLM 只调用一次"""
+        mock_create = AsyncMock(return_value=make_mock_response("ok"))
+        with patch("agent.AsyncOpenAI") as mock_cls:
+            mock_cls.return_value.chat.completions.create = mock_create
+            await run_agent([{"role": "user", "content": "hi"}], "10.0.0.1", mock_httpx_client)
+
+        assert mock_create.call_count == 1
+
+
+# ─────────────────────────────────────────────────────────────
+# AC3: Tool Dispatch 与 Tool Message 格式
+# ─────────────────────────────────────────────────────────────
+
+class TestToolDispatchAndMessage:
+    @pytest.mark.anyio
+    async def test_tool_message_content_is_string(self, mock_httpx_client):
+        """AC3: tool message content 必须是字符串，非 dict"""
+        tool_call = make_tool_call("search_houses", {"district": "海淀"}, "call_abc")
+        responses = [
+            make_mock_response("", tool_calls=[tool_call], finish_reason="tool_calls"),
+            make_mock_response("找到了以下房源：HF_1", tool_calls=None, finish_reason="stop"),
+        ]
+        mock_create = AsyncMock(side_effect=responses)
+
+        captured_history = []
+
+        async def capturing_tool(client, **kwargs):
+            return {"houses": [{"id": "HF_1", "name": "测试房源"}]}
+
+        with patch("agent.AsyncOpenAI") as mock_cls:
+            mock_cls.return_value.chat.completions.create = mock_create
+            with patch("agent.TOOL_DISPATCH", {"search_houses": capturing_tool}):
+                # Capture the history passed to the second LLM call
+                original_create = mock_create
+
+                history = [{"role": "user", "content": "找海淀房源"}]
+                result = await run_agent(history, "10.0.0.1", mock_httpx_client, "s1")
+
+        # 检查 history 中 tool 消息的 content 字段是字符串
+        tool_messages = [m for m in history if m.get("role") == "tool"]
+        assert len(tool_messages) >= 1
+        for tm in tool_messages:
+            assert isinstance(tm["content"], str), f"tool message content 应为字符串，实际为 {type(tm['content'])}"
+
+    @pytest.mark.anyio
+    async def test_tool_message_has_tool_call_id(self, mock_httpx_client):
+        """AC3: tool message 必须包含 tool_call_id"""
+        tool_call = make_tool_call("search_houses", {}, "my_call_id_123")
+        responses = [
+            make_mock_response("", tool_calls=[tool_call], finish_reason="tool_calls"),
+            make_mock_response("结果", tool_calls=None, finish_reason="stop"),
+        ]
+        mock_create = AsyncMock(side_effect=responses)
+
+        history = [{"role": "user", "content": "找房"}]
+        with patch("agent.AsyncOpenAI") as mock_cls:
+            mock_cls.return_value.chat.completions.create = mock_create
+            with patch("agent.TOOL_DISPATCH", {"search_houses": AsyncMock(return_value={})}):
+                await run_agent(history, "10.0.0.1", mock_httpx_client)
+
+        tool_messages = [m for m in history if m.get("role") == "tool"]
+        assert len(tool_messages) >= 1
+        assert tool_messages[0]["tool_call_id"] == "my_call_id_123"
+
+    @pytest.mark.anyio
+    async def test_tool_result_returns_in_tool_results_log(self, mock_httpx_client):
+        """返回值包含 tool_results 列表"""
+        tool_call = make_tool_call("search_houses", {}, "c1")
+        responses = [
+            make_mock_response("", tool_calls=[tool_call], finish_reason="tool_calls"),
+            make_mock_response("ok", tool_calls=None, finish_reason="stop"),
+        ]
+        mock_create = AsyncMock(side_effect=responses)
+
+        with patch("agent.AsyncOpenAI") as mock_cls:
+            mock_cls.return_value.chat.completions.create = mock_create
+            with patch("agent.TOOL_DISPATCH", {"search_houses": AsyncMock(return_value={"data": 1})}):
+                result = await run_agent(
+                    [{"role": "user", "content": "找房"}], "10.0.0.1", mock_httpx_client
+                )
+
+        assert isinstance(result["tool_results"], list)
+        assert len(result["tool_results"]) == 1
+        assert result["tool_results"][0]["tool_name"] == "search_houses"
+
+
+# ─────────────────────────────────────────────────────────────
+# AC5: Format Guard — 意图分类与输出格式控制
+# ─────────────────────────────────────────────────────────────
+
+class TestFormatGuard:
+    @pytest.mark.anyio
+    async def test_house_search_path_response_is_json_string(self, mock_httpx_client):
+        """AC5: 调用 search_houses 后 response 可被 json.loads() 解析"""
+        tool_call = make_tool_call("search_houses", {"district": "朝阳"}, "c1")
+        responses = [
+            make_mock_response("", tool_calls=[tool_call], finish_reason="tool_calls"),
+            make_mock_response("为您推荐：HF_1、HF_2", tool_calls=None, finish_reason="stop"),
+        ]
+        mock_create = AsyncMock(side_effect=responses)
+
+        with patch("agent.AsyncOpenAI") as mock_cls:
+            mock_cls.return_value.chat.completions.create = mock_create
+            with patch("agent.TOOL_DISPATCH", {
+                "search_houses": AsyncMock(return_value={"houses": [{"id": "HF_1"}, {"id": "HF_2"}]})
+            }):
+                result = await run_agent(
+                    [{"role": "user", "content": "找朝阳区房源"}], "10.0.0.1", mock_httpx_client
+                )
+
+        assert result["status"] == "success"
+        parsed = json.loads(result["response"])
+        assert "message" in parsed
+        assert "houses" in parsed
+
+    @pytest.mark.anyio
+    async def test_house_search_houses_field_contains_valid_ids(self, mock_httpx_client):
+        """AC5 FR22: houses 列表只含有效 HF_xxx ID，最多 5 个"""
+        tool_call = make_tool_call("search_houses", {}, "c1")
+        content = "推荐：HF_1、HF_2、HF_3、HF_4、HF_5、HF_6"  # 6个，Format Guard 截至5个
+        responses = [
+            make_mock_response("", tool_calls=[tool_call], finish_reason="tool_calls"),
+            make_mock_response(content, tool_calls=None, finish_reason="stop"),
+        ]
+        mock_create = AsyncMock(side_effect=responses)
+
+        with patch("agent.AsyncOpenAI") as mock_cls:
+            mock_cls.return_value.chat.completions.create = mock_create
+            with patch("agent.TOOL_DISPATCH", {"search_houses": AsyncMock(return_value={})}):
+                result = await run_agent(
+                    [{"role": "user", "content": "找房"}], "10.0.0.1", mock_httpx_client
+                )
+
+        parsed = json.loads(result["response"])
+        assert len(parsed["houses"]) <= 5
+        for hid in parsed["houses"]:
+            assert re.match(r'^HF_\d+$', hid), f"无效 house ID: {hid}"
+
+    @pytest.mark.anyio
+    async def test_house_search_no_duplicate_ids(self, mock_httpx_client):
+        """AC5: houses 列表中无重复 ID"""
+        tool_call = make_tool_call("search_houses", {}, "c1")
+        content = "HF_1 HF_1 HF_2 HF_1"  # HF_1 重复
+        responses = [
+            make_mock_response("", tool_calls=[tool_call], finish_reason="tool_calls"),
+            make_mock_response(content, tool_calls=None, finish_reason="stop"),
+        ]
+        mock_create = AsyncMock(side_effect=responses)
+
+        with patch("agent.AsyncOpenAI") as mock_cls:
+            mock_cls.return_value.chat.completions.create = mock_create
+            with patch("agent.TOOL_DISPATCH", {"search_houses": AsyncMock(return_value={})}):
+                result = await run_agent(
+                    [{"role": "user", "content": "找房"}], "10.0.0.1", mock_httpx_client
+                )
+
+        parsed = json.loads(result["response"])
+        assert len(parsed["houses"]) == len(set(parsed["houses"]))
+
+    @pytest.mark.anyio
+    async def test_chat_path_response_is_plain_string(self, mock_httpx_client):
+        """AC5 FR21: 纯聊天时 response 是纯字符串，不包含 JSON 结构"""
+        mock_create = AsyncMock(return_value=make_mock_response("今天天气很好！"))
+        with patch("agent.AsyncOpenAI") as mock_cls:
+            mock_cls.return_value.chat.completions.create = mock_create
+            result = await run_agent(
+                [{"role": "user", "content": "今天天气怎么样？"}],
+                "10.0.0.1",
+                mock_httpx_client
+            )
+
+        assert result["status"] == "success"
+        assert result["response"] == "今天天气很好！"
+        # 纯聊天 response 不应是合法 JSON
+        try:
+            json.loads(result["response"])
+            is_json = True
+        except (json.JSONDecodeError, TypeError):
+            is_json = False
+        assert not is_json, "纯聊天 response 不应是 JSON 格式"
+
+    @pytest.mark.anyio
+    async def test_empty_tools_called_no_json_format(self, mock_httpx_client):
+        """AC5: tools_called 为空时 Format Guard 不触发 JSON 格式"""
+        mock_create = AsyncMock(return_value=make_mock_response("我是助手"))
+        with patch("agent.AsyncOpenAI") as mock_cls:
+            mock_cls.return_value.chat.completions.create = mock_create
+            result = await run_agent(
+                [{"role": "user", "content": "你是谁？"}],
+                "10.0.0.1",
+                mock_httpx_client
+            )
+
+        assert result["response"] == "我是助手"
+
+    @pytest.mark.anyio
+    async def test_nearby_landmark_also_triggers_json_format(self, mock_httpx_client):
+        """AC5: search_nearby_landmark 也属于 HOUSE_SEARCH_TOOLS，触发 JSON 格式"""
+        tool_call = make_tool_call("search_nearby_landmark", {"landmark": "望京SOHO"}, "c1")
+        responses = [
+            make_mock_response("", tool_calls=[tool_call], finish_reason="tool_calls"),
+            make_mock_response("附近有：HF_10", tool_calls=None, finish_reason="stop"),
+        ]
+        mock_create = AsyncMock(side_effect=responses)
+
+        with patch("agent.AsyncOpenAI") as mock_cls:
+            mock_cls.return_value.chat.completions.create = mock_create
+            with patch("agent.TOOL_DISPATCH", {
+                "search_nearby_landmark": AsyncMock(return_value={"houses": []})
+            }):
+                result = await run_agent(
+                    [{"role": "user", "content": "望京SOHO附近有房吗？"}],
+                    "10.0.0.1",
+                    mock_httpx_client
+                )
+
+        parsed = json.loads(result["response"])
+        assert "houses" in parsed
+
+    @pytest.mark.anyio
+    async def test_format_guard_json_is_parseable(self, mock_httpx_client):
+        """AC5 NFR9: json.loads(response) 不抛出异常"""
+        tool_call = make_tool_call("search_houses", {}, "c1")
+        responses = [
+            make_mock_response("", tool_calls=[tool_call], finish_reason="tool_calls"),
+            make_mock_response("HF_3 HF_7", tool_calls=None, finish_reason="stop"),
+        ]
+        mock_create = AsyncMock(side_effect=responses)
+
+        with patch("agent.AsyncOpenAI") as mock_cls:
+            mock_cls.return_value.chat.completions.create = mock_create
+            with patch("agent.TOOL_DISPATCH", {"search_houses": AsyncMock(return_value={})}):
+                result = await run_agent(
+                    [{"role": "user", "content": "找房"}], "10.0.0.1", mock_httpx_client
+                )
+
+        # 不应抛出异常
+        parsed = json.loads(result["response"])
+        assert isinstance(parsed, dict)
+
+
+# ─────────────────────────────────────────────────────────────
+# AC2: OpenAI client 构建 — per-call，base_url 正确
+# ─────────────────────────────────────────────────────────────
+
+class TestOpenAIClientConstruction:
+    @pytest.mark.anyio
+    async def test_openai_client_base_url_uses_model_ip(self, mock_httpx_client):
+        """AC2 NFR6: AsyncOpenAI(base_url=f'http://{model_ip}:8888/v1', api_key='placeholder')"""
+        mock_create = AsyncMock(return_value=make_mock_response("ok"))
+
+        with patch("agent.AsyncOpenAI") as mock_cls:
+            mock_cls.return_value.chat.completions.create = mock_create
+            await run_agent(
+                [{"role": "user", "content": "hi"}],
+                "192.168.1.100",
+                mock_httpx_client
+            )
+
+        mock_cls.assert_called_once()
+        call_kwargs = mock_cls.call_args
+        assert "http://192.168.1.100:8888/v1" in str(call_kwargs)
+        assert "placeholder" in str(call_kwargs)
+
+
+# ─────────────────────────────────────────────────────────────
+# AC6: log_event 在 run_agent 中被调用
+# ─────────────────────────────────────────────────────────────
+
+class TestLogEventCalledInRunAgent:
+    @pytest.mark.anyio
+    async def test_model_response_event_logged(self, mock_httpx_client, capsys):
+        """AC6: MODEL_RESPONSE 事件被记录"""
+        mock_create = AsyncMock(return_value=make_mock_response("hello"))
+        with patch("agent.AsyncOpenAI") as mock_cls:
+            mock_cls.return_value.chat.completions.create = mock_create
+            await run_agent(
+                [{"role": "user", "content": "hi"}],
+                "10.0.0.1",
+                mock_httpx_client,
+                "test-session"
+            )
+
+        captured = capsys.readouterr()
+        lines = [l for l in captured.out.strip().split("\n") if l]
+        events = [json.loads(l) for l in lines]
+        event_types = [e["event_type"] for e in events]
+        assert "MODEL_RESPONSE" in event_types
+
+    @pytest.mark.anyio
+    async def test_tool_call_event_logged(self, mock_httpx_client, capsys):
+        """AC6: TOOL_CALL 事件在 tool dispatch 前被记录"""
+        tool_call = make_tool_call("search_houses", {"district": "海淀"}, "c1")
+        responses = [
+            make_mock_response("", tool_calls=[tool_call], finish_reason="tool_calls"),
+            make_mock_response("结果", tool_calls=None, finish_reason="stop"),
+        ]
+        mock_create = AsyncMock(side_effect=responses)
+
+        with patch("agent.AsyncOpenAI") as mock_cls:
+            mock_cls.return_value.chat.completions.create = mock_create
+            with patch("agent.TOOL_DISPATCH", {"search_houses": AsyncMock(return_value={})}):
+                await run_agent(
+                    [{"role": "user", "content": "找海淀房"}],
+                    "10.0.0.1",
+                    mock_httpx_client,
+                    "test-session"
+                )
+
+        captured = capsys.readouterr()
+        lines = [l for l in captured.out.strip().split("\n") if l]
+        events = [json.loads(l) for l in lines]
+        event_types = [e["event_type"] for e in events]
+        assert "TOOL_CALL" in event_types

@@ -325,7 +325,7 @@ class TestUserMessageAppend:
         """Task 2: run_agent 接收的 history 含用户消息 dict"""
         captured = {}
 
-        async def capture_agent(history, model_ip, client):
+        async def capture_agent(history, model_ip, client, **kwargs):
             captured["history"] = list(history)
             return None
 
@@ -341,7 +341,7 @@ class TestUserMessageAppend:
         """Task 2: history 中的 user 消息严格符合 OpenAI dict 格式"""
         captured = {}
 
-        async def capture_agent(history, model_ip, client):
+        async def capture_agent(history, model_ip, client, **kwargs):
             captured["history"] = list(history)
             return None
 
@@ -357,7 +357,7 @@ class TestUserMessageAppend:
         """Task 2: run_agent 被调用时 history 中已有 user 消息（先 append 后调用）"""
         history_at_call_time = {}
 
-        async def capture_agent(history, model_ip, client):
+        async def capture_agent(history, model_ip, client, **kwargs):
             history_at_call_time["snapshot"] = list(history)
             return None
 
@@ -423,7 +423,7 @@ class TestMultiTurnAccumulation:
         sid = "turn-test"
         histories = []
 
-        async def capture_agent(history, model_ip, client):
+        async def capture_agent(history, model_ip, client, **kwargs):
             histories.append(list(history))
             return None
 
