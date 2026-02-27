@@ -43,7 +43,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 
 ### Technical Constraints & Dependencies
 
-- 固定端口 8191，固定租房 API base URL（`http://7.197.86.219:8080`）
+- 固定端口 8191，固定租房 API base URL（`http://7.225.29.223:8080`）
 - 模型 IP 动态注入（每次请求），api_key 为非空占位符
 - Python 3.11+，全异步（httpx.AsyncClient 全生命周期复用）
 - 依赖极简：`fastapi`, `uvicorn[standard]`, `openai`, `httpx`, `pydantic`
@@ -426,7 +426,7 @@ agent.py
   │ TOOL_DISPATCH[tool_name](**args)
   ▼
 tools.py
-  │ httpx.AsyncClient → 租房仿真 API (7.197.86.219:8080)
+  │ httpx.AsyncClient → 租房仿真 API (7.225.29.223:8080)
   │ 统一注入 X-User-ID: os.environ["USER_ID"]
   ▼
 外部 API
@@ -487,7 +487,7 @@ tools.py
 
 **外部集成：**
 - LLM API：`openai.AsyncOpenAI(base_url=f"http://{model_ip}:8888/v1", api_key="placeholder")`，每次请求实例化（model_ip 动态）
-- 租房 API：`httpx.AsyncClient(base_url="http://7.197.86.219:8080", timeout=30.0)`，lifespan 创建，全生命周期复用
+- 租房 API：`httpx.AsyncClient(base_url="http://7.225.29.223:8080", timeout=30.0)`，lifespan 创建，全生命周期复用
 - 环境变量：`USER_ID = os.environ["USER_ID"]`，`tools.py` 模块加载时读取一次
 
 ---

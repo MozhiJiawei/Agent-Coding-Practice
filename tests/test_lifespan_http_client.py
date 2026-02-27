@@ -35,13 +35,13 @@ class TestLifespanClientCreation:
             )
 
     def test_client_base_url_is_correct(self):
-        """AC 1: base_url 必须为 http://7.197.86.219:8080"""
+        """AC 1: base_url 必须为 http://7.225.29.223:8080"""
         from main import app
 
         with TestClient(app):
             actual = str(app.state.client.base_url).rstrip("/")
-            assert actual == "http://7.197.86.219:8080", (
-                f"base_url 应为 'http://7.197.86.219:8080'，实际为 '{actual}'"
+            assert actual == "http://7.225.29.223:8080", (
+                f"base_url 应为 'http://7.225.29.223:8080'，实际为 '{actual}'"
             )
 
     def test_client_timeout_is_30_seconds(self):

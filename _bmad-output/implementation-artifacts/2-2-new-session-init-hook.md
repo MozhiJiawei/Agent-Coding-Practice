@@ -154,15 +154,15 @@ Story 2.2 should NOT add the system message — that is explicitly deferred to S
 
 ### httpx Client URL Construction
 
-The `httpx.AsyncClient` was created with `base_url="http://7.197.86.219:8080"`. This means:
+The `httpx.AsyncClient` was created with `base_url="http://7.225.29.223:8080"`. This means:
 
 ```python
 # Correct — client resolves base_url + path automatically
 resp = await client.post("/api/houses/init", headers=_get_headers())
-# Resolves to: POST http://7.197.86.219:8080/api/houses/init
+# Resolves to: POST http://7.225.29.223:8080/api/houses/init
 
 # WRONG — do NOT pass the full URL
-resp = await client.post("http://7.197.86.219:8080/api/houses/init", ...)
+resp = await client.post("http://7.225.29.223:8080/api/houses/init", ...)
 ```
 
 The leading `/` in `/api/houses/init` is required for httpx base_url resolution.

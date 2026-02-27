@@ -23,7 +23,7 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - **Session State**: In-memory dict (no external DB required for competition)
 - **Server Port**: 8191 (fixed, per competition spec)
 - **Model API**: OpenAI-compatible endpoint at `{model_ip}:8888`, model field can be empty string
-- **Rental API Base**: `http://7.197.86.219:8080`
+- **Rental API Base**: `http://7.225.29.223:8080`
 
 ---
 
@@ -89,7 +89,7 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - **Required dependencies**: `fastapi`, `uvicorn[standard]`, `openai`, `httpx`, `pydantic`
 - **Non-blocking startup**: Server must be fully ready within 5 seconds of launch — do NOT perform heavy initialization at startup
 - **No external network calls at import time**: All API calls happen inside request handlers only — never at module level
-- **Competition constraint**: Do NOT call any external model or API outside `model_ip:8888` and `7.197.86.219:8080` — disqualification risk
+- **Competition constraint**: Do NOT call any external model or API outside `model_ip:8888` and `7.225.29.223:8080` — disqualification risk
 - **3 March update**: Task spec will be updated on March 3rd — keep tool definitions and system prompt modular for quick updates
 
 ### Critical Don't-Miss Rules

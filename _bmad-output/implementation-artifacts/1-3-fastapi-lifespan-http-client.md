@@ -12,7 +12,7 @@ so that connection overhead is minimized and NFR7 (client reuse) is satisfied.
 
 1. **Given** the FastAPI app is initialized with a `lifespan` context manager  
    **When** the service starts  
-   **Then** `httpx.AsyncClient(base_url="http://7.197.86.219:8080", timeout=30.0)` is created **exactly once** and stored in `app.state.client`  
+   **Then** `httpx.AsyncClient(base_url="http://7.225.29.223:8080", timeout=30.0)` is created **exactly once** and stored in `app.state.client`  
    **And** no external API calls are made during startup
 
 2. **Given** the service is running  
@@ -31,7 +31,7 @@ so that connection overhead is minimized and NFR7 (client reuse) is satisfied.
 ## Tasks / Subtasks
 
 - [x] Task 1: 验证现有 lifespan 实现 (AC: 1, 3)
-  - [x] 确认 `httpx.AsyncClient(base_url="http://7.197.86.219:8080", timeout=30.0)` 参数正确
+  - [x] 确认 `httpx.AsyncClient(base_url="http://7.225.29.223:8080", timeout=30.0)` 参数正确
   - [x] 确认存储路径为 `app.state.client`
   - [x] 确认 `yield` 后执行 `await app.state.client.aclose()`
   - [x] 确认 lifespan 内无任何外部 API 调用
@@ -57,7 +57,7 @@ so that connection overhead is minimized and NFR7 (client reuse) is satisfied.
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.client = httpx.AsyncClient(
-        base_url="http://7.197.86.219:8080", timeout=30.0
+        base_url="http://7.225.29.223:8080", timeout=30.0
     )
     yield
     await app.state.client.aclose()
@@ -112,7 +112,7 @@ http_client = httpx.AsyncClient(...)  # 在模块顶层
 **httpx.AsyncClient 配置参数（不得更改）：**
 ```python
 httpx.AsyncClient(
-    base_url="http://7.197.86.219:8080",  # 租房 API base URL，固定
+    base_url="http://7.225.29.223:8080",  # 租房 API base URL，固定
     timeout=30.0                           # 30 秒超时，固定
 )
 ```
@@ -149,7 +149,7 @@ sessions: dict[str, list] = {}
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.client = httpx.AsyncClient(
-        base_url="http://7.197.86.219:8080", timeout=30.0
+        base_url="http://7.225.29.223:8080", timeout=30.0
     )
     yield
     await app.state.client.aclose()
@@ -182,7 +182,7 @@ async def chat_endpoint(request: ChatRequest, req: Request):  # ← 修复
 ### 竞赛合规提醒
 
 - `lifespan` 中绝不调用 `POST /api/houses/init` 或任何外部 API（违反 FR23：5 秒内启动）
-- `httpx.AsyncClient` 的 `base_url` 固定为 `"http://7.197.86.219:8080"`，不得参数化
+- `httpx.AsyncClient` 的 `base_url` 固定为 `"http://7.225.29.223:8080"`，不得参数化
 - 启动命令：`USER_ID=<工号> uvicorn main:app --host 0.0.0.0 --port 8191`（端口 8191 固定不变）
 
 ### Project Structure Notes
@@ -213,7 +213,7 @@ _无_
 
 ### Completion Notes List
 
-- ✅ Task 1: 验证现有 lifespan 实现完全正确 — `httpx.AsyncClient(base_url="http://7.197.86.219:8080", timeout=30.0)` 存储到 `app.state.client`，`yield` 后执行 `aclose()`，启动期间零外部 API 调用
+- ✅ Task 1: 验证现有 lifespan 实现完全正确 — `httpx.AsyncClient(base_url="http://7.225.29.223:8080", timeout=30.0)` 存储到 `app.state.client`，`yield` 后执行 `aclose()`，启动期间零外部 API 调用
 - ✅ Task 2: 修复 `chat_endpoint` 签名 — 添加 `req: Request` 参数，函数体通过 `client = req.app.state.client` 获取共享客户端，`from fastapi import FastAPI, Request` 导入已更新
 - ✅ Task 3: 全量测试验证通过 — 51/51 测试通过，零回归，TDD 红绿重构流程完整执行
 - TDD 执行记录：RED(3 失败 / 11 通过) → 修复 main.py → GREEN(14/14 通过) → 全量回归(51/51 通过)

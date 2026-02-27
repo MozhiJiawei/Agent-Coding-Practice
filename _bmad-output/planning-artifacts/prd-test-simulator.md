@@ -44,11 +44,11 @@ workflowType: 'prd'
 
 ### Prerequisites（对主项目的变更要求）
 
-Agent 主项目 `main.py` 中 `httpx.AsyncClient` 的 `base_url` 当前硬编码为 `http://7.197.86.219:8080`，需改为通过环境变量 `RENTAL_API_BASE` 配置：
+Agent 主项目 `main.py` 中 `httpx.AsyncClient` 的 `base_url` 当前硬编码为 `http://7.225.29.223:8080`，需改为通过环境变量 `RENTAL_API_BASE` 配置：
 
 ```python
 import os
-RENTAL_API_BASE = os.environ.get("RENTAL_API_BASE", "http://7.197.86.219:8080")
+RENTAL_API_BASE = os.environ.get("RENTAL_API_BASE", "http://7.225.29.223:8080")
 # lifespan 中:
 app.state.client = httpx.AsyncClient(base_url=RENTAL_API_BASE, timeout=30.0)
 ```

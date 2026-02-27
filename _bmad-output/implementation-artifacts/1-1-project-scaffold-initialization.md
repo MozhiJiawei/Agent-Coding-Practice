@@ -116,7 +116,7 @@ sessions: dict[str, list] = {}
 async def lifespan(app: FastAPI):
     # 创建并存储 http client（startup 时不调用任何外部 API）
     app.state.client = httpx.AsyncClient(
-        base_url="http://7.197.86.219:8080", timeout=30.0
+        base_url="http://7.225.29.223:8080", timeout=30.0
     )
     yield
     await app.state.client.aclose()
@@ -137,7 +137,7 @@ import json
 import httpx
 
 # 模块顶层常量（必须在模块加载时读取一次）
-RENTAL_API_BASE = "http://7.197.86.219:8080"
+RENTAL_API_BASE = "http://7.225.29.223:8080"
 USER_ID = os.environ["USER_ID"]   # 模块加载时读取，不在函数内读取
 MAX_PAGES = 5
 

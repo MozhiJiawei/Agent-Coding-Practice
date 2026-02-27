@@ -16,7 +16,7 @@ So that the complete tool layer is available as one cohesive unit for the agent 
 
 1. **Given** `tools.py` is implemented
    **When** module-level constants are defined
-   **Then** `RENTAL_API_BASE = "http://7.197.86.219:8080"` is defined (already present)
+   **Then** `RENTAL_API_BASE = "http://7.225.29.223:8080"` is defined (already present)
    **And** `USER_ID = os.environ["USER_ID"]` is read once at module load time (already present)
    **And** `MAX_PAGES = 5` is defined as a constant (already present)
    **And** a helper `_get_headers() -> dict` returns `{"X-User-ID": USER_ID}` (already present)
@@ -161,7 +161,7 @@ So that the complete tool layer is available as one cohesive unit for the agent 
 **`tools.py` 当前状态：**
 ```python
 # ✅ 已正确实现（不需修改）：
-RENTAL_API_BASE = "http://7.197.86.219:8080"
+RENTAL_API_BASE = "http://7.225.29.223:8080"
 USER_ID = os.environ["USER_ID"]   # 模块加载时读取
 MAX_PAGES = 5
 def _get_headers() -> dict: ...   # 返回 {"X-User-ID": USER_ID}

@@ -69,7 +69,7 @@
 **房源数据重置接口**
 
 ```bash
-curl -s -X POST -H "X-User-ID: 真实工号" "http://7.197.86.219:8080/api/houses/init"
+curl -s -X POST -H "X-User-ID: 真实工号" "http://7.225.29.223:8080/api/houses/init"
 ```
 
 成功响应示例：

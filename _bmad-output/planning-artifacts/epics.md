@@ -86,7 +86,7 @@ NFR10: 不同 `session_id` 之间的会话历史隔离率 100%，任何实现不
 - 新 Session init 时序：先 `await init_houses(client)` → 再构建 system message → 再 append user message → 再 `run_agent()`
 
 **来自 Architecture — httpx.AsyncClient 约束：**
-- `httpx.AsyncClient(base_url="http://7.197.86.219:8080", timeout=30.0)` 通过 FastAPI `lifespan` 创建，全生命周期复用
+- `httpx.AsyncClient(base_url="http://7.225.29.223:8080", timeout=30.0)` 通过 FastAPI `lifespan` 创建，全生命周期复用
 - `USER_ID = os.environ["USER_ID"]`，在 `tools.py` 模块加载时读取一次
 
 **来自 Architecture — 翻页实现约束：**
@@ -205,7 +205,7 @@ So that connection overhead is minimized and NFR7 (client reuse) is satisfied.
 
 **Given** the FastAPI app is initialized with a `lifespan` context manager
 **When** the service starts
-**Then** `httpx.AsyncClient(base_url="http://7.197.86.219:8080", timeout=30.0)` is created exactly once and accessible to tool functions
+**Then** `httpx.AsyncClient(base_url="http://7.225.29.223:8080", timeout=30.0)` is created exactly once and accessible to tool functions
 **And** no external API calls are made during startup
 **When** the service shuts down
 **Then** `await client.aclose()` is called to properly release connections
@@ -354,7 +354,7 @@ So that the complete tool layer is available as one cohesive unit for the agent 
 
 **Given** `tools.py` is implemented
 **When** module-level constants are defined
-**Then** `RENTAL_API_BASE = "http://7.197.86.219:8080"` is defined
+**Then** `RENTAL_API_BASE = "http://7.225.29.223:8080"` is defined
 **And** `USER_ID = os.environ["USER_ID"]` is read once at module load time
 **And** `MAX_PAGES = 5` is defined as a constant
 **And** a helper `_get_headers() -> dict` returns `{"X-User-ID": USER_ID}`
