@@ -1,0 +1,82 @@
+# generated: 2026-02-27
+# project: AI Agent Coding
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: D:\Git_Repo\AI Agent Coding\_bmad-output\implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-02-27
+project: AI Agent Coding
+project_key: NOKEY
+tracking_system: file-system
+story_location: "D:\\Git_Repo\\AI Agent Coding\\_bmad-output\\implementation-artifacts"
+
+development_status:
+  # ── Epic 1: 项目脚手架与 API 服务基础 ──
+  epic-1: in-progress
+  1-1-project-scaffold-initialization: done
+  1-2-pydantic-request-response-models: done
+  1-3-fastapi-lifespan-http-client: done
+  1-4-chat-route-global-exception-handler: backlog
+  epic-1-retrospective: optional
+
+  # ── Epic 2: 会话管理与核心 Agent Loop ──
+  epic-2: backlog
+  2-1-session-storage-history-persistence: backlog
+  2-2-new-session-init-hook: backlog
+  2-3-system-prompt-agent-loop-skeleton: backlog
+  2-4-tool-dispatch-message-format: backlog
+  2-5-format-guard-intent-classification: backlog
+  epic-2-retrospective: optional
+
+  # ── Epic 3: 房源搜索与详情查询 ──
+  epic-3: backlog
+  3-1-tools-constant-infrastructure: backlog
+  3-2-search-houses-tool: backlog
+  3-3-get-house-detail-tool: backlog
+  epic-3-retrospective: optional
+
+  # ── Epic 4: 地标与周边位置智能 ──
+  epic-4: backlog
+  4-1-search-landmark-tool: backlog
+  4-2-search-nearby-landmark-tool: backlog
+  4-3-get-nearby-amenities-tool: backlog
+  epic-4-retrospective: optional
+
+  # ── Epic 5: 租赁操作执行 ──
+  epic-5: backlog
+  5-1-execute-action-tool: backlog
+  epic-5-retrospective: optional
+
+  # ── Epic 6: 结构化日志与系统可观测性 ──
+  epic-6: backlog
+  6-1-log-event-structured-logging: backlog
+  epic-6-retrospective: optional
