@@ -1,3 +1,4 @@
+import os
 import time
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
@@ -5,6 +6,9 @@ import httpx
 from pydantic import BaseModel
 from agent import run_agent, log_event, SYSTEM_PROMPT
 from tools import init_houses
+
+# 支持环境变量覆盖，与 debug_init_houses.py 一致，便于 Mock 或不同网络环境
+RENTAL_API_BASE = os.environ.get("RENTAL_API_BASE", "http://7.225.29.223:8080")
 
 
 # Pydantic 模型（PascalCase 命名，snake_case 字段）
@@ -37,7 +41,7 @@ sessions: dict[str, list] = {}
 async def lifespan(app: FastAPI):
     # 创建并存储 http client（startup 时不调用任何外部 API）
     app.state.client = httpx.AsyncClient(
-        base_url="http://7.225.29.223:8080", timeout=30.0, trust_env=False  # 不走代理
+        base_url=RENTAL_API_BASE, timeout=30.0, trust_env=False  # 不走代理
     )
     yield
     await app.state.client.aclose()

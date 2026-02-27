@@ -2,7 +2,8 @@ import os
 import httpx
 
 # 模块顶层常量（必须在模块加载时读取一次）
-RENTAL_API_BASE = "http://7.225.29.223:8080"
+# 支持环境变量覆盖，与 debug_init_houses.py 一致；tools 不创建 client，client 由 main 传入且已设置 trust_env=False 不走代理
+RENTAL_API_BASE = os.environ.get("RENTAL_API_BASE", "http://7.225.29.223:8080")
 USER_ID = os.environ["USER_ID"]  # 模块加载时读取，不在函数内读取
 MAX_PAGES = 5
 

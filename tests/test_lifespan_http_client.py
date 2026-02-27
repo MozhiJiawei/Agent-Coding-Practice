@@ -53,6 +53,15 @@ class TestLifespanClientCreation:
                 f"timeout 应为 httpx.Timeout(30.0)，实际为 {app.state.client.timeout}"
             )
 
+    def test_client_trust_env_is_false(self):
+        """AC 1: trust_env=False 确保请求不经过系统代理"""
+        from main import app
+
+        with TestClient(app):
+            assert app.state.client.trust_env is False, (
+                "trust_env 应为 False，以确保 API 请求不走系统代理"
+            )
+
     def test_client_created_exactly_once(self):
         """AC 1: 多次请求后 client 对象仍是同一个实例（非每请求创建）"""
         from main import app
