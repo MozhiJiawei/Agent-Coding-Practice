@@ -5,12 +5,15 @@ documentsIncluded:
   architecture: "_bmad-output/planning-artifacts/architecture.md"
   epics: "_bmad-output/planning-artifacts/epics.md"
   ux: null
+regeneratedAfterEpicRestructure: true
+epicRestructureDate: "2026-02-27T17:36"
 ---
 
 # Implementation Readiness Assessment Report
 
 **Date:** 2026-02-27
 **Project:** AI Agent Coding
+**Note:** 本报告基于 17:36 重构后的最新 epics.md 重新生成，取代此前 15:21 版本。
 
 ---
 
@@ -20,8 +23,8 @@ documentsIncluded:
 |---|---|---|
 | PRD | `_bmad-output/planning-artifacts/prd.md` | ✅ Ready |
 | Architecture | `_bmad-output/planning-artifacts/architecture.md` | ✅ Ready |
-| Epics & Stories | `_bmad-output/planning-artifacts/epics.md` | ✅ Ready |
-| UX Design | *(not found)* | ⚠️ Missing (N/A — API Backend, no UI) |
+| Epics & Stories | `_bmad-output/planning-artifacts/epics.md` | ✅ Ready（重构后版本）|
+| UX Design | *(not found)* | ✅ N/A — 纯 API Backend，无 UI |
 
 ---
 
@@ -89,7 +92,7 @@ NFR10: 不同 `session_id` 之间的会话历史隔离率 100%，任何实现不
 
 ### PRD Completeness Assessment
 
-PRD 文档结构完整，覆盖了执行摘要、成功标准、用户旅程、领域需求、创新设计、API 端点规范、数据结构、错误码、分阶段开发策略、完整 FR/NFR 列表。需求数量充足（25 FR + 10 NFR），分类清晰，量化指标明确。
+PRD 文档结构完整，覆盖执行摘要、成功标准、用户旅程（5 条）、领域需求（竞赛合规红线 + 技术约束）、创新设计、API 端点规范、数据结构、错误码、分阶段开发策略（MVP/Post-MVP/Expansion）、完整 FR/NFR 列表。需求数量充足（25 FR + 10 NFR），分类清晰，量化指标明确（时间片、Token 上限、迭代上限均有具体数值）。
 
 **评估：PRD 完整性 ✅ HIGH**
 
@@ -97,7 +100,7 @@ PRD 文档结构完整，覆盖了执行摘要、成功标准、用户旅程、�
 
 ## Epic Coverage Validation
 
-### Coverage Matrix
+### Coverage Matrix（基于重构后 epics.md）
 
 | FR | PRD Requirement (摘要) | Epic Coverage | Story | Status |
 |---|---|---|---|---|
@@ -105,41 +108,41 @@ PRD 文档结构完整，覆盖了执行摘要、成功标准、用户旅程、�
 | FR2 | 跨轮次保留对话历史 | Epic 2 | Story 2.1 | ✅ Covered |
 | FR3 | 不同 session 历史隔离 | Epic 2 | Story 2.1 | ✅ Covered |
 | FR4 | 新 Session 自动 init 钩子 | Epic 2 | Story 2.2 | ✅ Covered |
-| FR5 | 聊天/查询意图分类 | Epic 2 | Story 2.5 | ✅ Covered |
-| FR6 | 按行政区筛选房源 | Epic 3 | Story 3.2 | ✅ Covered |
-| FR7 | 按月租金范围筛选 | Epic 3 | Story 3.2 | ✅ Covered |
-| FR8 | 按户型筛选 | Epic 3 | Story 3.2 | ✅ Covered |
-| FR9 | 按装修类型筛选 | Epic 3 | Story 3.2 | ✅ Covered |
-| FR10 | 按朝向筛选 | Epic 3 | Story 3.2 | ✅ Covered |
-| FR11 | 按地铁距离筛选 | Epic 3 | Story 3.2 | ✅ Covered |
-| FR12 | 分页结果自动完整拉取 | Epic 3 | Story 3.2 | ✅ Covered |
-| FR13 | 单套房源完整详情 | Epic 3 | Story 3.3 | ✅ Covered |
-| FR14 | 地标关键词搜索 | Epic 4 | Story 4.1 | ✅ Covered |
-| FR15 | 地标附近可租房源查询 | Epic 4 | Story 4.2 | ✅ Covered |
-| FR16 | 小区周边生活配套查询 | Epic 4 | Story 4.3 | ✅ Covered |
-| FR17 | 租房操作 API 执行 | Epic 5 | Story 5.1 | ✅ Covered |
-| FR18 | 退租操作 API 执行 | Epic 5 | Story 5.1 | ✅ Covered |
-| FR19 | 下架操作 API 执行 | Epic 5 | Story 5.1 | ✅ Covered |
-| FR20 | 房源查询输出合法 JSON 格式 | Epic 2 | Story 2.5 | ✅ Covered |
-| FR21 | 聊天响应输出纯自然语言 | Epic 2 | Story 2.5 | ✅ Covered |
-| FR22 | houses 最多 5 个有效 ID | Epic 2 | Story 2.5 | ✅ Covered |
+| FR5 | 聊天/查询意图分类 | Epic 2 | Story 2.3 | ✅ Covered |
+| FR6 | 按行政区筛选房源 | Epic 3 | Story 3.1 | ✅ Covered |
+| FR7 | 按月租金范围筛选 | Epic 3 | Story 3.1 | ✅ Covered |
+| FR8 | 按户型筛选 | Epic 3 | Story 3.1 | ✅ Covered |
+| FR9 | 按装修类型筛选 | Epic 3 | Story 3.1 | ✅ Covered |
+| FR10 | 按朝向筛选 | Epic 3 | Story 3.1 | ✅ Covered |
+| FR11 | 按地铁距离筛选 | Epic 3 | Story 3.1 | ✅ Covered |
+| FR12 | 分页结果自动完整拉取 | Epic 3 | Story 3.1 | ✅ Covered |
+| FR13 | 单套房源完整详情 | Epic 3 | Story 3.1 | ✅ Covered |
+| FR14 | 地标关键词搜索 | Epic 3 | Story 3.1 | ✅ Covered |
+| FR15 | 地标附近可租房源查询 | Epic 3 | Story 3.1 | ✅ Covered |
+| FR16 | 小区周边生活配套查询 | Epic 3 | Story 3.1 | ✅ Covered |
+| FR17 | 租房操作 API 执行 | Epic 3 | Story 3.1 | ✅ Covered |
+| FR18 | 退租操作 API 执行 | Epic 3 | Story 3.1 | ✅ Covered |
+| FR19 | 下架操作 API 执行 | Epic 3 | Story 3.1 | ✅ Covered |
+| FR20 | 房源查询输出合法 JSON 格式 | Epic 2 | Story 2.3 | ✅ Covered |
+| FR21 | 聊天响应输出纯自然语言 | Epic 2 | Story 2.3 | ✅ Covered |
+| FR22 | houses 最多 5 个有效 ID | Epic 2 | Story 2.3 | ✅ Covered |
 | FR23 | 5 秒内启动绑定 0.0.0.0:8191 | Epic 1 | Story 1.4 | ✅ Covered |
-| FR24 | 结构化事件日志 | Epic 6 | Story 6.1 | ✅ Covered |
+| FR24 | 结构化事件日志 | Epic 4 | Story 4.2 | ✅ Covered |
 | FR25 | 全局异常捕获不抛 5xx | Epic 1 | Story 1.4 | ✅ Covered |
 
 ### NFR Coverage Matrix
 
 | NFR | Requirement (摘要) | Epic Coverage | Status |
 |---|---|---|---|
-| NFR1 | 非模型执行时间 < 5s | Epic 3 (Story 3.2), Epic 6 (Story 6.1) | ✅ Covered |
+| NFR1 | 非模型执行时间 < 5s | Epic 3 (Story 3.1 串行翻页), Epic 4 (Story 4.2) | ✅ Covered |
 | NFR2 | 系统提示 ≤ 800 Token，≤ 5 片/用例 | Epic 2 (Story 2.3) | ✅ Covered |
 | NFR3 | Loop 最多 10 次迭代 | Epic 2 (Story 2.3) | ✅ Covered |
-| NFR4 | duration_ms 误差 ≤ 10ms | Epic 1 (Story 1.4), Epic 6 (Story 6.1) | ✅ Covered |
-| NFR5 | X-User-ID 请求头规则 | Epic 3 (3.2, 3.3), Epic 4 (4.1, 4.2, 4.3), Epic 5 (5.1) | ✅ Covered |
+| NFR4 | duration_ms 误差 ≤ 10ms | Epic 1 (Story 1.4), Epic 4 (Story 4.2) | ✅ Covered |
+| NFR5 | X-User-ID 请求头规则（地标无需/房源需要）| Epic 3 (Story 3.1) | ✅ Covered |
 | NFR6 | OpenAI 兼容格式，api_key 非空 | Epic 2 (Story 2.3) | ✅ Covered |
 | NFR7 | HTTP 客户端生命周期内复用 | Epic 1 (Story 1.3) | ✅ Covered |
-| NFR8 | 所有异常返回 status="error" | Epic 1 (Story 1.4), Epic 3/4/5 工具层 | ✅ Covered |
-| NFR9 | response JSON 正确率 100% | Epic 2 (Story 2.5) | ✅ Covered |
+| NFR8 | 所有异常返回 status="error" | Epic 1 (Story 1.4), Epic 3 (Story 3.1 双层异常) | ✅ Covered |
+| NFR9 | response JSON 正确率 100% | Epic 2 (Story 2.3 Format Guard) | ✅ Covered |
 | NFR10 | Session 间历史隔离率 100% | Epic 2 (Story 2.1) | ✅ Covered |
 
 ### Missing Requirements
@@ -186,155 +189,122 @@ PRD 文档结构完整，覆盖了执行摘要、成功标准、用户旅程、�
 
 ## Epic Quality Review
 
-### Epic Structure Validation
+### 重构影响说明（与旧报告对比）
 
-#### Epic 1: 项目脚手架与 API 服务基础
+本次 Epic 重构将原 11 个 backlog story（2.3-2.5, 3.1-3.3, 4.1-4.3, 5.1, 6.1）合并为 3 个 story（2.3, 3.1, 4.2），对原有 Major Issues 的影响：
+
+| 原 Issue | 类型 | 重构后状态 |
+|---|---|---|
+| M1: Story 2.4 前向依赖 Epic 3-5 工具函数 | 🟠 Major | ✅ **已解决** — "所有工具集成"AC 现在明确归属 Story 3.1 |
+| M2: `init_houses()` 函数归属未定义 | 🟠 Major | ✅ **已解决** — Story 2.2 已 done，架构文档明确归属 `tools.py` |
+| C1: Story 2.4 与 Story 3.1 AC 重叠 | 🟡 Minor | ✅ **已解决** — 合并后无重叠 |
+| C2: Story 2.5 houses ID 提取机制不明确 | 🟡 Minor | 🔄 **持续存在** — 现在在 Story 2.3 中 |
+| C3: Epic 6 日志排在最后 | 🟡 Minor | 🔄 **持续存在** — 现在是 Epic 4，仍在末尾 |
+
+---
+
+### Epic 结构验证
+
+#### Epic 1: 项目脚手架与 API 服务基础（**全部 done**）
 
 | 检查项 | 结果 |
 |---|---|
-| 用户价值明确 | ⚠️ 部分 — 描述说明判题系统/开发者可发消息收到 HTTP 200，但 Stories 1.1/1.2/1.3 均为技术基础设施，"As a developer" 价值主体较弱 |
-| Epic 可独立运行 | ✅ 是 — Epic 1 完成后服务可启动并接收请求（即使无实际逻辑） |
-| 无前向依赖 | ✅ 无 — Epic 1 不依赖任何后续 Epic |
+| 用户价值明确 | ⚠️ 技术偏重，但作为基础设施可接受 |
+| Epic 可独立运行 | ✅ 服务可启动并接收请求 |
+| 无前向依赖 | ✅ 无 |
+| ACs 质量 | ✅ 具体可测，已验收 |
+
+**状态：** 4/4 stories 全部 done，Epic 1 实际已完成。✅
+
+---
+
+#### Epic 2: 会话管理与核心 Agent Loop（2.1、2.2 done，**2.3 backlog**）
+
+| 检查项 | 结果 |
+|---|---|
+| 用户价值明确 | ✅ "用户可以进行多轮对话，Agent 完整保留历史" |
+| Epic 可独立运行 | ⚠️ Story 2.3 完成后具备基本运行能力，但无实际工具能力（Epic 3 提供） |
+| 无前向依赖 | 🟡 见下方 C1（新） |
 
 **Story 独立性：**
-- Story 1.1 (脚手架初始化) ✅ — 可独立完成
-- Story 1.2 (Pydantic 模型) ✅ — 依赖 Story 1.1（合理后向依赖）
-- Story 1.3 (lifespan + HTTP 客户端) ✅ — 依赖 Story 1.1（合理）
-- Story 1.4 (路由 + 全局异常) ✅ — 依赖 1.1/1.2/1.3（合理）
+- Story 2.1 ✅ — done，Session 存储完整实现
+- Story 2.2 ✅ — done，init 钩子完整实现
+- Story 2.3 🟡 — 见下方 C1（新）
+
+---
+
+**🟡 Minor Concern #1（新）— Story 2.3 实现顺序需开发者注意：**
+
+Story 2.3 包含 AC：
+> "TOOL_DISPATCH: dict[str, Callable] in agent.py is used to look up and call the correct function"
+
+但 6 个工具函数在 Story 3.1 中实现。开发者在实现 Story 2.3 时，需用空 dict 或 stub 占位，在 Story 3.1 完成后回填。**这不是架构缺陷**（epics.md 已将"引用所有 6 个工具"的 AC 正确归属到 Story 3.1），但开发者需理解：Story 2.3 → Story 3.1 之间存在一次 `agent.py` 的更新动作（填充 TOOL_DISPATCH）。
+
+**建议：** 在 Story 3.1 的 AC 中（已有）明确包含"更新 agent.py TOOL_DISPATCH 引用全部工具"，开发者据此执行即可。无需修改文档，仅需开发者知晓实现顺序。
+
+---
+
+**🟡 Minor Concern #2（持续）— Story 2.3 houses ID 提取机制不明确：**
+
+Story 2.3 要求 `houses` 仅包含格式如 `"HF_x"` 的有效 ID，但架构文档中仅说"从模型最终 content 中提取 house_ids"，未明确说明：
+- 模型被 SYSTEM_PROMPT 引导后以何种固定字段格式输出 house_ids？
+- Format Guard 是解析模型 content 字符串中的 ID，还是从 tool_results 中聚合？
+
+**建议：** 在 SYSTEM_PROMPT 设计（Story 2.3）中明确：引导模型在需要返回房源时，将 house_id 列表明确输出于 content 中（如 `推荐房源：HF_42, HF_107`），Format Guard 通过正则 `HF_\w+` 从 content 中提取并去重，裁剪为最多 5 个。或者，Format Guard 改为从本轮工具返回结果中聚合 house_id 字段，这样更可靠（不依赖模型格式遵从性）。
+
+---
+
+#### Epic 3: 工具层全量实现（**backlog**）
+
+| 检查项 | 结果 |
+|---|---|
+| 用户价值明确 | ✅ 用户可搜索房源、查详情、找地标、查配套、执行操作 |
+| Epic 可独立运行 | ✅ 配合 Epic 1+2 基础设施可完整运行 |
+| 无前向依赖 | ✅ 仅向后引用已有 Epic 组件 |
+
+**Story 3.1 独立性：** ✅ — `tools.py` 可完整独立实现，不依赖其他未完成的模块（仅需 Epic 1 中 lifespan 创建的 httpx client）
 
 **ACs 质量：**
-- Story 1.3 ACs 清晰具体（创建一次、关闭时 aclose、不在请求处理中重建）✅
-- Story 1.4 ACs 覆盖成功路径和异常路径 ✅
+- 基础架构 ACs：TOOLS 常量、USER_ID、_get_headers()、MAX_PAGES — ✅ 清晰具体
+- search_houses ACs：多条件参数、串行翻页（while + MAX_PAGES=5）、agent 透明 — ✅ 完整
+- get_house_detail ACs：house_id 字符串处理、完整字段返回 — ✅
+- search_landmark ACs：无 X-User-ID 头规则明确 — ✅
+- search_nearby_landmark ACs：HOUSE_SEARCH_TOOLS 集合归属、X-User-ID — ✅
+- get_nearby_amenities ACs：max_distance_m 默认值、不在 HOUSE_SEARCH_TOOLS — ✅
+- execute_action ACs：action 映射、无效 action 处理、不在 HOUSE_SEARCH_TOOLS — ✅
+- 所有工具均有错误处理 ACs（返回 {"error": "..."} 不 raise）— ✅
+
+**🟡 Minor Concern #3（新）— Story 3.1 体量较大，建议分组实现：**
+
+Story 3.1 合并了原 7 个 story（3.1-3.3 + 4.1-4.3 + 5.1），单 story 覆盖 6 个工具函数 + 基础架构。虽然 ACs 清晰，但实现量较大。建议开发者在 **一次实现** 中按逻辑分组处理：
+
+1. **第一组**（基础架构 + 房源工具）：TOOLS 常量 + `_get_headers()` + `search_houses` + `get_house_detail`
+2. **第二组**（地标工具）：`search_landmark` + `search_nearby_landmark` + `get_nearby_amenities`
+3. **第三组**（操作工具）：`execute_action`
+
+全部完成后，更新 `agent.py` 的 TOOL_DISPATCH 引用（见 C1 建议）。
 
 ---
 
-#### Epic 2: 会话管理与核心 Agent Loop
+#### Epic 4: 结构化日志与系统可观测性（**backlog**）
 
 | 检查项 | 结果 |
 |---|---|
-| 用户价值明确 | ✅ — "用户可以进行多轮对话"，有明确用户结果 |
-| Epic 可独立运行 | ⚠️ 部分 — Loop 骨架可运行，但无实际工具调用能力（工具在 Epic 3-5）|
-| 无前向依赖 | 🟠 **存在前向依赖** — 见下方详述 |
+| 用户价值明确 | ⚠️ 开发者价值（"As a developer"），但作为竞赛调试核心工具完全合理 |
+| Epic 可独立运行 | ✅ 横切关注点，可叠加到其他 Epic 完成后 |
+| 无前向依赖 | ✅ 无 |
 
-**🟠 Major Issue #1 — Story 2.4 前向依赖 Epic 3-5：**
+**Story 4.2 ACs 质量：**
+- `log_event(event_type, session_id, details)` 函数签名明确 ✅
+- 5 种 event_type 常量及触发时机完整定义 ✅
+- JSON 格式输出（json.dumps + ensure_ascii=False）✅
+- 日志序列验证 AC（SESSION_START → SESSION_INIT → MODEL_RESPONSE → TOOL_CALL）✅
 
-Story 2.4 的 AC 明确要求：
-> "TOOL_DISPATCH in agent.py references all 6 tool functions imported from tools.py"
+**🟡 Minor Concern #4（持续）— 日志基础设施排在最后：**
 
-但这 6 个工具函数分布在 Epic 3（search_houses, get_house_detail）、Epic 4（search_landmark, search_nearby_landmark, get_nearby_amenities）、Epic 5（execute_action）中。Story 2.4 无法在 Epics 3-5 完成之前真正 "完成"。
+结构化日志是打榜失分定位的核心工具。当前排序意味着 Epic 2（Agent Loop）和 Epic 3（工具层）的开发和早期测试期间缺乏结构化日志。
 
-**影响：** Epic 2 Story 2.4 在名义上属于 Epic 2，但实际完成条件依赖未来 Epic 的产出。
-
-**建议：** 将 Story 2.4 拆分为：
-- Story 2.4a：实现 TOOL_DISPATCH 机制骨架（空 dict，含 dispatch 逻辑）
-- 将 "引用全部 6 个工具函数" 的 AC 移至 Story 3.1（工具层基础架构），作为最终集成验收
-
----
-
-**🟠 Major Issue #2 — Story 2.2 调用 `init_houses()` 但未定义归属：**
-
-Story 2.2 的 AC 要求：
-> "await init_houses(client) is called and awaited before any other processing"
-
-但 `init_houses()` 函数（调用 `POST /api/houses/init`）的实现归属未在任何 Story 中明确声明。它不在 TOOLS 常量中（不由 LLM 调用），也未在 Story 1.x 或 2.x 中定义其实现位置。
-
-**影响：** 开发者在实现 Story 2.2 时会遇到"调用一个还没有实现的函数"的情况。
-
-**建议：** 在 Story 2.2 或 Story 3.1 中明确增加 AC："`init_houses(client: AsyncClient) -> None` 定义在 `tools.py` 中，向 `POST /api/houses/init` 发送带 X-User-ID 头的请求"。
-
----
-
-**Story 独立性：**
-- Story 2.1 (Session 存储) ✅ — 依赖 Epic 1（合理）
-- Story 2.2 (Init 钩子) 🟠 — 依赖 `init_houses()` 函数未定义归属（见 Major Issue #2）
-- Story 2.3 (SYSTEM_PROMPT + Loop 骨架) ✅ — 可独立实现骨架
-- Story 2.4 (TOOL_DISPATCH) 🟠 — 前向依赖 Epic 3-5（见 Major Issue #1）
-- Story 2.5 (Format Guard) ✅ — 可以用空工具集实现守卫逻辑
-
-**🟡 Minor Concern #1 — Story 2.5 houses ID 提取机制未明确：**
-
-Story 2.5 要求 `houses` 仅包含格式如 `"HF_x"` 的有效 ID，但未说明这些 ID 从何处提取（模型输出结构化字段？工具返回结果中提取？模型直接在 assistant 消息中输出列表？）。实现开发者可能产生歧义。
-
-**建议：** 在 Story 2.5 或 Story 2.3（SYSTEM_PROMPT）中增加说明：模型被提示输出 `houses_ids` 列表，Format Guard 从 `tool_results` 中收集本次 Loop 中房源查询返回的 house_id 集合，再裁剪为最多 5 个。
-
----
-
-#### Epic 3: 房源搜索与详情查询
-
-| 检查项 | 结果 |
-|---|---|
-| 用户价值明确 | ✅ — "用户可以通过多维度条件搜索房源" |
-| Epic 可独立运行 | ✅ — 配合 Epic 1+2 基础设施可完整运行 |
-| 无前向依赖 | ✅ — 仅引用已完成的 Epic 1+2 组件 |
-
-**🟡 Minor Concern #2 — Story 3.1 AC 所有权重叠：**
-
-Story 3.1 包含 AC：
-> "TOOL_DISPATCH in agent.py references all 6 tool functions imported from tools.py"
-
-这与 Story 2.4 中的相同要求重叠。两个 Story 声明对同一 AC 负责，会导致验收歧义（谁 "完成" 了这个 AC？）。
-
-**建议：** 移除 Story 2.4 中的 "all 6 tool functions" AC，将最终集成验收唯一归属于 Story 3.1（或单独的集成故事）。
-
-**Story 独立性：**
-- Story 3.1 (TOOLS 架构) ✅ — 可独立实现工具层常量结构
-- Story 3.2 (search_houses) ✅ — 依赖 3.1（合理）
-- Story 3.3 (get_house_detail) ✅ — 依赖 3.1（合理）
-
-**ACs 质量：**
-- Story 3.2 翻页 ACs 清晰（MAX_PAGES = 5，串行，agent 透明）✅
-- Story 3.2 / 3.3 错误处理 ACs 完整（返回 `{"error": "..."}` 不 raise）✅
-
----
-
-#### Epic 4: 地标与周边位置智能
-
-| 检查项 | 结果 |
-|---|---|
-| 用户价值明确 | ✅ — "用户可以按地标搜索附近房源" |
-| Epic 可独立运行 | ✅ — 配合 Epic 1+2+3 可完整运行 |
-| 无前向依赖 | ✅ — 仅向后引用 |
-
-**Story 独立性：**
-- Story 4.1 (search_landmark) ✅
-- Story 4.2 (search_nearby_landmark) ✅ — AC 中包含"加入 HOUSE_SEARCH_TOOLS"，是对 Epic 2 Story 2.5 常量的修改，属正常回填
-- Story 4.3 (get_nearby_amenities) ✅
-
-**ACs 质量：**
-- 所有工具均明确 X-User-ID 头的规则（地标无需、房源需要）✅
-- 错误处理覆盖 ✅
-- Story 4.3 明确 `get_nearby_amenities` 不在 HOUSE_SEARCH_TOOLS（响应走纯文本路径）✅
-
----
-
-#### Epic 5: 租赁操作执行
-
-| 检查项 | 结果 |
-|---|---|
-| 用户价值明确 | ✅ — "用户可以执行租房/退租/下架操作" |
-| Epic 可独立运行 | ✅ |
-| 无前向依赖 | ✅ |
-
-**Story 5.1 ACs 质量：**
-- action 映射明确（rent/terminate/offline → 对应端点）✅
-- 无效 action 错误处理 ✅
-- execute_action 不在 HOUSE_SEARCH_TOOLS 明确说明 ✅
-
----
-
-#### Epic 6: 结构化日志与系统可观测性
-
-| 检查项 | 结果 |
-|---|---|
-| 用户价值明确 | ⚠️ 部分 — 价值主体是开发者（"As a developer"），非最终用户；可接受（开发者是合法利益相关者） |
-| Epic 可独立运行 | ✅ — 日志是横切关注点，可在其他 Epic 完成后叠加 |
-| 无前向依赖 | ✅ |
-
-**🟡 Minor Concern #3 — Epic 6 可为更早期实现：**
-
-日志是调试和打榜失分分析的核心工具，在竞赛场景中价值极高。然而 Epic 6 排在最后，意味着 Epics 1-5 的开发和早期测试期间缺乏结构化日志。
-
-**建议（可选）：** 考虑将 Story 6.1（`log_event` 函数定义）提前至 Epic 1（作为 Story 1.5），使日志能贯穿整个开发过程。
+**建议（可选）：** 考虑在 Story 2.3 实现过程中，顺手实现 `log_event()` 函数骨架（仅 `SESSION_START` 和 `MODEL_RESPONSE` 两种事件），其余事件类型在 Story 4.2 中补全。这使 Agent Loop 开发期间就有可用的日志，同时保持 Story 4.2 的完整验收价值。
 
 ---
 
@@ -342,32 +312,27 @@ Story 3.1 包含 AC：
 
 | Epic | 用户价值 | 独立性 | 无前向依赖 | ACs 质量 | FR 可追踪 |
 |---|---|---|---|---|---|
-| Epic 1 | ⚠️ 技术偏重 | ✅ | ✅ | ✅ | ✅ |
-| Epic 2 | ✅ | ⚠️ 部分 | 🟠 Major Issues | ✅ (部分歧义) | ✅ |
+| Epic 1 | ⚠️ 技术偏重 | ✅ | ✅ | ✅ (已验收) | ✅ |
+| Epic 2 | ✅ | ✅ | 🟡 C1 注意 | ✅ | ✅ |
 | Epic 3 | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Epic 4 | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Epic 5 | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Epic 6 | ⚠️ 开发者价值 | ✅ | ✅ | ✅ | ✅ |
+| Epic 4 | ⚠️ 开发者价值 | ✅ | ✅ | ✅ | ✅ |
 
 ### Quality Findings by Severity
 
 #### 🔴 Critical Violations
 无。
 
-#### 🟠 Major Issues（建议修复，不阻塞但影响实现顺序）
-
-| # | Issue | 位置 | 影响 | 建议 |
-|---|---|---|---|---|
-| M1 | Story 2.4 前向依赖 Epic 3-5 工具函数 | Epic 2, Story 2.4 | 开发者在 Epic 2 阶段无法完整验收 Story 2.4 | 拆分 Story 2.4，将"所有工具集成"AC 移至 Story 3.1 |
-| M2 | `init_houses()` 函数归属未定义 | Epic 2, Story 2.2 | 开发者需自行决定函数定义位置 | 在 Story 2.2 或 3.1 中明确 `init_houses()` 实现位置 |
+#### 🟠 Major Issues（不阻塞）
+无。（原 M1、M2 已通过重构解决。）
 
 #### 🟡 Minor Concerns（建议改善，不阻塞）
 
 | # | Concern | 位置 | 建议 |
 |---|---|---|---|
-| C1 | Story 2.4 与 Story 3.1 AC 重叠（TOOL_DISPATCH 引用所有工具） | Epic 2/3 | 明确唯一归属，避免验收歧义 |
-| C2 | Story 2.5 未说明 houses IDs 提取机制（模型输出 vs 工具返回聚合） | Epic 2, Story 2.5 | 补充 AC 说明 ID 来源逻辑 |
-| C3 | Epic 6 日志功能排在最后，开发早期缺少调试可见性 | Epic 6 | 可考虑将 `log_event()` 定义提至 Epic 1 |
+| C1 | Story 2.3 实现时 TOOL_DISPATCH 为空，需 Story 3.1 完成后回填 | Epic 2, Story 2.3 / Epic 3, Story 3.1 | 开发者知晓两 story 间存在一次 agent.py 更新动作，Story 3.1 AC 中已明确，无需修改文档 |
+| C2 | Story 2.3 Format Guard 中 houses ID 来源逻辑未明确说明 | Epic 2, Story 2.3 | 在 SYSTEM_PROMPT 设计时明确模型输出 house_id 格式，或改为从 tool_results 中聚合 |
+| C3 | Story 3.1 体量较大（6 工具 + 基础架构），建议分组实现 | Epic 3, Story 3.1 | 按"基础+房源 → 地标 → 操作"三组顺序实现，分组验收后合并 |
+| C4 | Epic 4（日志）排在最后，开发早期缺少调试可见性 | Epic 4, Story 4.2 | 可选：在 Story 2.3 中提前实现 log_event() 骨架（SESSION_START + MODEL_RESPONSE），Story 4.2 补全其余事件 |
 
 ---
 
@@ -375,9 +340,9 @@ Story 3.1 包含 AC：
 
 ### Overall Readiness Status
 
-## ✅ READY (with minor improvements recommended)
+## ✅ READY（无阻塞问题，可立即开始实现）
 
-文档体系完整、需求覆盖率 100%、Epic/Story 结构清晰。存在 2 个 Major Issues 建议修复，但均不阻塞实现启动。可以立即进入 Phase 4 实现阶段。
+文档体系完整、需求覆盖率 100%、Epic/Story 结构清晰合理。旧报告中的 2 个 Major Issues 均已通过本次 Epic 重构解决。剩余 4 个 Minor Concerns 均不阻塞实现，可在开发过程中按需处理。
 
 ---
 
@@ -386,46 +351,59 @@ Story 3.1 包含 AC：
 | 维度 | 状态 | 关键发现 |
 |---|---|---|
 | **PRD 完整性** | ✅ HIGH | 25 FR + 10 NFR，量化指标清晰，分阶段策略明确 |
-| **FR 覆盖率** | ✅ 100% | 25/25 FRs 有对应 Epic + Story，NFR 10/10 |
+| **FR 覆盖率** | ✅ 100% | 25/25 FRs 有对应 Epic + Story，FR 到新 story 编号映射正确 |
 | **NFR 覆盖率** | ✅ 100% | 性能、集成、可靠性全部有 AC 对应 |
 | **UX 对齐** | ✅ N/A | 纯 API Backend，无 UI，UX 文档不适用 |
 | **架构对齐** | ✅ 已对齐 | Epics 文档明确引用了架构约束并逐条落入 AC |
-| **Epic 质量** | ⚠️ 轻微问题 | 无 Critical 违规，2 个 Major Issues，3 个 Minor Concerns |
-| **Story 质量** | ⚠️ 轻微问题 | ACs 总体清晰具体，1 处前向依赖，1 处归属歧义 |
+| **Epic 质量** | ✅ 轻微提示 | 无 Critical / Major 问题，4 个 Minor Concerns（均为实现建议） |
+| **Story 质量** | ✅ 良好 | ACs 总体清晰具体，重构消除了原有的依赖歧义 |
+| **重构收益** | ✅ 积极 | 从 17 stories 缩减为 9 stories，2 个 Major Issues 消除，代码边界更清晰 |
 
 ---
 
 ### Critical Issues Requiring Immediate Action
 
-**无 Critical Issues。** 可直接开始实现。
+**无 Critical Issues。** 可直接开始下一个 backlog story（Story 2.3）的实现。
 
 ---
 
 ### Recommended Next Steps
 
-1. **[M1 修复 — 可选但建议] 拆分 Story 2.4：**
-   将 Story 2.4 AC "TOOL_DISPATCH references all 6 tool functions" 移至 Story 3.1。Story 2.4 只验证 dispatch 机制骨架（含 1 个 stub 工具即可验收），确保 Epic 2 可独立完成。
+1. **[立即执行] 开始 Story 2.3 实现（Agent Loop 完整实现）：**
+   按以下顺序实现 `agent.py`：
+   - SYSTEM_PROMPT（≤800 Token，含角色定义、工具调用、意图分类、格式指令）
+   - while loop 骨架 + MAX_ITERATIONS = 10
+   - TOOL_DISPATCH（初始为空 dict `{}`，等 Story 3.1 完成后回填）
+   - tool message 格式强制（json.dumps + role="tool"）
+   - HOUSE_SEARCH_TOOLS + tools_called 追踪 + Format Guard
 
-2. **[M2 修复 — 建议] 明确 `init_houses()` 归属：**
-   在 Story 2.2 的 ACs 中明确添加："`init_houses(client)` 函数定义在 `tools.py`，调用 `POST /api/houses/init` 并携带 X-User-ID 头"，避免实现时歧义。
+2. **[C2 建议] 在 SYSTEM_PROMPT 中明确 house_id 输出约定：**
+   在设计 SYSTEM_PROMPT 时，明确引导模型在 assistant content 中以固定格式包含 house_id（如列出房源 ID），使 Format Guard 可稳定提取。或者在 Format Guard 逻辑中改为从本轮 tool_results 聚合 house_id，不依赖模型 content 格式。
 
-3. **[C2 改善 — 可选] 补充 Format Guard houses ID 提取说明：**
-   在 Story 2.5 或 SYSTEM_PROMPT 设计中说明 house IDs 的来源逻辑（推荐：SYSTEM_PROMPT 指示模型以固定字段返回 `house_ids`，Format Guard 读取该字段）。
+3. **[C3 建议] Story 3.1 实现时分三组推进：**
+   - 第一组：TOOLS 常量 + _get_headers() + search_houses（含翻页）+ get_house_detail → 验证后继续
+   - 第二组：search_landmark + search_nearby_landmark + get_nearby_amenities
+   - 第三组：execute_action → 全部完成后更新 agent.py TOOL_DISPATCH
 
-4. **[C3 改善 — 可选] 提前日志基础设施：**
-   考虑将 `log_event()` 函数定义移至 Story 1.5 或 Epic 1 中，使开发期间全程有结构化日志可用，加速打榜后问题定位。
+4. **[C4 可选] 在 Story 2.3 中提前引入 log_event() 骨架：**
+   实现 `SESSION_START` 和 `MODEL_RESPONSE` 两种事件类型，覆盖 Agent Loop 开发期最需要的日志。Story 4.2 再补全 `SESSION_INIT`、`TOOL_CALL`、`ERROR` 三种事件。
 
-5. **[立即执行] 开始 Phase 4 实现：**
-   按 Epic 1 → 2 → 3 → 4 → 5 → 6 的顺序推进。Epic 1 + 2 骨架完成后即可运行端到端 smoke test（即使工具全部为 stub），大幅降低集成风险。
+5. **[实现顺序] 推荐执行序列：**
+   Story 2.3（agent.py 骨架）→ Story 3.1（tools.py 全量）→ 回填 TOOL_DISPATCH → Story 4.2（日志完整）→ 全量 smoke test
 
 ---
 
 ### Final Note
 
-本次评估共发现 **5 个问题**（0 Critical / 2 Major / 3 Minor），横跨 **Epic 质量** 1 个类别。所有 Major Issues 均为 Story 归属和 AC 拆分的结构性问题，不影响最终产品功能，但会影响 Epic 2 的独立验收。
+本次评估共发现 **4 个 Minor Concerns**（0 Critical / 0 Major），与前次报告相比质量显著提升（原 5 个问题含 2 个 Major，现全部降至 Minor 级别）。
 
-**项目文档体系质量在同类竞赛项目中属于高水平。** PRD、架构、Epics 三文档高度一致，架构决策完整落入 Story ACs，竞赛约束红线（格式守卫、翻页、Session 隔离）均有专属 Story 保障。
+**Epic 重构的核心收益已得到验证：**
+- 工具层（Story 3.1）作为统一边界，消除了跨 Epic 的 AC 依赖歧义
+- TOOL_DISPATCH 归属明确（2.3 定义机制，3.1 填充实现）
+- 总 story 数从 17 个缩减为 9 个，每个 story 对应一个清晰的代码文件或功能边界
 
-**Assessed by:** LJW (via BMAD Implementation Readiness Workflow)
+**项目文档体系质量高。** PRD、架构、Epics 三文档高度一致，架构决策完整落入 Story ACs，竞赛约束红线（格式守卫、翻页、Session 隔离）均有专属 AC 保障。**可以立即进入实现阶段。**
+
+**Assessed by:** LJW (via BMAD Implementation Readiness Workflow — regenerated post-epic-restructure)
 **Assessment Date:** 2026-02-27
 **Report File:** `_bmad-output/planning-artifacts/implementation-readiness-report-2026-02-27.md`
