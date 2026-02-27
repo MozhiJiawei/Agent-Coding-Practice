@@ -53,29 +53,32 @@ async def test_chat_simple(
 ) -> bool:
     """测试 2：最小化 chat completion（无 tools）"""
     print("\n[2/3] 测试最小化 Chat Completion（无 tools）...")
-    client = AsyncOpenAI(
-        base_url=base_url,
-        api_key="placeholder",
-        timeout=timeout,
-    )
-    messages = [{"role": "user", "content": "你好，请用一句话回复。"}]
-    try:
-        start = time.perf_counter()
-        resp = await client.chat.completions.create(
-            model=model,
-            messages=messages,
+    # trust_env=False 禁用代理，避免使用 HTTP_PROXY/HTTPS_PROXY 环境变量
+    async with httpx.AsyncClient(trust_env=False, timeout=timeout) as http_client:
+        client = AsyncOpenAI(
+            base_url=base_url,
+            api_key="placeholder",
+            timeout=timeout,
+            http_client=http_client,
         )
-        elapsed = (time.perf_counter() - start) * 1000
-        if resp.choices:
-            content = (resp.choices[0].message.content or "").strip()
-            print(f"  ✓ 成功 | 耗时: {elapsed:.0f}ms")
-            print(f"    回复: {content[:200]}{'...' if len(content) > 200 else ''}")
-        else:
-            print(f"  ✗ 返回无 choices: {resp}")
-        return bool(resp.choices)
-    except Exception as e:
-        print(f"  ✗ 失败: {type(e).__name__}: {e}")
-        return False
+        messages = [{"role": "user", "content": "你好，请用一句话回复。"}]
+        try:
+            start = time.perf_counter()
+            resp = await client.chat.completions.create(
+                model=model,
+                messages=messages,
+            )
+            elapsed = (time.perf_counter() - start) * 1000
+            if resp.choices:
+                content = (resp.choices[0].message.content or "").strip()
+                print(f"  ✓ 成功 | 耗时: {elapsed:.0f}ms")
+                print(f"    回复: {content[:200]}{'...' if len(content) > 200 else ''}")
+            else:
+                print(f"  ✗ 返回无 choices: {resp}")
+            return bool(resp.choices)
+        except Exception as e:
+            print(f"  ✗ 失败: {type(e).__name__}: {e}")
+            return False
 
 
 async def test_chat_with_tools(
@@ -100,40 +103,43 @@ async def test_chat_with_tools(
             },
         }
     ]
-    client = AsyncOpenAI(
-        base_url=base_url,
-        api_key="placeholder",
-        timeout=timeout,
-    )
-    messages = [
-        {"role": "system", "content": "你是租房助手。收到用户消息后，如需搜索房源请调用 search_houses。"},
-        {"role": "user", "content": "海淀区有什么房源？"},
-    ]
-    try:
-        start = time.perf_counter()
-        resp = await client.chat.completions.create(
-            model=model,
-            messages=messages,
-            tools=minimal_tools,
-            tool_choice="auto",
+    # trust_env=False 禁用代理，避免使用 HTTP_PROXY/HTTPS_PROXY 环境变量
+    async with httpx.AsyncClient(trust_env=False, timeout=timeout) as http_client:
+        client = AsyncOpenAI(
+            base_url=base_url,
+            api_key="placeholder",
+            timeout=timeout,
+            http_client=http_client,
         )
-        elapsed = (time.perf_counter() - start) * 1000
-        if resp.choices:
-            msg = resp.choices[0].message
-            finish = resp.choices[0].finish_reason
-            content = (msg.content or "").strip()
-            tool_calls = getattr(msg, "tool_calls", []) or []
-            print(f"  ✓ 成功 | 耗时: {elapsed:.0f}ms | finish_reason: {finish}")
-            if content:
-                print(f"    内容: {content[:150]}{'...' if len(content) > 150 else ''}")
-            if tool_calls:
-                print(f"    tool_calls: {[tc.function.name for tc in tool_calls]}")
-        else:
-            print(f"  ✗ 返回无 choices: {resp}")
-        return bool(resp.choices)
-    except Exception as e:
-        print(f"  ✗ 失败: {type(e).__name__}: {e}")
-        return False
+        messages = [
+            {"role": "system", "content": "你是租房助手。收到用户消息后，如需搜索房源请调用 search_houses。"},
+            {"role": "user", "content": "海淀区有什么房源？"},
+        ]
+        try:
+            start = time.perf_counter()
+            resp = await client.chat.completions.create(
+                model=model,
+                messages=messages,
+                tools=minimal_tools,
+                tool_choice="auto",
+            )
+            elapsed = (time.perf_counter() - start) * 1000
+            if resp.choices:
+                msg = resp.choices[0].message
+                finish = resp.choices[0].finish_reason
+                content = (msg.content or "").strip()
+                tool_calls = getattr(msg, "tool_calls", []) or []
+                print(f"  ✓ 成功 | 耗时: {elapsed:.0f}ms | finish_reason: {finish}")
+                if content:
+                    print(f"    内容: {content[:150]}{'...' if len(content) > 150 else ''}")
+                if tool_calls:
+                    print(f"    tool_calls: {[tc.function.name for tc in tool_calls]}")
+            else:
+                print(f"  ✗ 返回无 choices: {resp}")
+            return bool(resp.choices)
+        except Exception as e:
+            print(f"  ✗ 失败: {type(e).__name__}: {e}")
+            return False
 
 
 def parse_args():
