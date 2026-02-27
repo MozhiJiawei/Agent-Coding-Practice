@@ -37,7 +37,7 @@ sessions: dict[str, list] = {}
 async def lifespan(app: FastAPI):
     # 创建并存储 http client（startup 时不调用任何外部 API）
     app.state.client = httpx.AsyncClient(
-        base_url="http://7.197.86.219:8080", timeout=30.0
+        base_url="http://7.197.86.219:8080", timeout=30.0, trust_env=False  # 不走代理
     )
     yield
     await app.state.client.aclose()

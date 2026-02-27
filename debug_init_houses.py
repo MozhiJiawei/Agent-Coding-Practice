@@ -5,14 +5,32 @@
     $env:USER_ID = "l00933108"
     python debug_init_houses.py
 """
-import asyncio
+# 确保 USER_ID 在导入 tools 之前设置（tools 模块加载时会读取）
 import os
+os.environ.setdefault("USER_ID", "l00933108")
+
+# 兼容性检查：httpcore 依赖 anyio.CancelScope，需 anyio>=4.0
+try:
+    import anyio
+    if not hasattr(anyio, "CancelScope"):
+        raise RuntimeError(
+            "anyio 版本过旧，缺少 CancelScope。请执行: pip install -U 'anyio>=4.0'"
+        )
+except ImportError:
+    pass  # anyio 为 httpx 的传递依赖，通常已安装
+
+import asyncio
 import time
 import httpx
 
 RENTAL_API_BASE = "http://7.197.86.219:8080"
-USER_ID = os.environ.get("USER_ID", "l00933108")
+USER_ID = os.environ["USER_ID"]  # 已由 setdefault 保证存在
 TARGET_URL = f"{RENTAL_API_BASE}/api/houses/init"
+
+# 快速模式：QUICK_DEBUG=1 时缩短超时以便快速验证（不等待慢 API）
+QUICK = os.environ.get("QUICK_DEBUG", "").lower() in ("1", "true", "yes")
+DEFAULT_TIMEOUT = 15.0 if QUICK else 30.0
+LONG_TIMEOUT = 20.0 if QUICK else 120.0
 
 
 def _headers() -> dict:
@@ -28,14 +46,15 @@ def _print_sep(title: str = "") -> None:
 
 # ── Case 1: 使用与 main.py 完全相同的客户端配置 ──────────────────
 async def test_with_main_config() -> None:
-    _print_sep("Case 1: 与 main.py 相同配置 (timeout=30s, base_url)")
+    _print_sep(f"Case 1: 与 main.py 相同配置 (timeout={DEFAULT_TIMEOUT}s, base_url)")
     print(f"  base_url : {RENTAL_API_BASE}")
     print(f"  endpoint : /api/houses/init")
     print(f"  headers  : {_headers()}")
 
     async with httpx.AsyncClient(
         base_url=RENTAL_API_BASE,
-        timeout=30.0,
+        timeout=DEFAULT_TIMEOUT,
+        trust_env=False,  # 不走代理
     ) as client:
         t0 = time.perf_counter()
         try:
@@ -53,10 +72,10 @@ async def test_with_main_config() -> None:
 
 # ── Case 2: 使用更长超时 (120s) ────────────────────────────────────
 async def test_with_longer_timeout() -> None:
-    _print_sep("Case 2: 更长超时 (connect=10s, read=120s)")
-    timeout = httpx.Timeout(connect=10.0, read=120.0, write=10.0, pool=10.0)
+    _print_sep(f"Case 2: 更长超时 (connect=10s, read={LONG_TIMEOUT}s)")
+    timeout = httpx.Timeout(connect=10.0, read=LONG_TIMEOUT, write=10.0, pool=10.0)
 
-    async with httpx.AsyncClient(base_url=RENTAL_API_BASE, timeout=timeout) as client:
+    async with httpx.AsyncClient(base_url=RENTAL_API_BASE, timeout=timeout, trust_env=False) as client:
         t0 = time.perf_counter()
         try:
             resp = await client.post("/api/houses/init", headers=_headers())
@@ -75,7 +94,7 @@ async def test_with_longer_timeout() -> None:
 async def test_with_full_url() -> None:
     _print_sep("Case 3: 完整 URL（不使用 base_url）")
 
-    async with httpx.AsyncClient(timeout=120.0) as client:
+    async with httpx.AsyncClient(timeout=LONG_TIMEOUT, trust_env=False) as client:
         t0 = time.perf_counter()
         try:
             resp = await client.post(TARGET_URL, headers=_headers())
@@ -95,7 +114,7 @@ async def test_via_tools_module() -> None:
     _print_sep("Case 4: 通过 tools.init_houses() 调用")
     from tools import init_houses  # noqa: PLC0415
 
-    async with httpx.AsyncClient(base_url=RENTAL_API_BASE, timeout=120.0) as client:
+    async with httpx.AsyncClient(base_url=RENTAL_API_BASE, timeout=LONG_TIMEOUT, trust_env=False) as client:
         t0 = time.perf_counter()
         result = await init_houses(client)
         elapsed = time.perf_counter() - t0
