@@ -23,7 +23,8 @@ import asyncio
 import time
 import httpx
 
-RENTAL_API_BASE = "http://7.197.86.219:8080"
+# 支持通过环境变量覆盖，便于本地 Mock 或不同网络环境
+RENTAL_API_BASE = os.environ.get("RENTAL_API_BASE", "http://7.197.86.219:8080")
 USER_ID = os.environ["USER_ID"]  # 已由 setdefault 保证存在
 TARGET_URL = f"{RENTAL_API_BASE}/api/houses/init"
 
@@ -31,6 +32,8 @@ TARGET_URL = f"{RENTAL_API_BASE}/api/houses/init"
 QUICK = os.environ.get("QUICK_DEBUG", "").lower() in ("1", "true", "yes")
 DEFAULT_TIMEOUT = 15.0 if QUICK else 30.0
 LONG_TIMEOUT = 20.0 if QUICK else 120.0
+
+_connect_error_help_shown = False
 
 
 def _headers() -> dict:
@@ -65,6 +68,10 @@ async def test_with_main_config() -> None:
         except httpx.TimeoutException as e:
             elapsed = time.perf_counter() - t0
             print(f"  TIMEOUT  : {type(e).__name__}: {e}  ({elapsed:.2f}s)")
+        except httpx.ConnectError as e:
+            elapsed = time.perf_counter() - t0
+            print(f"  ERROR    : {type(e).__name__}: {e}  ({elapsed:.2f}s)")
+            _print_connect_error_help()
         except Exception as e:
             elapsed = time.perf_counter() - t0
             print(f"  ERROR    : {type(e).__name__}: {e}  ({elapsed:.2f}s)")
@@ -85,6 +92,10 @@ async def test_with_longer_timeout() -> None:
         except httpx.TimeoutException as e:
             elapsed = time.perf_counter() - t0
             print(f"  TIMEOUT  : {type(e).__name__}: {e}  ({elapsed:.2f}s)")
+        except httpx.ConnectError as e:
+            elapsed = time.perf_counter() - t0
+            print(f"  ERROR    : {type(e).__name__}: {e}  ({elapsed:.2f}s)")
+            _print_connect_error_help()
         except Exception as e:
             elapsed = time.perf_counter() - t0
             print(f"  ERROR    : {type(e).__name__}: {e}  ({elapsed:.2f}s)")
@@ -104,6 +115,10 @@ async def test_with_full_url() -> None:
         except httpx.TimeoutException as e:
             elapsed = time.perf_counter() - t0
             print(f"  TIMEOUT  : {type(e).__name__}: {e}  ({elapsed:.2f}s)")
+        except httpx.ConnectError as e:
+            elapsed = time.perf_counter() - t0
+            print(f"  ERROR    : {type(e).__name__}: {e}  ({elapsed:.2f}s)")
+            _print_connect_error_help()
         except Exception as e:
             elapsed = time.perf_counter() - t0
             print(f"  ERROR    : {type(e).__name__}: {e}  ({elapsed:.2f}s)")
@@ -128,8 +143,25 @@ def check_env() -> None:
     raw = os.environ.get("USER_ID")
     print(f"  USER_ID (env)    : {repr(raw)}")
     print(f"  USER_ID (loaded) : {repr(USER_ID)}")
+    print(f"  RENTAL_API_BASE : {repr(RENTAL_API_BASE)}")
     if not raw:
         print("  ⚠  USER_ID 未设置，将使用默认值 l00933108")
+    if RENTAL_API_BASE != "http://7.197.86.219:8080":
+        print("  ℹ  RENTAL_API_BASE 已通过环境变量覆盖")
+
+
+def _print_connect_error_help() -> None:
+    """连接失败时打印诊断建议（仅首次）"""
+    global _connect_error_help_shown
+    if _connect_error_help_shown:
+        return
+    _connect_error_help_shown = True
+    print("\n  ═══ 连接失败诊断建议 ═══")
+    print("  1. 检查网络：服务器可能仅在内网/比赛 VPN 下可访问")
+    print("  2. 尝试 curl 测试：curl -v -X POST -H 'X-User-ID: l00933108' "
+          f"'{RENTAL_API_BASE}/api/houses/init'")
+    print("  3. 使用本地 Mock：若有 Mock 服务，设置 $env:RENTAL_API_BASE='http://localhost:端口'")
+    print("  4. 检查防火墙/代理：脚本已设置 trust_env=False 不走系统代理")
 
 
 async def main() -> None:

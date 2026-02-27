@@ -4,3 +4,4 @@ openai
 httpx
 pydantic
 pytest
+anyio>=4.0
