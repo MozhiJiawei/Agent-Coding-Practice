@@ -1,12 +1,8 @@
 """
-Story 1.4: POST /api/v1/chat 路由与全局异常捕获 - 单元测试
-AC 1-4 全覆盖，TDD RED → GREEN 循环
+POST /api/v1/chat 路由单元测试
 
-Tasks covered:
-  Task 1: duration_ms 真实壁钟计时 (AC1 NFR4)
-  Task 2: 全局 try/except 包装 (AC2 NFR8)
-  Task 3: run_agent 调用与 ChatResponse 构建 (AC1)
-  Task 4: HTTP 200 始终返回 (AC1, AC2)
+Story 1.4: 路由骨架与全局异常捕获 (AC1-AC4)
+Story 2.1: Session 内存存储与跨请求历史持久化 (AC1-AC2)
 """
 import asyncio
 import time
@@ -15,6 +11,7 @@ from unittest.mock import AsyncMock, patch
 import httpx
 from fastapi.testclient import TestClient
 
+import main as _main_module
 from main import app
 
 VALID_REQUEST = {
@@ -278,3 +275,205 @@ class TestHttp200AlwaysReturned:
                 resp = client.post("/api/v1/chat", json=VALID_REQUEST)
                 data = resp.json()
                 assert data["session_id"] == VALID_REQUEST["session_id"]
+
+
+# ─────────────────────────────────────────────────────────────
+# Story 2.1 — Session Storage & History Persistence
+# ─────────────────────────────────────────────────────────────
+
+# Task 1: sessions reference pattern (AC: 1)
+class TestSessionStorageReference:
+    def test_new_session_creates_entry_in_sessions_dict(self):
+        """Task 1: 新 session_id → sessions dict 中创建对应 key"""
+        with patch("main.run_agent", new=AsyncMock(return_value=None)):
+            with TestClient(app) as client:
+                client.post("/api/v1/chat", json=VALID_REQUEST)
+                assert VALID_REQUEST["session_id"] in _main_module.sessions
+
+    def test_sessions_value_is_list(self):
+        """Task 1: sessions[session_id] 是 list 对象"""
+        with patch("main.run_agent", new=AsyncMock(return_value=None)):
+            with TestClient(app) as client:
+                client.post("/api/v1/chat", json=VALID_REQUEST)
+                assert isinstance(_main_module.sessions.get(VALID_REQUEST["session_id"]), list)
+
+    def test_sessions_entry_persists_after_request(self):
+        """Task 1: 请求结束后 sessions dict 仍保留该 session 的 list（非临时对象）"""
+        with patch("main.run_agent", new=AsyncMock(return_value=None)):
+            with TestClient(app) as client:
+                client.post("/api/v1/chat", json=VALID_REQUEST)
+                # sessions dict 里必须有该 key，且为 list
+                stored = _main_module.sessions.get(VALID_REQUEST["session_id"])
+                assert stored is not None
+                assert isinstance(stored, list)
+
+    def test_existing_session_reuses_same_list_object(self):
+        """Task 1: 同一 session_id 两次请求使用同一 list 对象（直接引用，非 get() copy）"""
+        sid = VALID_REQUEST["session_id"]
+        with patch("main.run_agent", new=AsyncMock(return_value=None)):
+            with TestClient(app) as client:
+                client.post("/api/v1/chat", json=VALID_REQUEST)
+                list_ref_first = _main_module.sessions[sid]
+                client.post("/api/v1/chat", json=VALID_REQUEST)
+                list_ref_second = _main_module.sessions[sid]
+                assert list_ref_first is list_ref_second
+
+
+# Task 2: Append user message to history before run_agent (AC: 1)
+class TestUserMessageAppend:
+    def test_run_agent_receives_history_with_user_message(self):
+        """Task 2: run_agent 接收的 history 含用户消息 dict"""
+        captured = {}
+
+        async def capture_agent(history, model_ip, client):
+            captured["history"] = list(history)
+            return None
+
+        with patch("main.run_agent", new=capture_agent):
+            with TestClient(app) as client:
+                client.post("/api/v1/chat", json=VALID_REQUEST)
+                assert any(
+                    m.get("role") == "user" and m.get("content") == VALID_REQUEST["message"]
+                    for m in captured.get("history", [])
+                )
+
+    def test_user_message_exact_openai_format(self):
+        """Task 2: history 中的 user 消息严格符合 OpenAI dict 格式"""
+        captured = {}
+
+        async def capture_agent(history, model_ip, client):
+            captured["history"] = list(history)
+            return None
+
+        req = {"model_ip": "10.0.0.1", "session_id": "fmt-test", "message": "测试消息"}
+        with patch("main.run_agent", new=capture_agent):
+            with TestClient(app) as client:
+                client.post("/api/v1/chat", json=req)
+                user_msgs = [m for m in captured.get("history", []) if m.get("role") == "user"]
+                assert len(user_msgs) == 1
+                assert user_msgs[0] == {"role": "user", "content": "测试消息"}
+
+    def test_user_message_appended_before_run_agent_call(self):
+        """Task 2: run_agent 被调用时 history 中已有 user 消息（先 append 后调用）"""
+        history_at_call_time = {}
+
+        async def capture_agent(history, model_ip, client):
+            history_at_call_time["snapshot"] = list(history)
+            return None
+
+        with patch("main.run_agent", new=capture_agent):
+            with TestClient(app) as client:
+                client.post("/api/v1/chat", json=VALID_REQUEST)
+                snapshot = history_at_call_time.get("snapshot", [])
+                roles = [m.get("role") for m in snapshot]
+                assert "user" in roles, "run_agent 调用时 history 中应已包含 user 消息"
+
+
+# Task 3: Session isolation (AC: 2 — NFR10)
+class TestSessionIsolation:
+    def test_two_sessions_are_different_list_objects(self):
+        """Task 3: sessions['id_A'] is not sessions['id_B']"""
+        with patch("main.run_agent", new=AsyncMock(return_value=None)):
+            with TestClient(app) as client:
+                client.post("/api/v1/chat", json={"model_ip": "10.0.0.1", "session_id": "id_A", "message": "hello"})
+                client.post("/api/v1/chat", json={"model_ip": "10.0.0.1", "session_id": "id_B", "message": "world"})
+                assert "id_A" in _main_module.sessions
+                assert "id_B" in _main_module.sessions
+                assert _main_module.sessions["id_A"] is not _main_module.sessions["id_B"]
+
+    def test_writing_to_session_a_does_not_affect_session_b(self):
+        """Task 3 NFR10: session A 的消息不会出现在 session B 中"""
+        with patch("main.run_agent", new=AsyncMock(return_value=None)):
+            with TestClient(app) as client:
+                client.post("/api/v1/chat", json={"model_ip": "10.0.0.1", "session_id": "id_A", "message": "msg_A"})
+                client.post("/api/v1/chat", json={"model_ip": "10.0.0.1", "session_id": "id_B", "message": "msg_B"})
+                a_contents = [m.get("content") for m in _main_module.sessions["id_A"]]
+                b_contents = [m.get("content") for m in _main_module.sessions["id_B"]]
+                assert "msg_B" not in a_contents
+                assert "msg_A" not in b_contents
+
+    def test_each_session_has_only_its_own_user_message(self):
+        """Task 3: 每个 session 仅包含自己的 user 消息，无数据串漏"""
+        with patch("main.run_agent", new=AsyncMock(return_value=None)):
+            with TestClient(app) as client:
+                client.post("/api/v1/chat", json={"model_ip": "10.0.0.1", "session_id": "sess_X", "message": "unique_X"})
+                client.post("/api/v1/chat", json={"model_ip": "10.0.0.1", "session_id": "sess_Y", "message": "unique_Y"})
+                x_contents = [m.get("content") for m in _main_module.sessions.get("sess_X", [])]
+                y_contents = [m.get("content") for m in _main_module.sessions.get("sess_Y", [])]
+                assert "unique_X" in x_contents
+                assert "unique_Y" in y_contents
+                assert "unique_Y" not in x_contents
+                assert "unique_X" not in y_contents
+
+
+# Task 4: Multi-turn accumulation (AC: 1)
+class TestMultiTurnAccumulation:
+    def test_same_session_history_grows_across_three_requests(self):
+        """Task 4: 同一 session_id 发 3 条消息 → history 依次累积 3 条 user 消息"""
+        sid = "multi-turn-session"
+        with patch("main.run_agent", new=AsyncMock(return_value=None)):
+            with TestClient(app) as client:
+                for i in range(1, 4):
+                    client.post("/api/v1/chat", json={"model_ip": "10.0.0.1", "session_id": sid, "message": f"msg{i}"})
+                user_msgs = [m["content"] for m in _main_module.sessions[sid] if m.get("role") == "user"]
+                assert user_msgs == ["msg1", "msg2", "msg3"]
+
+    def test_second_request_history_contains_first_user_message(self):
+        """Task 4: 第 2 次请求时 run_agent 的 history 包含第 1 次的 user 消息"""
+        sid = "turn-test"
+        histories = []
+
+        async def capture_agent(history, model_ip, client):
+            histories.append(list(history))
+            return None
+
+        with patch("main.run_agent", new=capture_agent):
+            with TestClient(app) as client:
+                client.post("/api/v1/chat", json={"model_ip": "10.0.0.1", "session_id": sid, "message": "turn1"})
+                client.post("/api/v1/chat", json={"model_ip": "10.0.0.1", "session_id": sid, "message": "turn2"})
+
+        assert len(histories) == 2
+        turn2_contents = [m.get("content") for m in histories[1] if m.get("role") == "user"]
+        assert "turn1" in turn2_contents
+        assert "turn2" in turn2_contents
+
+    def test_independent_sessions_accumulate_independently(self):
+        """Task 4: 不同 session 各自独立累积，互不干扰"""
+        with patch("main.run_agent", new=AsyncMock(return_value=None)):
+            with TestClient(app) as client:
+                client.post("/api/v1/chat", json={"model_ip": "10.0.0.1", "session_id": "sessA", "message": "A1"})
+                client.post("/api/v1/chat", json={"model_ip": "10.0.0.1", "session_id": "sessA", "message": "A2"})
+                client.post("/api/v1/chat", json={"model_ip": "10.0.0.1", "session_id": "sessB", "message": "B1"})
+                a_msgs = [m["content"] for m in _main_module.sessions["sessA"] if m.get("role") == "user"]
+                b_msgs = [m["content"] for m in _main_module.sessions["sessB"] if m.get("role") == "user"]
+                assert a_msgs == ["A1", "A2"]
+                assert b_msgs == ["B1"]
+
+
+# ─────────────────────────────────────────────────────────────
+# Story 2.1 — Edge case: exception path session persistence
+# ─────────────────────────────────────────────────────────────
+class TestExceptionPathSessionPersistence:
+    def test_user_message_persists_in_session_after_run_agent_exception(self):
+        """run_agent 抛异常后，user 消息仍保留在 sessions 中"""
+        sid = "exception-session"
+        req = {"model_ip": "10.0.0.1", "session_id": sid, "message": "before-crash"}
+        with patch("main.run_agent", new=AsyncMock(side_effect=RuntimeError("crash"))):
+            with TestClient(app) as client:
+                resp = client.post("/api/v1/chat", json=req)
+                assert resp.status_code == 200
+                assert sid in _main_module.sessions
+                user_msgs = [m for m in _main_module.sessions[sid] if m.get("role") == "user"]
+                assert len(user_msgs) == 1
+                assert user_msgs[0] == {"role": "user", "content": "before-crash"}
+
+    def test_session_continues_accumulating_after_error_recovery(self):
+        """异常后同一 session 继续发消息，history 持续累积"""
+        sid = "recovery-session"
+        with TestClient(app) as client:
+            with patch("main.run_agent", new=AsyncMock(side_effect=RuntimeError("fail"))):
+                client.post("/api/v1/chat", json={"model_ip": "10.0.0.1", "session_id": sid, "message": "msg1"})
+            with patch("main.run_agent", new=AsyncMock(return_value=None)):
+                client.post("/api/v1/chat", json={"model_ip": "10.0.0.1", "session_id": sid, "message": "msg2"})
+            user_msgs = [m["content"] for m in _main_module.sessions[sid] if m.get("role") == "user"]
+            assert user_msgs == ["msg1", "msg2"]

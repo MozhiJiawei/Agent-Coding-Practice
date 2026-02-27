@@ -49,8 +49,8 @@ development_status:
   epic-1-retrospective: optional
 
   # ── Epic 2: 会话管理与核心 Agent Loop ──
-  epic-2: backlog
-  2-1-session-storage-history-persistence: backlog
+  epic-2: in-progress
+  2-1-session-storage-history-persistence: done
   2-2-new-session-init-hook: backlog
   2-3-system-prompt-agent-loop-skeleton: backlog
   2-4-tool-dispatch-message-format: backlog

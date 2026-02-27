@@ -50,7 +50,10 @@ async def chat_endpoint(request: ChatRequest, req: Request):
     start_time = time.time()
     client = req.app.state.client
     try:
-        history = sessions.get(request.session_id, [])
+        if request.session_id not in sessions:
+            sessions[request.session_id] = []
+        history = sessions[request.session_id]
+        history.append({"role": "user", "content": request.message})
         result = await run_agent(history, request.model_ip, client)
         if result is None:
             result = {"response": "Agent not implemented", "status": "error", "tool_results": []}
