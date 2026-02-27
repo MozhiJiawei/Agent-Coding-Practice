@@ -115,17 +115,17 @@ FR10 → Epic 3（按朝向筛选）
 FR11 → Epic 3（按地铁距离筛选）
 FR12 → Epic 3（自动翻页）
 FR13 → Epic 3（单房源详情）
-FR14 → Epic 4（地标搜索）
-FR15 → Epic 4（地标附近房源）
-FR16 → Epic 4（周边配套查询）
-FR17 → Epic 5（租房操作）
-FR18 → Epic 5（退租操作）
-FR19 → Epic 5（下架操作）
+FR14 → Epic 3（地标搜索）
+FR15 → Epic 3（地标附近房源）
+FR16 → Epic 3（周边配套查询）
+FR17 → Epic 3（租房操作）
+FR18 → Epic 3（退租操作）
+FR19 → Epic 3（下架操作）
 FR20 → Epic 2（房源查询 JSON 格式守卫）
 FR21 → Epic 2（聊天纯自然语言响应）
 FR22 → Epic 2（houses 最多 5 条有效 ID）
 FR23 → Epic 1（5 秒内启动）
-FR24 → Epic 6（结构化日志）
+FR24 → Epic 4（结构化日志）
 FR25 → Epic 1（全局异常捕获）
 
 ## Epic List
@@ -142,25 +142,13 @@ FR25 → Epic 1（全局异常捕获）
 **NFRs covered:** NFR2, NFR3, NFR6, NFR9, NFR10
 **架构额外要求：** SYSTEM_PROMPT（≤800 Token）、TOOL_DISPATCH 表、HOUSE_SEARCH_TOOLS 集合、tools_called 追踪、Loop 退出条件、Session init 时序
 
-### Epic 3: 房源搜索与详情查询
-用户可以通过区域、价格、户型、装修、朝向、地铁距离等多维度条件搜索可租房源；系统自动完成分页拉取（≤5 页），返回完整房源列表；用户可获取单套房源完整详情。
-**FRs covered:** FR6, FR7, FR8, FR9, FR10, FR11, FR12, FR13
+### Epic 3: 工具层全量实现
+tools.py 全部 6 个工具函数一次性实现完毕：房源搜索（多条件 + 翻页）、房源详情、地标搜索、地标附近房源、周边生活配套、租赁操作执行；所有工具共享同一基础架构（TOOLS 常量、_get_headers()、USER_ID）。
+**FRs covered:** FR6, FR7, FR8, FR9, FR10, FR11, FR12, FR13, FR14, FR15, FR16, FR17, FR18, FR19
 **NFRs covered:** NFR1, NFR5
-**架构额外要求：** `search_houses` 工具（串行翻页）、`get_house_detail` 工具、TOOLS 常量 + 函数名一致性、listing_platform 枚举统一、X-User-ID 注入
+**架构额外要求：** TOOLS 常量 + 函数名一致性、listing_platform 枚举统一、X-User-ID 注入、`search_houses`（串行翻页）、`get_house_detail`、`search_landmark`（无需 X-User-ID）、`search_nearby_landmark`、`get_nearby_amenities`、`execute_action`（action: rent/terminate/offline）
 
-### Epic 4: 地标与周边位置智能
-用户可以按地标（地铁站/商圈/公司）搜索附近可租房源；用户可查询指定小区周边生活配套（商超/餐饮/公园）及步行距离。
-**FRs covered:** FR14, FR15, FR16
-**NFRs covered:** NFR5（地标 API 无需 X-User-ID，房源 API 需要）
-**架构额外要求：** `search_landmark` 工具、`search_nearby_landmark` 工具、`get_nearby_amenities` 工具
-
-### Epic 5: 租赁操作执行
-用户可以对指定房源执行租房/退租/下架操作；系统实际调用仿真 API 完成状态变更（而非仅文字回复），并返回操作确认信息。
-**FRs covered:** FR17, FR18, FR19
-**NFRs covered:** NFR5
-**架构额外要求：** `execute_action` 工具（action 参数：rent/terminate/offline）、listing_platform 必填
-
-### Epic 6: 结构化日志与系统可观测性
+### Epic 4: 结构化日志与系统可观测性
 开发者可通过结构化日志追踪每个请求的完整执行链路（session start / tool call / model response / error），便于打榜失分后快速定位问题工具和路径。
 **FRs covered:** FR24
 **NFRs covered:** NFR1, NFR4
@@ -293,19 +281,23 @@ So that each test case starts with a clean, consistent data state.
 
 ---
 
-### Story 2.3: SYSTEM_PROMPT 定义与 Agent Loop 骨架
+### Story 2.3: Agent Loop 完整实现
 
 As the agent,
-I want a concise system prompt and a bounded tool-calling loop,
-So that I can process requests efficiently without exceeding the 800-token budget or running indefinitely.
+I want a fully functional LLM tool-calling loop with intent classification and output format enforcement,
+So that the system can handle both chat and house-search requests correctly end-to-end within token and iteration budgets.
 
 **Acceptance Criteria:**
+
+**SYSTEM_PROMPT（NFR2）**
 
 **Given** `agent.py` is implemented
 **When** `SYSTEM_PROMPT` is defined at module top level
 **Then** it contains: role definition (智能租房助手), tool-calling instruction (主动调用工具), intent classification instruction (聊天直接回复/操作必须调用工具), format instruction (不自行生成 JSON)
 **And** its token count is ≤ 800 (NFR2)
 **And** it contains no preset house IDs or hardcoded answers
+
+**Agent Loop 骨架（NFR3, NFR6）**
 
 **Given** `run_agent(history, model_ip, client)` is called
 **When** the Agent Loop executes
@@ -314,15 +306,7 @@ So that I can process requests efficiently without exceeding the 800-token budge
 **And** if `iterations >= MAX_ITERATIONS`, the loop exits immediately and returns `status="error"` with message `"Tool call limit exceeded"` (NFR3)
 **And** the OpenAI client is constructed per-call as `AsyncOpenAI(base_url=f"http://{model_ip}:8888/v1", api_key="placeholder")` (NFR6)
 
----
-
-### Story 2.4: 工具 Dispatch 与 Tool Message 格式强制
-
-As the agent loop,
-I want tool calls to be dispatched correctly and their results formatted as strings,
-So that the OpenAI SDK receives valid message history without type errors.
-
-**Acceptance Criteria:**
+**Tool Dispatch 与 Tool Message 格式（FR5）**
 
 **Given** the model returns a response with `tool_calls`
 **When** each tool call is dispatched
@@ -335,15 +319,7 @@ So that the OpenAI SDK receives valid message history without type errors.
 **When** the loop evaluates exit conditions
 **Then** the loop exits normally and proceeds to Format Guard
 
----
-
-### Story 2.5: Format Guard — 意图分类与输出格式控制
-
-As the judging system,
-I want house search responses to be valid JSON strings and chat responses to be plain text,
-So that `json.loads(response)` always succeeds on house queries and never pollutes chat replies.
-
-**Acceptance Criteria:**
+**Format Guard — 意图分类与输出格式控制（FR5, FR20, FR21, FR22, NFR9）**
 
 **Given** the Agent Loop has completed
 **When** Format Guard evaluates the response type
@@ -362,17 +338,19 @@ So that `json.loads(response)` always succeeds on house queries and never pollut
 
 ---
 
-## Epic 3: 房源搜索与详情查询
+## Epic 3: 工具层全量实现
 
-用户可以通过区域、价格、户型、装修、朝向、地铁距离等多维度条件搜索可租房源；系统自动完成分页拉取（≤5 页），返回完整房源列表；用户可获取单套房源完整详情。
+tools.py 全部 6 个工具函数一次性实现完毕：房源搜索（多条件 + 翻页）、房源详情、地标搜索、地标附近房源、周边生活配套、租赁操作执行；所有工具共享同一基础架构（TOOLS 常量、_get_headers()、USER_ID）。
 
-### Story 3.1: TOOLS 常量定义与工具层基础架构
+### Story 3.1: tools.py 全量工具实现
 
-As a developer,
-I want the `TOOLS` constant and tool infrastructure defined in `tools.py`,
-So that the agent has a consistent, modular foundation for all tool functions that can be updated independently within 30 minutes.
+As a developer and user,
+I want all tool functions implemented in `tools.py` in a single story,
+So that the complete tool layer is available as one cohesive unit for the agent to use.
 
 **Acceptance Criteria:**
+
+**基础架构**
 
 **Given** `tools.py` is implemented
 **When** module-level constants are defined
@@ -387,15 +365,7 @@ So that the agent has a consistent, modular foundation for all tool functions th
 **And** `listing_platform` parameter in `search_houses`, `search_nearby_landmark`, and `execute_action` uses the same enum: `["链家", "安居客", "58同城"]` with default `"安居客"`
 **And** `TOOL_DISPATCH` in `agent.py` references all 6 tool functions imported from `tools.py`
 
----
-
-### Story 3.2: search_houses 多条件房源查询工具
-
-As a user,
-I want to search for available rental houses using multiple filter criteria,
-So that I can find houses matching my district, budget, room type, and other preferences in a single request.
-
-**Acceptance Criteria:**
+**search_houses（FR6-FR12, NFR1, NFR5）**
 
 **Given** the model calls `search_houses` with one or more filter parameters
 **When** the tool function executes
@@ -411,15 +381,7 @@ So that I can find houses matching my district, budget, room type, and other pre
 **And** all pages are combined into a single `items` list returned to the agent (FR12)
 **And** the agent loop is completely unaware of pagination — it receives one unified result (NFR1)
 
----
-
-### Story 3.3: get_house_detail 单房源详情查询工具
-
-As a user,
-I want to retrieve complete details for a specific house by its ID,
-So that I can review all attributes (address, area, rent, decoration, floor, facilities, noise rating) before deciding.
-
-**Acceptance Criteria:**
+**get_house_detail（FR13, NFR5）**
 
 **Given** the model calls `get_house_detail` with a `house_id` parameter
 **When** the tool function executes
@@ -428,19 +390,7 @@ So that I can review all attributes (address, area, rent, decoration, floor, fac
 **And** `house_id` is treated as a string throughout (never converted to integer)
 **And** on any HTTP or network exception, returns `{"error": "get_house_detail failed: <reason>"}` without raising
 
----
-
-## Epic 4: 地标与周边位置智能
-
-用户可以按地标（地铁站/商圈/公司）搜索附近可租房源；用户可查询指定小区周边生活配套（商超/餐饮/公园）及步行距离。
-
-### Story 4.1: search_landmark 地标搜索工具
-
-As a user,
-I want to search for landmarks like subway stations, business districts, or company offices by keyword,
-So that I can get a landmark ID to use as a reference point for finding nearby rental houses.
-
-**Acceptance Criteria:**
+**search_landmark（FR14）**
 
 **Given** the model calls `search_landmark` with a `query` parameter (and optional `category`, `district`)
 **When** the tool function executes
@@ -449,15 +399,7 @@ So that I can get a landmark ID to use as a reference point for finding nearby r
 **And** the response containing landmark list (each with `id`, `name`, `category`, `district`, coordinates) is returned as a dict (FR14)
 **And** on any exception, returns `{"error": "search_landmark failed: <reason>"}` without raising
 
----
-
-### Story 4.2: search_nearby_landmark 地标附近房源查询工具
-
-As a user,
-I want to find available rental houses within a specified distance of a landmark,
-So that I can identify housing options with a convenient commute to my target location.
-
-**Acceptance Criteria:**
+**search_nearby_landmark（FR15, NFR5）**
 
 **Given** the model calls `search_nearby_landmark` with `landmark_id` and optional `max_distance`, price/room filters, `listing_platform`
 **When** the tool function executes
@@ -469,15 +411,7 @@ So that I can identify housing options with a convenient commute to my target lo
 **And** on any exception, returns `{"error": "search_nearby_landmark failed: <reason>"}` without raising
 **And** `search_nearby_landmark` is included in `HOUSE_SEARCH_TOOLS` set in `agent.py`, triggering Format Guard on call
 
----
-
-### Story 4.3: get_nearby_amenities 周边生活配套查询工具
-
-As a user,
-I want to know what amenities (supermarkets, parks, restaurants) are within walking distance of a specific house,
-So that I can assess the livability of a neighborhood before making a rental decision.
-
-**Acceptance Criteria:**
+**get_nearby_amenities（FR16, NFR5）**
 
 **Given** the model calls `get_nearby_amenities` with `house_id` and optional `category`, `max_distance_m`
 **When** the tool function executes
@@ -489,19 +423,7 @@ So that I can assess the livability of a neighborhood before making a rental dec
 **And** on any exception, returns `{"error": "get_nearby_amenities failed: <reason>"}` without raising
 **And** `get_nearby_amenities` is NOT in `HOUSE_SEARCH_TOOLS` — its response path remains plain text
 
----
-
-## Epic 5: 租赁操作执行
-
-用户可以对指定房源执行租房/退租/下架操作；系统实际调用仿真 API 完成状态变更（而非仅文字回复），并返回操作确认信息。
-
-### Story 5.1: execute_action 租赁操作执行工具
-
-As a user,
-I want to rent, terminate, or delist a specific house by telling the agent,
-So that the actual state change is made in the system — not just described in words.
-
-**Acceptance Criteria:**
+**execute_action（FR17, FR18, FR19, NFR5）**
 
 **Given** the model calls `execute_action` with `action`, `house_id`, and `listing_platform`
 **When** the tool function executes
@@ -527,11 +449,11 @@ So that the actual state change is made in the system — not just described in 
 
 ---
 
-## Epic 6: 结构化日志与系统可观测性
+## Epic 4: 结构化日志与系统可观测性
 
 开发者可通过结构化 JSON 日志追踪每个请求的完整执行链路（session start / tool call / model response / error），便于打榜失分后快速定位问题工具和执行路径。
 
-### Story 6.1: log_event 结构化日志系统
+### Story 4.2: log_event 结构化日志系统
 
 As a developer,
 I want every key agent event logged in structured JSON format,

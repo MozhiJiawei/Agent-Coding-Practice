@@ -52,31 +52,15 @@ development_status:
   epic-2: in-progress
   2-1-session-storage-history-persistence: done
   2-2-new-session-init-hook: done
-  2-3-system-prompt-agent-loop-skeleton: backlog
-  2-4-tool-dispatch-message-format: backlog
-  2-5-format-guard-intent-classification: backlog
+  2-3-agent-loop-full-implementation: backlog
   epic-2-retrospective: optional
 
-  # ── Epic 3: 房源搜索与详情查询 ──
+  # ── Epic 3: 工具层全量实现 ──
   epic-3: backlog
-  3-1-tools-constant-infrastructure: backlog
-  3-2-search-houses-tool: backlog
-  3-3-get-house-detail-tool: backlog
+  3-1-tools-full-implementation: backlog
   epic-3-retrospective: optional
 
-  # ── Epic 4: 地标与周边位置智能 ──
+  # ── Epic 4: 结构化日志与系统可观测性 ──
   epic-4: backlog
-  4-1-search-landmark-tool: backlog
-  4-2-search-nearby-landmark-tool: backlog
-  4-3-get-nearby-amenities-tool: backlog
+  4-2-log-event-structured-logging: backlog
   epic-4-retrospective: optional
-
-  # ── Epic 5: 租赁操作执行 ──
-  epic-5: backlog
-  5-1-execute-action-tool: backlog
-  epic-5-retrospective: optional
-
-  # ── Epic 6: 结构化日志与系统可观测性 ──
-  epic-6: backlog
-  6-1-log-event-structured-logging: backlog
-  epic-6-retrospective: optional
