@@ -21,6 +21,7 @@ DEFAULT_MODEL_IP = "7.197.86.219"
 DEFAULT_PORT = 8888
 DEFAULT_BASE_URL = f"http://{DEFAULT_MODEL_IP}:{DEFAULT_PORT}/v1"
 DEFAULT_TIMEOUT = 60.0  # 可调大以排查 504
+DEFAULT_SESSION_ID = "test-session-001"  # 评测接口要求必须携带 Session-ID 请求头
 
 
 async def test_connectivity(base_url: str, timeout: float) -> bool:
@@ -50,16 +51,19 @@ async def test_chat_simple(
     base_url: str,
     timeout: float,
     model: str = "",
+    session_id: str = "",
 ) -> bool:
     """测试 2：最小化 chat completion（无 tools）"""
     print("\n[2/3] 测试最小化 Chat Completion（无 tools）...")
     # trust_env=False 禁用代理，避免使用 HTTP_PROXY/HTTPS_PROXY 环境变量
+    # 评测接口要求必须携带 Session-ID 请求头，见 docs/interface.md
     async with httpx.AsyncClient(trust_env=False, timeout=timeout) as http_client:
         client = AsyncOpenAI(
             base_url=base_url,
             api_key="placeholder",
             timeout=timeout,
             http_client=http_client,
+            default_headers={"Session-ID": session_id},
         )
         messages = [{"role": "user", "content": "你好，请用一句话回复。"}]
         try:
@@ -85,6 +89,7 @@ async def test_chat_with_tools(
     base_url: str,
     timeout: float,
     model: str = "",
+    session_id: str = "",
 ) -> bool:
     """测试 3：带 tools 的 chat completion（与 agent.py 调用一致）"""
     print("\n[3/3] 测试带 Tools 的 Chat Completion（与 agent 调用一致）...")
@@ -104,12 +109,14 @@ async def test_chat_with_tools(
         }
     ]
     # trust_env=False 禁用代理，避免使用 HTTP_PROXY/HTTPS_PROXY 环境变量
+    # 评测接口要求必须携带 Session-ID 请求头，见 docs/interface.md
     async with httpx.AsyncClient(trust_env=False, timeout=timeout) as http_client:
         client = AsyncOpenAI(
             base_url=base_url,
             api_key="placeholder",
             timeout=timeout,
             http_client=http_client,
+            default_headers={"Session-ID": session_id},
         )
         messages = [
             {"role": "system", "content": "你是租房助手。收到用户消息后，如需搜索房源请调用 search_houses。"},
@@ -171,6 +178,11 @@ def parse_args():
         action="store_true",
         help="跳过带 tools 的测试（仅做连通性和简单 chat 测试）",
     )
+    parser.add_argument(
+        "--session-id",
+        default=DEFAULT_SESSION_ID,
+        help=f"Session-ID 请求头（评测接口必填，默认: {DEFAULT_SESSION_ID}）",
+    )
     return parser.parse_args()
 
 
@@ -180,15 +192,16 @@ async def main() -> int:
     print("=" * 60)
     print("大模型接口测试")
     print("=" * 60)
-    print(f"  base_url: {base_url}")
-    print(f"  timeout:  {args.timeout}s")
-    print(f"  model:    {repr(args.model) or '(服务默认)'}")
+    print(f"  base_url:   {base_url}")
+    print(f"  timeout:    {args.timeout}s")
+    print(f"  model:      {repr(args.model) or '(服务默认)'}")
+    print(f"  session_id: {args.session_id}")
 
     ok1 = await test_connectivity(base_url, args.timeout)
-    ok2 = await test_chat_simple(base_url, args.timeout, args.model)
+    ok2 = await test_chat_simple(base_url, args.timeout, args.model, args.session_id)
     ok3 = True
     if not args.skip_tools:
-        ok3 = await test_chat_with_tools(base_url, args.timeout, args.model)
+        ok3 = await test_chat_with_tools(base_url, args.timeout, args.model, args.session_id)
     else:
         print("\n[3/3] 跳过（--skip-tools）")
 
