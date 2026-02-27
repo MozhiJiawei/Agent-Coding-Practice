@@ -1,5 +1,4 @@
 import os
-import json
 import httpx
 
 # 模块顶层常量（必须在模块加载时读取一次）
@@ -41,4 +40,9 @@ async def execute_action(client: httpx.AsyncClient, **kwargs) -> dict:
 
 
 async def init_houses(client: httpx.AsyncClient) -> dict:
-    pass
+    try:
+        resp = await client.post("/api/houses/init", headers=_get_headers())
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as e:
+        return {"error": f"init_houses failed: {str(e)}"}

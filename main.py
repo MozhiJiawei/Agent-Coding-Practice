@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request
 import httpx
 from pydantic import BaseModel
 from agent import run_agent, log_event
+from tools import init_houses
 
 
 # Pydantic 模型（PascalCase 命名，snake_case 字段）
@@ -51,6 +52,7 @@ async def chat_endpoint(request: ChatRequest, req: Request):
     client = req.app.state.client
     try:
         if request.session_id not in sessions:
+            await init_houses(client)
             sessions[request.session_id] = []
         history = sessions[request.session_id]
         history.append({"role": "user", "content": request.message})
