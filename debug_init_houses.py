@@ -20,6 +20,7 @@ except ImportError:
     pass  # anyio 为 httpx 的传递依赖，通常已安装
 
 import asyncio
+import subprocess
 import time
 import httpx
 
@@ -137,7 +138,43 @@ async def test_via_tools_module() -> None:
         print(f"  result   : {result}")
 
 
-# ── Case 5: 检查 USER_ID 环境变量是否正确 ─────────────────────────
+# ── Case 5: 使用 curl 访问远端服务器 ───────────────────────────────
+def test_via_curl() -> None:
+    _print_sep("Case 5: curl 访问远端服务器")
+    # 跨平台：Windows 下 curl 通常为 curl.exe，Linux/macOS 为 curl
+    cmd = [
+        "curl",
+        "-s",  # 静默模式，不显示进度
+        "-w", "\n\n[curl] HTTP_CODE=%{http_code} TIME=%{time_total}s\n",
+        "-X", "POST",
+        "-H", f"X-User-ID: {USER_ID}",
+        "-H", "Content-Type: application/json",
+        "--connect-timeout", "10",
+        "--max-time", str(int(LONG_TIMEOUT)),
+        TARGET_URL,
+    ]
+    print(f"  cmd  : {' '.join(cmd)}")
+    try:
+        t0 = time.perf_counter()
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=LONG_TIMEOUT + 5,
+        )
+        elapsed = time.perf_counter() - t0
+        out = (result.stdout or "") + (result.stderr or "")
+        print(f"  exit : {result.returncode}  ({elapsed:.2f}s)")
+        print(f"  body : {out[:600]}")
+    except FileNotFoundError:
+        print("  ERROR: 未找到 curl 命令，请确保已安装 curl 或加入 PATH")
+    except subprocess.TimeoutExpired:
+        print(f"  TIMEOUT: curl 超时 (>{LONG_TIMEOUT + 5}s)")
+    except Exception as e:
+        print(f"  ERROR : {type(e).__name__}: {e}")
+
+
+# ── 检查 USER_ID 环境变量是否正确 ─────────────────────────────────
 def check_env() -> None:
     _print_sep("Env Check")
     raw = os.environ.get("USER_ID")
@@ -170,6 +207,7 @@ async def main() -> None:
     await test_with_longer_timeout()
     await test_with_full_url()
     await test_via_tools_module()
+    test_via_curl()  # 同步执行 curl
     _print_sep("完成")
 
 
