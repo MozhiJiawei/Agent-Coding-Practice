@@ -1,6 +1,6 @@
 # Story 5.1: 项目脚手架与配置系统
 
-Status: review
+Status: done
 
 ## Story
 
