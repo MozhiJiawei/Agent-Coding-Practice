@@ -3,5 +3,6 @@ uvicorn[standard]
 openai
 httpx
 pydantic
+pyyaml
 pytest
 anyio>=4.0

@@ -64,3 +64,25 @@ development_status:
   epic-4: in-progress
   4-2-log-event-structured-logging: done
   epic-4-retrospective: optional
+
+  # ════════════════════════════════════════════════
+  # TEST SIMULATOR PROJECT (AI Agent Coding - Test Simulator)
+  # Source: _bmad-output/planning-artifacts/epics-test-simulator.md
+  # ════════════════════════════════════════════════
+
+  # ── Epic 5: 可运行的仿真服务环境 ──
+  epic-5: in-progress
+  5-1-project-scaffold-config-system: review
+  5-2-dual-http-sim-services: backlog
+  epic-5-retrospective: optional
+
+  # ── Epic 6: 测试执行与结果判定 ──
+  epic-6: backlog
+  6-1-test-runner-assertion-engine: backlog
+  6-2-cli-orchestration-reporting: backlog
+  epic-6-retrospective: optional
+
+  # ── Epic 7: 开箱即用示例与端到端验证 ──
+  epic-7: backlog
+  7-1-sample-configs-e2e-smoke: backlog
+  epic-7-retrospective: optional

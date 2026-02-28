@@ -1,0 +1,13 @@
+# 测试用例文件 — Story 5.3 完善
+# 格式示例：
+# test_cases:
+#   - id: chat_hello
+#     type: Chat
+#     messages:
+#       - "你好"
+#     expect:
+#       has_response: true
+#     tags:
+#       - smoke
+
+test_cases: []

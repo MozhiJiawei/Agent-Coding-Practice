@@ -1,0 +1,11 @@
+# Mock 数据文件 — Story 5.3 完善
+# 格式示例：
+# mock_responses:
+#   - path: "/api/houses"
+#     method: "GET"
+#     response:
+#       code: 0
+#       message: "success"
+#       data: {}
+
+mock_responses: []
