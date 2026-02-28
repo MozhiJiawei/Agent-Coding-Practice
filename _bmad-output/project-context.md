@@ -1,7 +1,7 @@
 ---
 project_name: 'AI Agent Coding'
 user_name: 'LJW'
-date: '2026-02-26'
+date: '2026-02-28'
 sections_completed: ['technology_stack', 'language_rules', 'framework_rules', 'testing_rules', 'quality_rules', 'workflow_rules', 'anti_patterns']
 status: 'complete'
 rule_count: 38
@@ -89,6 +89,7 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - **Required dependencies**: `fastapi`, `uvicorn[standard]`, `openai`, `httpx`, `pydantic`
 - **Non-blocking startup**: Server must be fully ready within 5 seconds of launch — do NOT perform heavy initialization at startup
 - **No external network calls at import time**: All API calls happen inside request handlers only — never at module level
+- **Internal network only, no proxy**: All network access (model API at `model_ip:8888`, rental API at `7.225.29.223:8080`) runs on the internal network. Do NOT use or configure any HTTP/HTTPS proxy (e.g. `HTTP_PROXY`, `HTTPS_PROXY`, `http_proxy`, `https_proxy`) — proxy usage may block or misroute internal traffic and cause failures.
 - **Competition constraint**: Do NOT call any external model or API outside `model_ip:8888` and `7.225.29.223:8080` — disqualification risk
 - **3 March update**: Task spec will be updated on March 3rd — keep tool definitions and system prompt modular for quick updates
 
@@ -130,4 +131,4 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - Review after the March 3rd spec update
 - Remove rules that become obvious over time
 
-Last Updated: 2026-02-26
+Last Updated: 2026-02-28

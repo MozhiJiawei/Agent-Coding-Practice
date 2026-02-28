@@ -1,6 +1,5 @@
 import json
 import re
-import time
 from typing import Callable
 import httpx
 from openai import AsyncOpenAI
@@ -8,6 +7,7 @@ from tools import (
     TOOLS, search_houses, search_landmark, search_nearby_landmark,
     get_house_detail, get_nearby_amenities, execute_action
 )
+from logger import log_event
 
 # 模块顶层常量
 SYSTEM_PROMPT = """你是智能租房助手，帮助用户在北京寻找和租赁房源。
@@ -41,15 +41,6 @@ TOOL_DISPATCH: dict[str, Callable] = {
     "get_nearby_amenities": get_nearby_amenities,
     "execute_action": execute_action,
 }
-
-
-def log_event(event_type: str, session_id: str, details: dict):
-    print(json.dumps({
-        "timestamp": int(time.time()),
-        "session_id": session_id,
-        "event_type": event_type,
-        "details": details,
-    }, ensure_ascii=False))
 
 
 async def run_agent(
@@ -89,6 +80,7 @@ async def run_agent(
                 create_kwargs["tools"] = TOOLS
                 create_kwargs["tool_choice"] = "auto"
 
+            log_event("LLM_REQUEST", session_id, {"iteration": iterations, "message_count": len(history)})
             response = await llm_client.chat.completions.create(**create_kwargs)
             if not response.choices:
                 log_event("ERROR", session_id, {"error": "LLM returned empty choices"})
@@ -133,13 +125,18 @@ async def run_agent(
                     except (json.JSONDecodeError, TypeError):
                         args = {}
 
+                    fn = TOOL_DISPATCH.get(tool_name)
+                    if fn is None:
+                        result = {"error": f"Unknown tool: {tool_name}"}
+                        log_event("ERROR", session_id, {"error": f"Unknown tool: {tool_name}", "tool_name": tool_name})
+                    else:
+                        result = await fn(client, **args)
+
                     log_event("TOOL_CALL", session_id, {
                         "tool_name": tool_name,
                         "args": str(args)[:200],
+                        "result_preview": json.dumps(result, ensure_ascii=False)[:300],
                     })
-
-                    fn = TOOL_DISPATCH.get(tool_name)
-                    result = await fn(client, **args) if fn else {"error": f"Unknown tool: {tool_name}"}
 
                     tools_called.add(tool_name)
                     tool_results_log.append({

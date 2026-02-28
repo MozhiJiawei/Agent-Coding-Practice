@@ -30,6 +30,9 @@ htmlcov/
 .idea/
 .vscode/
 
+# Runtime logs
+logs/
+
 # OS
 .DS_Store
 Thumbs.db

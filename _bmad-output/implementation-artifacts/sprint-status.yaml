@@ -61,6 +61,6 @@ development_status:
   epic-3-retrospective: optional
 
   # ── Epic 4: 结构化日志与系统可观测性 ──
-  epic-4: backlog
-  4-2-log-event-structured-logging: backlog
+  epic-4: in-progress
+  4-2-log-event-structured-logging: done
   epic-4-retrospective: optional

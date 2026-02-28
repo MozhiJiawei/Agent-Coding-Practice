@@ -96,16 +96,23 @@ class TestGlobalExceptionHandler:
                 assert data["tool_results"] == []
 
     def test_log_event_called_on_exception(self):
-        """AC2: 异常时以 ('ERROR', session_id, {'error': str(e)}) 调用 log_event"""
-        with patch("main.run_agent", new=AsyncMock(side_effect=RuntimeError("test error"))):
+        """AC2 / Story4.2 Task3.4: 异常时调用 log_event('ERROR', ..., exc=e)"""
+        err = RuntimeError("test error")
+        with patch("main.run_agent", new=AsyncMock(side_effect=err)):
             with patch("main.log_event") as mock_log:
                 with TestClient(app) as client:
                     client.post("/api/v1/chat", json=VALID_REQUEST)
-                    mock_log.assert_called_once()
-                    call_args = mock_log.call_args[0]
-                    assert call_args[0] == "ERROR"
-                    assert call_args[1] == VALID_REQUEST["session_id"]
-                    assert call_args[2] == {"error": "test error"}
+                # 找到 ERROR 事件调用（新 session 还会触发 SESSION_START / SESSION_INIT）
+                error_calls = [c for c in mock_log.call_args_list if c[0][0] == "ERROR"]
+                assert len(error_calls) == 1
+                call_args = error_calls[0][0]
+                call_kwargs = error_calls[0][1] if error_calls[0][1] else {}
+                assert call_args[0] == "ERROR"
+                assert call_args[1] == VALID_REQUEST["session_id"]
+                assert call_args[2] == {"error": "test error"}
+                # Story 4.2 Task 3.4: exc 参数必须传入实际异常对象
+                assert "exc" in call_kwargs
+                assert isinstance(call_kwargs["exc"], RuntimeError)
 
     def test_no_5xx_even_on_unexpected_exception(self):
         """AC2 NFR8: 任意类型异常（含 TypeError）均不返回 5xx"""
@@ -477,3 +484,50 @@ class TestExceptionPathSessionPersistence:
                 client.post("/api/v1/chat", json={"model_ip": "10.0.0.1", "session_id": sid, "message": "msg2"})
             user_msgs = [m["content"] for m in _main_module.sessions[sid] if m.get("role") == "user"]
             assert user_msgs == ["msg1", "msg2"]
+
+
+# ─────────────────────────────────────────────────────────────
+# Story 4.2 — SESSION_START / SESSION_INIT 日志事件
+# ─────────────────────────────────────────────────────────────
+class TestSessionLogging:
+    def test_session_start_logged_for_new_session(self):
+        """Story 4.2 Task3.2: 新 session 触发 SESSION_START log_event"""
+        with patch("main.run_agent", new=AsyncMock(return_value=None)):
+            with patch("main.log_event") as mock_log:
+                with TestClient(app) as client:
+                    client.post("/api/v1/chat", json=VALID_REQUEST)
+                logged_events = [c[0][0] for c in mock_log.call_args_list]
+                assert "SESSION_START" in logged_events
+
+    def test_session_start_not_logged_for_existing_session(self):
+        """Story 4.2 Task3.2: 已存在的 session 不再触发 SESSION_START"""
+        sid = "existing-session"
+        with patch("main.run_agent", new=AsyncMock(return_value=None)):
+            with TestClient(app) as client:
+                # 第一次请求建立 session
+                client.post("/api/v1/chat", json={"model_ip": "10.0.0.1", "session_id": sid, "message": "first"})
+                with patch("main.log_event") as mock_log:
+                    # 第二次请求，session 已存在
+                    client.post("/api/v1/chat", json={"model_ip": "10.0.0.1", "session_id": sid, "message": "second"})
+                    logged_events = [c[0][0] for c in mock_log.call_args_list]
+                    assert "SESSION_START" not in logged_events
+
+    def test_session_init_logged_for_new_session(self):
+        """Story 4.2 Task3.3: 新 session 触发 SESSION_INIT log_event"""
+        with patch("main.run_agent", new=AsyncMock(return_value=None)):
+            with patch("main.log_event") as mock_log:
+                with TestClient(app) as client:
+                    client.post("/api/v1/chat", json=VALID_REQUEST)
+                logged_events = [c[0][0] for c in mock_log.call_args_list]
+                assert "SESSION_INIT" in logged_events
+
+    def test_session_start_before_session_init(self):
+        """Story 4.2 Task3.2/3.3: SESSION_START 先于 SESSION_INIT 记录"""
+        with patch("main.run_agent", new=AsyncMock(return_value=None)):
+            with patch("main.log_event") as mock_log:
+                with TestClient(app) as client:
+                    client.post("/api/v1/chat", json=VALID_REQUEST)
+                events_in_order = [c[0][0] for c in mock_log.call_args_list]
+                start_idx = events_in_order.index("SESSION_START")
+                init_idx = events_in_order.index("SESSION_INIT")
+                assert start_idx < init_idx

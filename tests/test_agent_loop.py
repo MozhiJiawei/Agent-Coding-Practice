@@ -429,13 +429,25 @@ class TestOpenAIClientConstruction:
 
 
 # ─────────────────────────────────────────────────────────────
-# AC6: log_event 在 run_agent 中被调用
+# AC6: log_event 在 run_agent 中被调用（文件写入验证）
 # ─────────────────────────────────────────────────────────────
+
+@pytest.fixture(autouse=True)
+def temp_log_dir_agent(tmp_path, monkeypatch):
+    import logger
+    log_dir = tmp_path / "logs"
+    monkeypatch.setattr(logger, "LOG_DIR", log_dir)
+    return log_dir
+
 
 class TestLogEventCalledInRunAgent:
     @pytest.mark.anyio
-    async def test_model_response_event_logged(self, mock_httpx_client, capsys):
-        """AC6: MODEL_RESPONSE 事件被记录"""
+    async def test_model_response_event_logged(self, mock_httpx_client, tmp_path, monkeypatch):
+        """AC6: MODEL_RESPONSE 事件被写入日志文件"""
+        import logger
+        log_dir = tmp_path / "logs"
+        monkeypatch.setattr(logger, "LOG_DIR", log_dir)
+
         mock_create = AsyncMock(return_value=make_mock_response("hello"))
         with patch("agent.AsyncOpenAI") as mock_cls:
             mock_cls.return_value.chat.completions.create = mock_create
@@ -446,15 +458,20 @@ class TestLogEventCalledInRunAgent:
                 "test-session"
             )
 
-        captured = capsys.readouterr()
-        lines = [l for l in captured.out.strip().split("\n") if l]
+        log_file = log_dir / "test-session.jsonl"
+        assert log_file.exists()
+        lines = [l for l in log_file.read_text(encoding="utf-8").strip().split("\n") if l]
         events = [json.loads(l) for l in lines]
-        event_types = [e["event_type"] for e in events]
-        assert "MODEL_RESPONSE" in event_types
+        event_names = [e["event"] for e in events]
+        assert "MODEL_RESPONSE" in event_names
 
     @pytest.mark.anyio
-    async def test_tool_call_event_logged(self, mock_httpx_client, capsys):
-        """AC6: TOOL_CALL 事件在 tool dispatch 前被记录"""
+    async def test_tool_call_event_logged(self, mock_httpx_client, tmp_path, monkeypatch):
+        """AC6: TOOL_CALL 事件被写入日志文件"""
+        import logger
+        log_dir = tmp_path / "logs"
+        monkeypatch.setattr(logger, "LOG_DIR", log_dir)
+
         tool_call = make_tool_call("search_houses", {"district": "海淀"}, "c1")
         responses = [
             make_mock_response("", tool_calls=[tool_call], finish_reason="tool_calls"),
@@ -472,8 +489,121 @@ class TestLogEventCalledInRunAgent:
                     "test-session"
                 )
 
-        captured = capsys.readouterr()
-        lines = [l for l in captured.out.strip().split("\n") if l]
+        log_file = log_dir / "test-session.jsonl"
+        assert log_file.exists()
+        lines = [l for l in log_file.read_text(encoding="utf-8").strip().split("\n") if l]
         events = [json.loads(l) for l in lines]
-        event_types = [e["event_type"] for e in events]
-        assert "TOOL_CALL" in event_types
+        event_names = [e["event"] for e in events]
+        assert "TOOL_CALL" in event_names
+
+    @pytest.mark.anyio
+    async def test_llm_request_event_logged_before_create(self, mock_httpx_client, tmp_path, monkeypatch):
+        """AC6 / AC#6: LLM_REQUEST 事件在 create 前被记录"""
+        import logger
+        log_dir = tmp_path / "logs"
+        monkeypatch.setattr(logger, "LOG_DIR", log_dir)
+
+        mock_create = AsyncMock(return_value=make_mock_response("hello"))
+        with patch("agent.AsyncOpenAI") as mock_cls:
+            mock_cls.return_value.chat.completions.create = mock_create
+            await run_agent(
+                [{"role": "user", "content": "hi"}],
+                "10.0.0.1",
+                mock_httpx_client,
+                "test-session"
+            )
+
+        log_file = log_dir / "test-session.jsonl"
+        lines = [l for l in log_file.read_text(encoding="utf-8").strip().split("\n") if l]
+        events = [json.loads(l) for l in lines]
+        event_names = [e["event"] for e in events]
+        assert "LLM_REQUEST" in event_names
+
+    @pytest.mark.anyio
+    async def test_llm_request_event_has_correct_fields(self, mock_httpx_client, tmp_path, monkeypatch):
+        """AC6: LLM_REQUEST 事件含 iteration 和 message_count 字段"""
+        import logger
+        log_dir = tmp_path / "logs"
+        monkeypatch.setattr(logger, "LOG_DIR", log_dir)
+
+        mock_create = AsyncMock(return_value=make_mock_response("hello"))
+        history = [{"role": "user", "content": "hi"}]
+        with patch("agent.AsyncOpenAI") as mock_cls:
+            mock_cls.return_value.chat.completions.create = mock_create
+            await run_agent(history, "10.0.0.1", mock_httpx_client, "test-session")
+
+        log_file = log_dir / "test-session.jsonl"
+        lines = [l for l in log_file.read_text(encoding="utf-8").strip().split("\n") if l]
+        events = [json.loads(l) for l in lines]
+        llm_req_events = [e for e in events if e["event"] == "LLM_REQUEST"]
+        assert len(llm_req_events) >= 1
+        e = llm_req_events[0]
+        assert "iteration" in e["details"]
+        assert "message_count" in e["details"]
+        assert isinstance(e["details"]["iteration"], int)
+        assert isinstance(e["details"]["message_count"], int)
+
+    @pytest.mark.anyio
+    async def test_unknown_tool_logs_error_event(self, mock_httpx_client, tmp_path, monkeypatch):
+        """未知工具名应记录 ERROR 事件"""
+        import logger
+        log_dir = tmp_path / "logs"
+        monkeypatch.setattr(logger, "LOG_DIR", log_dir)
+
+        tool_call = make_tool_call("nonexistent_tool", {}, "c1")
+        responses = [
+            make_mock_response("", tool_calls=[tool_call], finish_reason="tool_calls"),
+            make_mock_response("ok", tool_calls=None, finish_reason="stop"),
+        ]
+        mock_create = AsyncMock(side_effect=responses)
+
+        with patch("agent.AsyncOpenAI") as mock_cls:
+            mock_cls.return_value.chat.completions.create = mock_create
+            await run_agent(
+                [{"role": "user", "content": "test"}],
+                "10.0.0.1",
+                mock_httpx_client,
+                "test-session"
+            )
+
+        log_file = log_dir / "test-session.jsonl"
+        lines = [l for l in log_file.read_text(encoding="utf-8").strip().split("\n") if l]
+        events = [json.loads(l) for l in lines]
+        error_events = [e for e in events if e["event"] == "ERROR"]
+        assert len(error_events) >= 1
+        assert "Unknown tool" in error_events[0]["details"]["error"]
+
+    @pytest.mark.anyio
+    async def test_tool_call_event_has_result_preview(self, mock_httpx_client, tmp_path, monkeypatch):
+        """AC7: TOOL_CALL 事件 details 含 result_preview 字段（前300字符）"""
+        import logger
+        log_dir = tmp_path / "logs"
+        monkeypatch.setattr(logger, "LOG_DIR", log_dir)
+
+        tool_call = make_tool_call("search_houses", {"district": "海淀"}, "c1")
+        responses = [
+            make_mock_response("", tool_calls=[tool_call], finish_reason="tool_calls"),
+            make_mock_response("结果", tool_calls=None, finish_reason="stop"),
+        ]
+        mock_create = AsyncMock(side_effect=responses)
+        tool_result = {"houses": [{"id": "HF_1", "name": "测试房源"}]}
+
+        with patch("agent.AsyncOpenAI") as mock_cls:
+            mock_cls.return_value.chat.completions.create = mock_create
+            with patch("agent.TOOL_DISPATCH", {"search_houses": AsyncMock(return_value=tool_result)}):
+                await run_agent(
+                    [{"role": "user", "content": "找房"}],
+                    "10.0.0.1",
+                    mock_httpx_client,
+                    "test-session"
+                )
+
+        log_file = log_dir / "test-session.jsonl"
+        lines = [l for l in log_file.read_text(encoding="utf-8").strip().split("\n") if l]
+        events = [json.loads(l) for l in lines]
+        tool_call_events = [e for e in events if e["event"] == "TOOL_CALL"]
+        assert len(tool_call_events) >= 1
+        tc = tool_call_events[0]
+        assert "result_preview" in tc["details"]
+        assert isinstance(tc["details"]["result_preview"], str)
+        assert len(tc["details"]["result_preview"]) <= 300

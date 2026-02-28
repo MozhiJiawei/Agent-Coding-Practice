@@ -4,7 +4,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 import httpx
 from pydantic import BaseModel
-from agent import run_agent, log_event, SYSTEM_PROMPT
+from agent import run_agent, SYSTEM_PROMPT
+from logger import log_event
 from tools import init_houses
 
 # 支持环境变量覆盖，与 debug_init_houses.py 一致，便于 Mock 或不同网络环境
@@ -56,6 +57,8 @@ async def chat_endpoint(request: ChatRequest, req: Request):
     client = req.app.state.client
     try:
         if request.session_id not in sessions:
+            log_event("SESSION_START", request.session_id, {})
+            log_event("SESSION_INIT", request.session_id, {})
             await init_houses(client)
             sessions[request.session_id] = []
             sessions[request.session_id].append({"role": "system", "content": SYSTEM_PROMPT})
@@ -74,7 +77,7 @@ async def chat_endpoint(request: ChatRequest, req: Request):
             duration_ms=duration_ms,
         )
     except Exception as e:
-        log_event("ERROR", request.session_id, {"error": str(e)})
+        log_event("ERROR", request.session_id, {"error": str(e)}, exc=e)
         duration_ms = int((time.time() - start_time) * 1000)
         return ChatResponse(
             session_id=request.session_id,
