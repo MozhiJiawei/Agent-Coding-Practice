@@ -9,7 +9,7 @@ MAX_PAGES = 5
 
 
 def _get_headers() -> dict:
-    return {"X-User-ID": USER_ID}
+    return {"X-User-ID": USER_ID.encode("utf-8")}
 
 
 # ── Task 1: TOOLS 常量（OpenAI function-calling 格式） ──────────────────────
