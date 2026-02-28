@@ -64,11 +64,15 @@ async def chat_endpoint(request: ChatRequest, req: Request):
             sessions[request.session_id].append({"role": "system", "content": SYSTEM_PROMPT})
         history = sessions[request.session_id]
         history.append({"role": "user", "content": request.message})
+        log_event("RAW_REQUEST", request.session_id, {
+            "model_ip": request.model_ip,
+            "message": request.message,
+        })
         result = await run_agent(history, request.model_ip, client, session_id=request.session_id)
         if result is None:
             result = {"response": "Agent not implemented", "status": "error", "tool_results": []}
         duration_ms = int((time.time() - start_time) * 1000)
-        return ChatResponse(
+        chat_response = ChatResponse(
             session_id=request.session_id,
             response=result.get("response", ""),
             status=result.get("status", "success") if result.get("status") in ("success", "error") else "error",
@@ -76,10 +80,16 @@ async def chat_endpoint(request: ChatRequest, req: Request):
             timestamp=int(time.time()),
             duration_ms=duration_ms,
         )
+        log_event("RAW_RESPONSE", request.session_id, {
+            "status": chat_response.status,
+            "duration_ms": chat_response.duration_ms,
+            "response": chat_response.response,
+        })
+        return chat_response
     except Exception as e:
         log_event("ERROR", request.session_id, {"error": str(e)}, exc=e)
         duration_ms = int((time.time() - start_time) * 1000)
-        return ChatResponse(
+        error_response = ChatResponse(
             session_id=request.session_id,
             response=str(e),
             status="error",
@@ -87,3 +97,9 @@ async def chat_endpoint(request: ChatRequest, req: Request):
             timestamp=int(time.time()),
             duration_ms=duration_ms,
         )
+        log_event("RAW_RESPONSE", request.session_id, {
+            "status": error_response.status,
+            "duration_ms": error_response.duration_ms,
+            "response": error_response.response,
+        })
+        return error_response

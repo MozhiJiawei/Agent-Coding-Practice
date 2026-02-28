@@ -62,6 +62,8 @@ async def run_agent(
         tools_called: set[str] = set()
         tool_results_log: list[dict] = []
         iterations = 0
+        # 指向本轮新消息的起始位置：用户消息已被 main.py 追加，退一位
+        prev_len = len(history) - 1
 
         while True:
             if iterations >= MAX_ITERATIONS:
@@ -80,7 +82,14 @@ async def run_agent(
                 create_kwargs["tools"] = TOOLS
                 create_kwargs["tool_choice"] = "auto"
 
-            log_event("LLM_REQUEST", session_id, {"iteration": iterations, "message_count": len(history)})
+            new_messages = history[prev_len:]
+            # 记录完毕后立即更新，下次迭代捕获 assistant + 工具结果
+            prev_len = len(history)
+            log_event("LLM_REQUEST", session_id, {
+                "iteration": iterations,
+                "new_message_count": len(new_messages),
+                "new_messages": new_messages,
+            })
             response = await llm_client.chat.completions.create(**create_kwargs)
             if not response.choices:
                 log_event("ERROR", session_id, {"error": "LLM returned empty choices"})
