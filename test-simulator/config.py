@@ -6,7 +6,7 @@ from typing import Literal
 
 # 2. 第三方库导入
 import yaml
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel
 
 # 3. Pydantic 数据模型（按依赖顺序）
 
@@ -18,11 +18,9 @@ class SimulatorConfig(BaseModel):
     llm_api_key: str | None = None                  # 可选：若不设置则从 api_key_file 读取
     api_key_file: str = "../.api_key"               # API Key 文件路径（相对于 test-simulator/ 运行目录）
     mock_rental_port: int = 8080
-    rental_mode: Literal["mock", "passthrough"] = "mock"
-    rental_passthrough_url: str = "http://7.225.29.223:8080"
+    fixture_file: str = "mock_data/default.yaml"
     test_user_id: str                               # 必填，无默认值
     test_cases_file: str = "test_cases.yaml"
-    mock_data_file: str = "mock_data/default.yaml"
     timeout_per_case: int = 60
     report_dir: str = "_bmad-output/test-reports"
 
@@ -46,21 +44,7 @@ class TestCase(BaseModel):
     tags: list[str] = []
 
 
-class MockRule(BaseModel):
-    path: str
-    method: Literal["GET", "POST", "PUT", "DELETE"]
-    params_match: dict[str, str] | None = None
-    response: dict
-
-    @model_validator(mode="after")
-    def _check_response_format(self):
-        r = self.response
-        if "code" not in r or "message" not in r:
-            raise ValueError(
-                "response must include 'code' and 'message' keys "
-                '(real API format: {"code": 0, "message": "success", "data": {...}})'
-            )
-        return self
+TestCase.__test__ = False  # prevent pytest collection warning
 
 
 class TokenUsage(BaseModel):
@@ -128,8 +112,27 @@ def load_test_cases(path: str) -> list[TestCase]:
     return [TestCase(**c) for c in raw_cases]
 
 
-def load_mock_data(path: str) -> list[MockRule]:
+_LANDMARK_REQUIRED = {"id", "name", "category", "district", "longitude", "latitude"}
+_HOUSE_REQUIRED = {
+    "house_id", "community", "district", "area", "price", "status",
+    "longitude", "latitude", "bedrooms", "rental_type", "decoration",
+    "orientation", "elevator",
+}
+
+
+def load_fixtures(path: str) -> dict:
     with open(path, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
-    raw_rules = data.get("mock_responses", [])
-    return [MockRule(**r) for r in raw_rules]
+    landmarks = data.get("landmarks", [])
+    houses = data.get("houses", [])
+    if not isinstance(landmarks, list) or not isinstance(houses, list):
+        raise ValueError(f"{path}: expected 'landmarks' and 'houses' lists")
+    for i, lm in enumerate(landmarks):
+        missing = _LANDMARK_REQUIRED - set(lm.keys())
+        if missing:
+            raise ValueError(f"{path}: landmarks[{i}] missing fields: {missing}")
+    for i, h in enumerate(houses):
+        missing = _HOUSE_REQUIRED - set(h.keys())
+        if missing:
+            raise ValueError(f"{path}: houses[{i}] missing fields: {missing}")
+    return {"landmarks": landmarks, "houses": houses}

@@ -1,11 +1,738 @@
-# Mock 数据文件 — Story 5.3 完善
-# 格式示例：
-# mock_responses:
-#   - path: "/api/houses"
-#     method: "GET"
-#     response:
-#       code: 0
-#       message: "success"
-#       data: {}
+# Mock Fixture 数据集 — Story 5.1
+# 结构：landmarks（地标/地铁/公司）+ houses（房源）
+# 所有坐标为北京真实经纬度，供 Haversine 距离计算使用
 
-mock_responses: []
+landmarks:
+  # ── Subway 地铁站（SS_NNN）──
+  - id: "SS_001"
+    name: "西二旗站"
+    category: "subway"
+    district: "海淀"
+    longitude: 116.3289
+    latitude: 40.0567
+
+  - id: "SS_002"
+    name: "上地站"
+    category: "subway"
+    district: "海淀"
+    longitude: 116.3098
+    latitude: 40.0446
+
+  - id: "SS_003"
+    name: "知春路站"
+    category: "subway"
+    district: "海淀"
+    longitude: 116.3497
+    latitude: 40.0019
+
+  - id: "SS_004"
+    name: "望京站"
+    category: "subway"
+    district: "朝阳"
+    longitude: 116.4815
+    latitude: 40.0025
+
+  - id: "SS_005"
+    name: "国贸站"
+    category: "subway"
+    district: "朝阳"
+    longitude: 116.4608
+    latitude: 39.9088
+
+  - id: "SS_006"
+    name: "复兴门站"
+    category: "subway"
+    district: "西城"
+    longitude: 116.3596
+    latitude: 39.9124
+
+  - id: "SS_007"
+    name: "西直门站"
+    category: "subway"
+    district: "西城"
+    longitude: 116.3487
+    latitude: 39.9423
+
+  - id: "SS_008"
+    name: "东直门站"
+    category: "subway"
+    district: "东城"
+    longitude: 116.4346
+    latitude: 39.9418
+
+  - id: "SS_009"
+    name: "通州北苑站"
+    category: "subway"
+    district: "通州"
+    longitude: 116.6566
+    latitude: 39.9417
+
+  - id: "SS_010"
+    name: "亦庄桥站"
+    category: "subway"
+    district: "大兴"
+    longitude: 116.5066
+    latitude: 39.7958
+
+  # ── Company 公司（F500_NNN）──
+  - id: "F500_001"
+    name: "百度科技园"
+    category: "company"
+    district: "海淀"
+    longitude: 116.3074
+    latitude: 40.0565
+
+  - id: "F500_002"
+    name: "腾讯北京总部"
+    category: "company"
+    district: "海淀"
+    longitude: 116.3089
+    latitude: 40.0445
+
+  - id: "F500_003"
+    name: "字节跳动总部"
+    category: "company"
+    district: "海淀"
+    longitude: 116.3068
+    latitude: 40.0455
+
+  - id: "F500_004"
+    name: "阿里巴巴北京研发中心"
+    category: "company"
+    district: "朝阳"
+    longitude: 116.4800
+    latitude: 39.9940
+
+  - id: "F500_005"
+    name: "京东集团总部"
+    category: "company"
+    district: "朝阳"
+    longitude: 116.4723
+    latitude: 39.9894
+
+  - id: "F500_006"
+    name: "华为北京研究所"
+    category: "company"
+    district: "海淀"
+    longitude: 116.3150
+    latitude: 40.0510
+
+  # ── Landmark 地标（LM_NNN）──
+  - id: "LM_001"
+    name: "中关村广场"
+    category: "landmark"
+    district: "海淀"
+    longitude: 116.3103
+    latitude: 39.9832
+
+  - id: "LM_002"
+    name: "三里屯太古里"
+    category: "landmark"
+    district: "朝阳"
+    longitude: 116.4522
+    latitude: 39.9317
+
+  - id: "LM_003"
+    name: "西单购物中心"
+    category: "landmark"
+    district: "西城"
+    longitude: 116.3741
+    latitude: 39.9094
+
+  - id: "LM_004"
+    name: "王府井大街"
+    category: "landmark"
+    district: "东城"
+    longitude: 116.4095
+    latitude: 39.9165
+
+  - id: "LM_005"
+    name: "昌平万达广场"
+    category: "landmark"
+    district: "昌平"
+    longitude: 116.2314
+    latitude: 40.2205
+
+houses:
+  # ── 海淀区（10 套）──
+  - house_id: "HF_001"
+    community: "上地嘉园"
+    district: "海淀"
+    area: "上地"
+    price: 4800
+    status: "available"
+    longitude: 116.3110
+    latitude: 40.0460
+    bedrooms: 2
+    rental_type: "整租"
+    decoration: "精装"
+    orientation: "朝南"
+    elevator: true
+    subway: "13号线"
+    subway_station: "上地站"
+    subway_distance: 320
+    tags: ["近地铁", "精装修", "科技园配套"]
+
+  - house_id: "HF_002"
+    community: "西二旗嘉苑"
+    district: "海淀"
+    area: "西二旗"
+    price: 3600
+    status: "available"
+    longitude: 116.3320
+    latitude: 40.0580
+    bedrooms: 1
+    rental_type: "整租"
+    decoration: "简装"
+    orientation: "朝东"
+    elevator: false
+    subway: "13号线"
+    subway_station: "西二旗站"
+    subway_distance: 500
+    tags: ["近地铁", "性价比高"]
+
+  - house_id: "HF_003"
+    community: "清华东路社区"
+    district: "海淀"
+    area: "清华园"
+    price: 6500
+    status: "available"
+    longitude: 116.3380
+    latitude: 40.0080
+    bedrooms: 3
+    rental_type: "整租"
+    decoration: "豪华"
+    orientation: "南北"
+    elevator: true
+    subway: "15号线"
+    subway_station: "知春路站"
+    subway_distance: 800
+    tags: ["学区房", "豪华装修", "三居"]
+
+  - house_id: "HF_004"
+    community: "中关村家园"
+    district: "海淀"
+    area: "中关村"
+    price: 5200
+    status: "available"
+    longitude: 116.3200
+    latitude: 39.9860
+    bedrooms: 2
+    rental_type: "整租"
+    decoration: "精装"
+    orientation: "朝南"
+    elevator: true
+    subway: "4号线"
+    subway_station: "中关村站"
+    subway_distance: 400
+    tags: ["近地铁", "配套齐全"]
+
+  - house_id: "HF_005"
+    community: "百度国际大厦附近合租"
+    district: "海淀"
+    area: "上地"
+    price: 2200
+    status: "available"
+    longitude: 116.3080
+    latitude: 40.0550
+    bedrooms: 1
+    rental_type: "合租"
+    decoration: "简装"
+    orientation: "朝北"
+    elevator: true
+    subway: "13号线"
+    subway_station: "上地站"
+    subway_distance: 200
+    tags: ["合租", "近公司", "近地铁"]
+
+  - house_id: "HF_006"
+    community: "知春里小区"
+    district: "海淀"
+    area: "知春路"
+    price: 4500
+    status: "available"
+    longitude: 116.3500
+    latitude: 40.0030
+    bedrooms: 2
+    rental_type: "整租"
+    decoration: "精装"
+    orientation: "朝南"
+    elevator: true
+    subway: "10号线"
+    subway_station: "知春路站"
+    subway_distance: 300
+    tags: ["近地铁", "精装修"]
+
+  - house_id: "HF_007"
+    community: "五道口华清嘉园"
+    district: "海淀"
+    area: "五道口"
+    price: 7800
+    status: "available"
+    longitude: 116.3440
+    latitude: 39.9920
+    bedrooms: 3
+    rental_type: "整租"
+    decoration: "豪华"
+    orientation: "南北"
+    elevator: true
+    subway: "13号线"
+    subway_station: "五道口站"
+    subway_distance: 150
+    tags: ["学区", "豪华三居", "近清华北大"]
+
+  - house_id: "HF_008"
+    community: "西二旗合租公寓"
+    district: "海淀"
+    area: "西二旗"
+    price: 1800
+    status: "rented"
+    longitude: 116.3290
+    latitude: 40.0560
+    bedrooms: 1
+    rental_type: "合租"
+    decoration: "简装"
+    orientation: "朝东"
+    elevator: false
+    subway: "13号线"
+    subway_station: "西二旗站"
+    subway_distance: 380
+    tags: ["合租", "已出租"]
+
+  - house_id: "HF_009"
+    community: "软件园公寓"
+    district: "海淀"
+    area: "西北旺"
+    price: 3200
+    status: "available"
+    longitude: 116.2980
+    latitude: 40.0720
+    bedrooms: 1
+    rental_type: "整租"
+    decoration: "精装"
+    orientation: "朝南"
+    elevator: true
+    subway: "16号线"
+    subway_station: "西北旺站"
+    subway_distance: 600
+    tags: ["软件园配套", "精装"]
+
+  - house_id: "HF_010"
+    community: "学院路社区"
+    district: "海淀"
+    area: "学院路"
+    price: 4200
+    status: "offline"
+    longitude: 116.3560
+    latitude: 40.0150
+    bedrooms: 2
+    rental_type: "整租"
+    decoration: "精装"
+    orientation: "朝南"
+    elevator: true
+    subway: "10号线"
+    subway_station: "知春里站"
+    subway_distance: 700
+    tags: ["已下架"]
+
+  # ── 朝阳区（8 套）──
+  - house_id: "HF_011"
+    community: "望京SOHO附近公寓"
+    district: "朝阳"
+    area: "望京"
+    price: 8500
+    status: "available"
+    longitude: 116.4830
+    latitude: 40.0030
+    bedrooms: 2
+    rental_type: "整租"
+    decoration: "豪华"
+    orientation: "南北"
+    elevator: true
+    subway: "14号线"
+    subway_station: "望京南站"
+    subway_distance: 450
+    tags: ["望京核心", "豪华装修"]
+
+  - house_id: "HF_012"
+    community: "三里屯雅苑"
+    district: "朝阳"
+    area: "三里屯"
+    price: 12000
+    status: "available"
+    longitude: 116.4540
+    latitude: 39.9330
+    bedrooms: 3
+    rental_type: "整租"
+    decoration: "豪华"
+    orientation: "朝南"
+    elevator: true
+    subway: "10号线"
+    subway_station: "团结湖站"
+    subway_distance: 900
+    tags: ["繁华地段", "豪华三居"]
+
+  - house_id: "HF_013"
+    community: "国贸CBD公寓"
+    district: "朝阳"
+    area: "国贸"
+    price: 15000
+    status: "available"
+    longitude: 116.4620
+    latitude: 39.9100
+    bedrooms: 2
+    rental_type: "整租"
+    decoration: "豪华"
+    orientation: "朝南"
+    elevator: true
+    subway: "1号线"
+    subway_station: "国贸站"
+    subway_distance: 200
+    tags: ["CBD核心", "高端公寓", "近地铁"]
+
+  - house_id: "HF_014"
+    community: "望京合租公寓"
+    district: "朝阳"
+    area: "望京"
+    price: 2800
+    status: "available"
+    longitude: 116.4800
+    latitude: 40.0010
+    bedrooms: 1
+    rental_type: "合租"
+    decoration: "简装"
+    orientation: "朝东"
+    elevator: true
+    subway: "15号线"
+    subway_station: "望京站"
+    subway_distance: 350
+    tags: ["合租", "近地铁"]
+
+  - house_id: "HF_015"
+    community: "朝青板块精品公寓"
+    district: "朝阳"
+    area: "朝青"
+    price: 5600
+    status: "available"
+    longitude: 116.5100
+    latitude: 39.9290
+    bedrooms: 2
+    rental_type: "整租"
+    decoration: "精装"
+    orientation: "朝南"
+    elevator: true
+    subway: "6号线"
+    subway_station: "青年路站"
+    subway_distance: 550
+    tags: ["精装", "朝青板块"]
+
+  - house_id: "HF_016"
+    community: "劲松社区"
+    district: "朝阳"
+    area: "劲松"
+    price: 3800
+    status: "available"
+    longitude: 116.4640
+    latitude: 39.8980
+    bedrooms: 2
+    rental_type: "整租"
+    decoration: "简装"
+    orientation: "南北"
+    elevator: false
+    subway: "10号线"
+    subway_station: "劲松站"
+    subway_distance: 420
+    tags: ["近地铁", "老小区"]
+
+  - house_id: "HF_017"
+    community: "酒仙桥公寓"
+    district: "朝阳"
+    area: "酒仙桥"
+    price: 4100
+    status: "available"
+    longitude: 116.4990
+    latitude: 39.9620
+    bedrooms: 2
+    rental_type: "整租"
+    decoration: "精装"
+    orientation: "朝南"
+    elevator: true
+    subway: "14号线"
+    subway_station: "将台站"
+    subway_distance: 680
+    tags: ["精装修", "交通便利"]
+
+  - house_id: "HF_018"
+    community: "双井精品两居"
+    district: "朝阳"
+    area: "双井"
+    price: 6200
+    status: "rented"
+    longitude: 116.4690
+    latitude: 39.9000
+    bedrooms: 2
+    rental_type: "整租"
+    decoration: "精装"
+    orientation: "南北"
+    elevator: true
+    subway: "10号线"
+    subway_station: "双井站"
+    subway_distance: 280
+    tags: ["已出租", "近地铁"]
+
+  # ── 西城区（4 套）──
+  - house_id: "HF_019"
+    community: "金融街公寓"
+    district: "西城"
+    area: "金融街"
+    price: 10500
+    status: "available"
+    longitude: 116.3650
+    latitude: 39.9120
+    bedrooms: 2
+    rental_type: "整租"
+    decoration: "豪华"
+    orientation: "朝南"
+    elevator: true
+    subway: "4号线"
+    subway_station: "灵境胡同站"
+    subway_distance: 400
+    tags: ["金融街核心", "豪华装修"]
+
+  - house_id: "HF_020"
+    community: "西直门北大街社区"
+    district: "西城"
+    area: "西直门"
+    price: 5500
+    status: "available"
+    longitude: 116.3500
+    latitude: 39.9440
+    bedrooms: 2
+    rental_type: "整租"
+    decoration: "精装"
+    orientation: "朝南"
+    elevator: true
+    subway: "2号线"
+    subway_station: "西直门站"
+    subway_distance: 350
+    tags: ["近地铁", "配套成熟"]
+
+  - house_id: "HF_021"
+    community: "德胜门合租公寓"
+    district: "西城"
+    area: "德胜门"
+    price: 2500
+    status: "available"
+    longitude: 116.3800
+    latitude: 39.9480
+    bedrooms: 1
+    rental_type: "合租"
+    decoration: "简装"
+    orientation: "朝北"
+    elevator: false
+    subway: "2号线"
+    subway_station: "鼓楼大街站"
+    subway_distance: 750
+    tags: ["合租", "老城区"]
+
+  - house_id: "HF_022"
+    community: "宣武门精品一居"
+    district: "西城"
+    area: "宣武门"
+    price: 4700
+    status: "available"
+    longitude: 116.3760
+    latitude: 39.9010
+    bedrooms: 1
+    rental_type: "整租"
+    decoration: "精装"
+    orientation: "朝南"
+    elevator: true
+    subway: "4号线"
+    subway_station: "宣武门站"
+    subway_distance: 300
+    tags: ["精装一居", "近地铁"]
+
+  # ── 通州区（4 套）──
+  - house_id: "HF_023"
+    community: "运河新城公寓"
+    district: "通州"
+    area: "通州核心区"
+    price: 3200
+    status: "available"
+    longitude: 116.6580
+    latitude: 39.9100
+    bedrooms: 2
+    rental_type: "整租"
+    decoration: "精装"
+    orientation: "朝南"
+    elevator: true
+    subway: "6号线"
+    subway_station: "通州北苑站"
+    subway_distance: 600
+    tags: ["副都心", "精装修"]
+
+  - house_id: "HF_024"
+    community: "北苑家园"
+    district: "通州"
+    area: "北苑"
+    price: 2800
+    status: "available"
+    longitude: 116.6560
+    latitude: 39.9440
+    bedrooms: 2
+    rental_type: "整租"
+    decoration: "简装"
+    orientation: "南北"
+    elevator: true
+    subway: "6号线"
+    subway_station: "通州北苑站"
+    subway_distance: 200
+    tags: ["近地铁", "性价比高"]
+
+  - house_id: "HF_025"
+    community: "梨园地铁口公寓"
+    district: "通州"
+    area: "梨园"
+    price: 2600
+    status: "available"
+    longitude: 116.7050
+    latitude: 39.8980
+    bedrooms: 1
+    rental_type: "整租"
+    decoration: "简装"
+    orientation: "朝南"
+    elevator: false
+    subway: "八通线"
+    subway_station: "梨园站"
+    subway_distance: 180
+    tags: ["近地铁", "一居室"]
+
+  - house_id: "HF_026"
+    community: "通州合租公寓"
+    district: "通州"
+    area: "通州核心区"
+    price: 1600
+    status: "available"
+    longitude: 116.6620
+    latitude: 39.9050
+    bedrooms: 1
+    rental_type: "合租"
+    decoration: "简装"
+    orientation: "朝东"
+    elevator: true
+    subway: "6号线"
+    subway_station: "通州北苑站"
+    subway_distance: 800
+    tags: ["合租", "经济实惠"]
+
+  # ── 大兴区（2 套）──
+  - house_id: "HF_027"
+    community: "亦庄经济技术开发区公寓"
+    district: "大兴"
+    area: "亦庄"
+    price: 4500
+    status: "available"
+    longitude: 116.5080
+    latitude: 39.7970
+    bedrooms: 2
+    rental_type: "整租"
+    decoration: "精装"
+    orientation: "朝南"
+    elevator: true
+    subway: "亦庄线"
+    subway_station: "亦庄桥站"
+    subway_distance: 250
+    tags: ["开发区配套", "精装两居"]
+
+  - house_id: "HF_028"
+    community: "大兴新城公寓"
+    district: "大兴"
+    area: "大兴新城"
+    price: 3100
+    status: "available"
+    longitude: 116.3380
+    latitude: 39.7280
+    bedrooms: 2
+    rental_type: "整租"
+    decoration: "简装"
+    orientation: "南北"
+    elevator: true
+    subway: "大兴线"
+    subway_station: "高米店北站"
+    subway_distance: 450
+    tags: ["新城板块", "交通便利"]
+
+  # ── 房山区（2 套）──
+  - house_id: "HF_029"
+    community: "良乡大学城公寓"
+    district: "房山"
+    area: "良乡"
+    price: 1800
+    status: "available"
+    longitude: 116.1400
+    latitude: 39.7320
+    bedrooms: 1
+    rental_type: "整租"
+    decoration: "简装"
+    orientation: "朝南"
+    elevator: false
+    subway: "房山线"
+    subway_station: "良乡大学城北站"
+    subway_distance: 400
+    tags: ["大学城周边", "经济实惠"]
+
+  - house_id: "HF_030"
+    community: "燕房小区"
+    district: "房山"
+    area: "燕山"
+    price: 1500
+    status: "available"
+    longitude: 115.9830
+    latitude: 39.6890
+    bedrooms: 1
+    rental_type: "合租"
+    decoration: "简装"
+    orientation: "朝东"
+    elevator: false
+    subway: "房山线"
+    subway_station: "燕山站"
+    subway_distance: 1200
+    tags: ["合租", "远郊", "低价"]
+
+  # ── 东城区（2 套，确保行政区≥6）──
+  - house_id: "HF_031"
+    community: "东四胡同公寓"
+    district: "东城"
+    area: "东四"
+    price: 5800
+    status: "offline"
+    longitude: 116.4150
+    latitude: 39.9280
+    bedrooms: 2
+    rental_type: "整租"
+    decoration: "精装"
+    orientation: "朝南"
+    elevator: false
+    subway: "5号线"
+    subway_station: "张自忠路站"
+    subway_distance: 500
+    tags: ["已下架", "胡同四合院风"]
+
+  - house_id: "HF_032"
+    community: "王府井附近精品公寓"
+    district: "东城"
+    area: "王府井"
+    price: 9500
+    status: "available"
+    longitude: 116.4110
+    latitude: 39.9170
+    bedrooms: 2
+    rental_type: "整租"
+    decoration: "豪华"
+    orientation: "朝南"
+    elevator: true
+    subway: "1号线"
+    subway_station: "王府井站"
+    subway_distance: 220
+    tags: ["繁华地段", "近地铁", "豪华装修"]

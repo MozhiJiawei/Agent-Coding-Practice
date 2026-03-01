@@ -7,10 +7,8 @@ llm_proxy_url: "https://api.siliconflow.cn/v1/chat/completions"  # SiliconFlow L
 # llm_api_key: ""                                  # 可选：若不设置则从 api_key_file 读取
 api_key_file: "../.api_key"                         # API Key 文件路径（相对于 test-simulator/ 目录）
 mock_rental_port: 8080                              # Mock 租房 API 监听端口（默认 8080）
-rental_mode: "mock"                                 # mock | passthrough
-rental_passthrough_url: "http://7.225.29.223:8080"  # 透传模式：真实租房 API 地址
+fixture_file: "mock_data/default.yaml"              # Fixture 数据集路径（供 MockState 加载）
 test_user_id: "your-employee-id"                    # 必填：X-User-ID 请求头值
 test_cases_file: "test_cases.yaml"
-mock_data_file: "mock_data/default.yaml"
 timeout_per_case: 60
 report_dir: "_bmad-output/test-reports"

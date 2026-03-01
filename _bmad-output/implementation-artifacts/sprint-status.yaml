@@ -72,8 +72,8 @@ development_status:
   # ════════════════════════════════════════════════
 
   # ── Epic 5: 可运行的仿真服务环境 ──
-  epic-5: backlog
-  5-1-config-system-fixture-data: backlog        # 更新 config.py (移除 MockRule, 新增 load_fixtures) + 创建 fixture 数据集
+  epic-5: in-progress
+  5-1-config-system-fixture-data: done             # 更新 config.py (移除 MockRule, 新增 load_fixtures) + 创建 fixture 数据集
   5-2-mock-rental-api-programmatic: backlog       # 重构 mock_rental.py 为 15 个程序化端点 + MockState
   epic-5-retrospective: optional
 
