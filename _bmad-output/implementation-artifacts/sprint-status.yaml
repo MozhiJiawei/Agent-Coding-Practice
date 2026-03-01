@@ -68,21 +68,22 @@ development_status:
   # ════════════════════════════════════════════════
   # TEST SIMULATOR PROJECT (AI Agent Coding - Test Simulator)
   # Source: _bmad-output/planning-artifacts/epics-test-simulator.md
+  # Epics rewritten: 2026-03-01 (架构重大变更：mock_rental 从静态规则匹配重构为程序化端点)
   # ════════════════════════════════════════════════
 
   # ── Epic 5: 可运行的仿真服务环境 ──
-  epic-5: in-progress
-  5-1-project-scaffold-config-system: done
-  5-2-dual-http-sim-services: done
+  epic-5: backlog
+  5-1-config-system-fixture-data: backlog        # 更新 config.py (移除 MockRule, 新增 load_fixtures) + 创建 fixture 数据集
+  5-2-mock-rental-api-programmatic: backlog       # 重构 mock_rental.py 为 15 个程序化端点 + MockState
   epic-5-retrospective: optional
 
   # ── Epic 6: 测试执行与结果判定 ──
   epic-6: backlog
-  6-1-test-runner-assertion-engine: backlog
-  6-2-cli-orchestration-reporting: backlog
+  6-1-test-runner-assertion-engine: backlog       # runner.py: send_message + ASSERTION_RULES + print_case_result
+  6-2-cli-orchestration-reporting: backlog        # main.py: argparse + asyncio 服务编排 + generate_reports
   epic-6-retrospective: optional
 
   # ── Epic 7: 开箱即用示例与端到端验证 ──
   epic-7: backlog
-  7-1-sample-configs-e2e-smoke: backlog
+  7-1-sample-configs-e2e-smoke: backlog           # test_cases.yaml 三示例用例 + config.yaml 注释 + 冒烟验证
   epic-7-retrospective: optional

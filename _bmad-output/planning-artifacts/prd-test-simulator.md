@@ -3,17 +3,20 @@
 **Author:** LJW  
 **Date:** 2026-02-28  
 **Status:** Draft  
+**Last Edited:** 2026-03-01  
 **Related PRD:** [prd.md](./prd.md) - AI Agent 主项目
 
 ---
 
 ## Executive Summary
 
-测试仿真器是 AI Agent 租房项目的**本地评测与对抗模拟工具**，用于在无竞赛平台环境下，完整复现判题流程、模拟用户对话、转发模型请求、响应工具调用，并通过配置文件驱动测试用例执行与通过判定。
+测试仿真器是 AI Agent 租房项目的**本地全自治评测与对抗模拟工具**，在零外部依赖的条件下，完整复现判题流程：模拟用户对话、代理模型请求、以内置仿真数据响应所有租房 API 工具调用，并通过配置文件驱动测试用例执行与通过判定。
 
-**核心价值：** 开发者可在本地完成「用户输入 → Agent 推理 → 模型调用 → 工具调用 → 结果判定」的全链路闭环测试，无需依赖竞赛平台，支持快速迭代与回归验证。
+**核心价值：** 开发者可在本地完成「用户输入 → Agent 推理 → 模型调用 → 工具调用 → 结果判定」的全链路闭环测试，**无需连接任何外部 API**（租房服务、竞赛平台），支持快速迭代与回归验证。
 
-**与主项目关系：** 测试仿真器作为 Agent 的**上游（用户/判题方）**和**下游（模型代理、工具后端）**，与 Agent 形成完整的本地对抗仿真环境。
+**仿真边界：** 测试仿真器完整替代竞赛平台的三个角色——上游（用户/判题方）、模型代理层、以及租房工具服务后端——所有角色均在本地进程内运行。
+
+**与主项目关系：** 测试仿真器作为 Agent 的**上游（用户/判题方）**和**下游（模型代理、工具后端）**，与 Agent 形成完整的本地对抗仿真环境，无需 Agent 代码修改即可接入。
 
 ---
 
@@ -36,7 +39,7 @@
 - 通过配置文件定义测试用例，一键执行全部或指定用例，获得通过/失败结果
 - 本地模拟多轮对话，验证 Agent 在 Chat / Single / Multi 类场景下的表现
 - 无需部署竞赛平台，即可复现判题逻辑（时间片、格式校验、答案匹配）
-- 工具调用请求由仿真器按配置返回，支持 Mock 或转发至真实租房 API
+- 工具调用请求由仿真器在本地以内置仿真数据响应，无需连接任何外部租房 API
 
 ### Technical Success
 
@@ -51,7 +54,8 @@
 | 用例配置加载成功率 | 100% |
 | Chat 接口连通性 | 与 Agent 正常收发消息 |
 | 模型转发正确性 | 请求/响应格式与 OpenAI API 兼容 |
-| 工具 Mock 覆盖 | 支持 15 个租房 API 端点的 Mock 响应 |
+| 工具仿真覆盖 | 实现全部 15 个租房 API 端点的本地仿真响应，含有状态操作 |
+| 本地自治运行 | 仿真器在无外网条件下可完整执行全部测试用例，0 次外部 API 调用 |
 | 判定逻辑可配置 | 支持 JSON 解析、`houses` 匹配、关键词检查等多种规则 |
 
 ---
@@ -103,24 +107,26 @@
 
 ---
 
-### Capability 3：接收 Agent 的工具调用请求，回复相应响应
+### Capability 3：在本地完整仿真租房 API 工具服务，零外部依赖
 
-**描述：** Agent 的工具（如 `search_houses`、`execute_action`）会调用租房仿真 API。测试仿真器需作为租房 API 的**替代后端**，接收这些 HTTP 请求并按配置返回 Mock 或真实数据。
+**描述：** Agent 的工具（如 `search_houses`、`execute_action`）会调用租房仿真 API。测试仿真器以**内置仿真数据驱动的有状态 HTTP 服务**完整替代真实租房后端，接收全部 15 个端点的请求，基于内存中的仿真数据集动态计算响应，支持筛选、分页、排序及租房/退租/下架等状态变更操作。
 
 **接口规范（参考 docs/interface_simulate.md）：**
 
-- 租房 API 基地址：`http://7.225.29.223:8080`（真实环境）或测试仿真器提供的 Mock 地址
-- 地标接口：`/api/landmarks`、`/api/landmarks/name/{name}`、`/api/landmarks/search`、`/api/landmarks/{id}`、`/api/landmarks/stats`
-- 房源接口：`/api/houses/{id}`、`/api/houses/listings/{id}`、`/api/houses/by_community`、`/api/houses/by_platform`、`/api/houses/nearby`、`/api/houses/nearby_landmarks`、`/api/houses/stats`、`/api/houses/init`
-- 租赁操作：`/api/houses/{id}/rent`、`/api/houses/{id}/terminate`、`/api/houses/{id}/offline`
-- 房源接口需携带请求头 `X-User-ID`
+- 仿真服务监听地址：可配置端口（默认本机 8080），Agent 通过 `RENTAL_API_BASE=http://localhost:8080` 接入
+- 地标接口（无需 `X-User-ID`）：`/api/landmarks`、`/api/landmarks/name/{name}`、`/api/landmarks/search`、`/api/landmarks/{id}`、`/api/landmarks/stats`
+- 房源接口（需 `X-User-ID`）：`/api/houses/{id}`、`/api/houses/listings/{id}`、`/api/houses/by_community`、`/api/houses/by_platform`、`/api/houses/nearby`、`/api/houses/nearby_landmarks`、`/api/houses/stats`、`/api/houses/init`
+- 租赁操作（需 `X-User-ID`，需 `listing_platform` query 参数）：`/api/houses/{id}/rent`、`/api/houses/{id}/terminate`、`/api/houses/{id}/offline`
 
 **能力要求：**
 
-- 测试仿真器提供 Mock 租房 API 服务，Agent 通过环境变量 `RENTAL_API_BASE` 指向该服务
-- 支持两种模式：① **Mock 模式**：按用例配置文件返回预定义的 JSON 响应；② **透传模式**：将请求转发至真实租房 API（7.225.29.223:8080）
-- Mock 响应可按「请求路径 + 参数」匹配规则配置，支持多场景（如无参数列表、带筛选条件列表、按 ID 查询等）
-- 必须支持 `POST /api/houses/init` 的调用，以配合 Agent 的 Session 初始化逻辑
+- 仿真服务基于**内置 fixture 数据集**（房源与地标）动态响应请求，无需外部数据库或网络连接
+- **有状态仿真**：`/api/houses/init`、`/rent`、`/terminate`、`/offline` 操作均修改内存中的用户视角状态，状态按 `X-User-ID` 隔离，调用 `init` 可重置该用户的房源状态至初始值
+- **动态筛选**：`by_platform` 接口支持全部查询参数（`district`、`area`、`min_price`、`max_price`、`bedrooms`、`rental_type`、`decoration`、`orientation`、`elevator`、`min_area`、`max_area`、`subway_line`、`max_subway_dist`、`subway_station`、`commute_to_xierqi_max`、`available_from_before`）；结果支持 `sort_by`（price/area/subway）与分页（`page`、`page_size`）
+- **平台差异仿真**：同一房源在链家/安居客/58同城三个平台的价格独立（比例约 92%/100%/78%），`listing_platform` 未传时默认返回安居客数据
+- **地标邻近计算**：`/nearby` 与 `/nearby_landmarks` 接口基于 Haversine 公式计算实际直线距离，返回 `distance_to_landmark`、`walking_distance`、`walking_duration` 字段
+- 缺少 `X-User-ID` 时，房源接口返回 400；缺少 `listing_platform` 时，租赁操作返回 400；未找到房源时返回 404——行为与真实 API 一致
+- Agent 通过环境变量 `RENTAL_API_BASE` 接入，无需修改 Agent 代码
 
 ---
 
@@ -252,24 +258,25 @@ test_cases:
 - **FR8**：支持透传 `Session-ID` 请求头及完整请求体/响应体
 - **FR9**：外部代理 URL 可配置（如环境变量 `LLM_PROXY_URL`）
 
-### 工具/Mock 租房 API（Capability 3）
+### 租房 API 仿真服务（Capability 3）
 
-- **FR10**：测试仿真器可启动 Mock 租房 API 服务，实现地标与房源相关端点（至少覆盖 Agent 工具所调用的端点）
-- **FR11**：支持 Mock 模式：按请求路径与参数匹配，返回配置的预定义 JSON
-- **FR12**：支持透传模式：将请求转发至真实租房 API（`http://7.225.29.223:8080`）
-- **FR13**：Mock 响应支持按用例或按场景配置，不同用例可使用不同 Mock 数据集
-- **FR14**：必须实现 `POST /api/houses/init`，返回成功响应，以支持 Agent 的 Session 初始化
-- **FR15**：房源相关接口的请求需支持 `X-User-ID` 请求头，可配置默认值（如测试用工号）
+- **FR10**：仿真服务实现全部 15 个端点（5 个地标接口 + 10 个房源接口），响应格式与真实 API 完全兼容（`{"code": 0, "message": "success", "data": {...}}`）
+- **FR11**：`/api/houses/by_platform` 支持全部查询参数的动态筛选：`district`、`area`、`min_price`、`max_price`、`bedrooms`（逗号分隔）、`rental_type`、`decoration`、`orientation`、`elevator`、`min_area`、`max_area`、`subway_line`、`max_subway_dist`、`subway_station`、`commute_to_xierqi_max`、`available_from_before`；支持 `sort_by`（price/area/subway）、`sort_order`（asc/desc）与 `page`/`page_size` 分页
+- **FR12**：`/api/houses/nearby` 基于地标与房源坐标计算直线距离，筛选 `max_distance` 范围内的可租房源，返回 `distance_to_landmark`（米）、`walking_distance`（估算步行距离）、`walking_duration`（估算步行时间，分钟）
+- **FR13**：租赁操作（`/rent`、`/terminate`、`/offline`）更新该 `X-User-ID` 的房源状态，三个平台状态同步变更；`/api/houses/init` 将该用户的全部房源状态重置至初始 fixture 值；用户状态按 `X-User-ID` 独立隔离，互不影响
+- **FR14**：仿真服务内置 fixture 数据集：地标数据不少于 20 条（覆盖 subway/company/landmark 三类，涵盖海淀、朝阳、西城、东城、丰台至少 5 个行政区）；房源数据不少于 30 条（覆盖至少 6 个行政区，含 1/2/3 居室，整租与合租均有，价格跨度 1500–15000 元/月，初始状态约 90% available / 5% rented / 5% offline）
+- **FR15**：房源接口缺少 `X-User-ID` 时返回 `400`；租赁操作缺少 `listing_platform` 时返回 `400`；按 ID 查询不存在的房源时返回 `404`；行为与真实 API 规范一致
+- **FR16**：同一房源在三个平台独立返回不同价格（比例约安居客 100% / 链家 92% / 58同城 78%），`listing_platform` 未传时默认返回安居客数据
 
 ### 测试用例与判定（Capability 4）
 
-- **FR16**：支持从 YAML 或 JSON 配置文件加载测试用例
-- **FR17**：每个用例需包含：`id`、`type`（Chat/Single/Multi）、`messages`（输入列表）
-- **FR18**：每个用例可配置 `expect` 规则：`has_response`、`response_not_empty`、`response_json_valid`、`houses_match`、`house_count_min` 等
-- **FR19**：支持 `houses_match` 的多种模式：精确匹配、子集匹配、包含匹配
-- **FR20**：执行结束后输出每个用例的通过/失败状态及失败原因
-- **FR21**：支持 `--case <id>` 执行单个用例，`--all` 执行全部用例，`--tag <tag>` 按标签筛选
-- **FR22**：可选：支持时间片计算与预算控制，与竞赛规则对齐
+- **FR17**：支持从 YAML 或 JSON 配置文件加载测试用例
+- **FR18**：每个用例需包含：`id`、`type`（Chat/Single/Multi）、`messages`（输入列表）
+- **FR19**：每个用例可配置 `expect` 规则：`has_response`、`response_not_empty`、`response_json_valid`、`houses_match`、`house_count_min` 等
+- **FR20**：支持 `houses_match` 的多种模式：精确匹配、子集匹配、包含匹配
+- **FR21**：执行结束后输出每个用例的通过/失败状态及失败原因
+- **FR22**：支持 `--case <id>` 执行单个用例，`--all` 执行全部用例，`--tag <tag>` 按标签筛选
+- **FR23**：可选：支持时间片计算与预算控制，与竞赛规则对齐
 
 ---
 
@@ -278,24 +285,25 @@ test_cases:
 ### Performance
 
 - **NFR1**：单用例执行超时可配置（默认 60 秒），超时则判定该用例失败
-- **NFR2**：模型代理转发延迟应尽可能低，避免成为瓶颈（建议 < 100ms 额外延迟）
+- **NFR2**：模型代理额外转发延迟 < 100ms（P95），不成为整体测试瓶颈
 
 ### Integration
 
-- **NFR3**：与 Agent 的接口兼容 docs/interface.md 定义的 Chat 格式
-- **NFR4**：与租房 API 的接口兼容 docs/interface_simulate.md 定义的 15 个端点规范
-- **NFR5**：模型代理与 OpenAI Chat Completions API 格式兼容
+- **NFR3**：与 Agent 的接口兼容 docs/interface.md 定义的 Chat 格式（`POST /api/v1/chat`，`model_ip`、`session_id`、`message` 字段）
+- **NFR4**：仿真服务响应格式与 docs/interface_simulate.md 定义的 15 个端点规范完全兼容（包括字段名、数据类型、错误码），Agent 切换到真实 API 时无需修改任何代码
+- **NFR5**：模型代理与 OpenAI Chat Completions API 格式兼容（`model`、`messages`、`tools`、`tool_calls`、`stream` 字段完整透传）
+- **NFR6**：仿真服务在无网络环境下可启动并完整响应所有 15 个端点，不依赖任何外部服务、数据库或文件系统写入
 
 ### Usability
 
-- **NFR6**：配置文件具备清晰的注释和示例，新用例可在 5 分钟内添加
-- **NFR7**：测试报告输出为人类可读格式（控制台 + 可选 JSON/HTML 报告文件）
-- **NFR8**：错误信息应明确指示失败环节（Chat 不通、模型转发失败、Mock 未匹配、判定不通过）
+- **NFR7**：配置文件具备清晰的注释和示例，新用例可在 5 分钟内添加
+- **NFR8**：测试报告输出为人类可读格式（控制台 + 可选 JSON/HTML 报告文件）
+- **NFR9**：错误信息应明确指示失败环节（Chat 不通、模型转发失败、Mock 未匹配、判定不通过）
 
 ### Reliability
 
-- **NFR9**：Mock 服务在未匹配到规则时，应返回明确错误或默认空响应，避免 5xx 导致 Agent 异常
-- **NFR10**：测试仿真器异常退出时，应输出已有测试结果，不静默丢失
+- **NFR10**：Mock 服务在未匹配到规则时，应返回明确错误或默认空响应，避免 5xx 导致 Agent 异常
+- **NFR11**：测试仿真器异常退出时，应输出已有测试结果，不静默丢失
 
 ---
 
@@ -304,23 +312,27 @@ test_cases:
 ### 测试仿真器服务架构
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                      Test Simulator                               │
-├─────────────────┬─────────────────┬─────────────────────────────┤
-│  Test Runner    │  Model Proxy    │  Mock Rental API             │
-│  (Chat Driver)  │  :8888          │  :8080 (or configurable)     │
-│  - Load config  │  - Forward to   │  - /api/landmarks/*          │
-│  - POST /chat   │    LLM          │  - /api/houses/*             │
-│  - Assert       │                 │  - Mock or passthrough       │
-└────────┬────────┴────────┬────────┴──────────────┬───────────────┘
-         │                 │                       │
-         ▼                 │                       │
-┌─────────────────────────┐│                       │
-│  Agent (localhost:8191) ││                       │
-│  POST /api/v1/chat      ││                       │
-│  model_ip -> :8888      │◄───────────────────────┘
-│  RENTAL_API_BASE -> Mock│◄───────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│                         Test Simulator（本地全自治）                       │
+├─────────────────┬──────────────────┬────────────────────────────────────┤
+│  Test Runner    │   Model Proxy    │   Rental API Simulator              │
+│  (Chat Driver)  │   :8888          │   :8080 (configurable)             │
+│  - Load config  │   - Forward to   │   - /api/landmarks/* (stateless)   │
+│  - POST /chat   │     LLM          │   - /api/houses/* (stateful)       │
+│  - Assert       │                  │   - In-memory fixture dataset      │
+│                 │                  │   - Per-user state isolation       │
+│                 │                  │   - Dynamic filter + geo-distance  │
+└────────┬────────┴────────┬─────────┴──────────────┬──────────────────────┘
+         │                 │                         │
+         ▼                 │                         │
+┌─────────────────────────┐│                        │
+│  Agent (localhost:8191) ││                        │
+│  POST /api/v1/chat      ││                        │
+│  model_ip -> :8888      │◄───────────────────────-┘
+│  RENTAL_API_BASE ->     │
+│    http://localhost:8080 │
 └─────────────────────────┘
+        ↑ 无外部 API 依赖，全链路本地运行
 ```
 
 ### 配置项建议
@@ -330,10 +342,9 @@ test_cases:
 | `agent_base_url` | string | `http://localhost:8191` | Agent 的 Chat 接口地址 |
 | `model_proxy_port` | int | 8888 | 模型代理监听端口 |
 | `llm_proxy_url` | string | (必填) | 外部大模型代理 URL |
-| `mock_rental_port` | int | 8080 | Mock 租房 API 监听端口 |
-| `rental_mode` | enum | `mock` | `mock` \| `passthrough` |
-| `rental_passthrough_url` | string | `http://7.225.29.223:8080` | 透传时的真实租房 API 地址 |
-| `test_user_id` | string | (必填) | X-User-ID 默认值 |
+| `sim_rental_port` | int | 8080 | 仿真租房服务监听端口 |
+| `sim_fixture_file` | string | `fixtures/rental_data.yaml` | 仿真数据集文件路径（地标 + 房源） |
+| `test_user_id` | string | (必填) | X-User-ID 默认值，用于自动注入测试请求头 |
 | `test_cases_file` | string | `test_cases.yaml` | 测试用例配置文件路径 |
 | `timeout_per_case` | int | 60 | 单用例超时（秒） |
 
@@ -373,10 +384,10 @@ test_cases:
 
 ### Post-MVP（Phase 2）
 
-- 透传模式：租房 API 请求转发至真实环境
 - 更丰富的判定规则：关键词检查、正则匹配
-- 用例标签与筛选
+- 用例标签与筛选（`--tag`）
 - JSON/HTML 测试报告
+- **接口联调辅助模式**（调试专用，不用于测试用例执行）：将仿真服务切换为透传至真实租房 API，供开发者在接口联调阶段验证 Agent 与真实数据的兼容性；该模式不参与通过判定，不视为测试执行
 
 ### Expansion（Phase 3）
 
