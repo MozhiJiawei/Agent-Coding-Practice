@@ -90,8 +90,8 @@ class TestMockRentalAPI:
 
     def test_post_houses_init_returns_hardcoded_success(self, require_mock_rental, http_client):
         """
-        AC2: POST /api/houses/init 始终返回硬编码成功响应。
-        无论 rental_mode 为何，均返回 HTTP 200 + 固定 JSON。
+        AC7: POST /api/houses/init 始终返回成功响应并重置房源状态。
+        均返回 HTTP 200 + 固定 JSON（action=reset_user）。
         """
         r = http_client.post(
             f"{MOCK_RENTAL_URL}/api/houses/init",
@@ -104,10 +104,10 @@ class TestMockRentalAPI:
         assert body["data"]["action"] == "reset_user"
         assert "该用户状态覆盖已清空" in body["data"]["message"]
 
-    def test_post_houses_init_ignores_rental_mode(self, require_mock_rental, http_client):
+    def test_post_houses_init_resets_state(self, require_mock_rental, http_client):
         """
-        AC2: /api/houses/init 优先于 rental_mode 判断，永远返回成功响应。
-        连续发送两次，每次都应返回相同的硬编码响应。
+        AC7: /api/houses/init 重置房源至初始状态，永远返回成功响应。
+        连续发送两次，每次都应返回相同的成功响应（无 rental_mode 依赖）。
         """
         for i in range(2):
             r = http_client.post(
@@ -117,25 +117,22 @@ class TestMockRentalAPI:
             assert r.status_code == 200
             assert r.json()["code"] == 0, f"第 {i+1} 次调用应返回 code=0"
 
-    def test_unmatched_get_returns_http200_with_code404(self, require_mock_rental, http_client):
+    def test_unmatched_route_returns_404_or_non_5xx(self, require_mock_rental, http_client):
         """
-        AC4 (NFR9): Mock 模式下未匹配路由返回 HTTP 200 + {"code": 404, ...}。
-        绝不返回 HTTP 5xx。
+        NFR: 真正未注册的路由不返回 5xx（FastAPI 默认返回 HTTP 404）。
+        程序化端点已注册所有 15 条路由，此测试验证未知路由不崩溃服务。
         """
-        r = http_client.get(f"{MOCK_RENTAL_URL}/api/landmarks")
-        assert r.status_code == 200, "未匹配路由不应返回 5xx，必须返回 HTTP 200"
-        body = r.json()
-        assert body["code"] == 404
-        assert "Mock 未匹配" in body["message"]
+        r = http_client.get(f"{MOCK_RENTAL_URL}/api/nonexistent-endpoint")
+        assert r.status_code < 500, f"未知路由不应返回 5xx，实际: {r.status_code}"
 
-    def test_unmatched_post_returns_http200_with_code404(self, require_mock_rental, http_client):
+    def test_missing_house_returns_code404(self, require_mock_rental, http_client):
         """
-        AC4: POST 方法未匹配时同样返回 HTTP 200 + code=404（不崩溃）。
+        AC10: POST 操作请求不存在的房源时返回 HTTP 200 + code=404（不崩溃）。
+        注意：listing_platform 为必填 query 参数。
         """
         r = http_client.post(
-            f"{MOCK_RENTAL_URL}/api/houses/9999/rent",
+            f"{MOCK_RENTAL_URL}/api/houses/HF_NONEXISTENT/rent?listing_platform=安居客",
             headers={"X-User-ID": "smoke"},
-            json={},
         )
         assert r.status_code == 200
         body = r.json()
@@ -143,13 +140,13 @@ class TestMockRentalAPI:
 
     def test_all_15_rental_endpoints_respond_without_5xx(self, require_mock_rental, http_client):
         """
-        AC1: 15 个租房 API 端点均可访问，任何端点均不应返回 5xx。
-        Mock 模式下未配置规则时返回 code=404，但 HTTP 状态码为 200。
+        AC1: 15 个租房 API 端点均已注册且可访问，任何端点均不应返回 5xx。
+        程序化端点：缺参数时返回 code=400，房源不存在时返回 code=404，均为 HTTP 200。
         """
         endpoints = [
             ("GET",  "/api/landmarks"),
             ("GET",  "/api/landmarks/name/test-landmark"),
-            ("GET",  "/api/landmarks/search"),
+            ("GET",  "/api/landmarks/search?q=test"),
             ("GET",  "/api/landmarks/1"),
             ("GET",  "/api/landmarks/stats"),
             ("GET",  "/api/houses/HF_1"),

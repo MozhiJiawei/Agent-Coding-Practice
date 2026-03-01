@@ -10,7 +10,7 @@ import time
 import httpx
 import uvicorn
 
-from config import load_config, load_test_cases, load_mock_data, TokenCounter
+from config import load_config, load_test_cases, load_fixtures, TokenCounter
 from model_proxy import create_model_proxy_app
 from mock_rental import create_mock_rental_app
 
@@ -59,11 +59,11 @@ async def run_single_case_stub(
 
 async def main_async(args: argparse.Namespace) -> None:
     config = load_config("config.yaml")
-    mock_registry = load_mock_data(config.mock_data_file)
+    fixtures = load_fixtures(config.fixture_file)
     token_counter = TokenCounter()
 
     model_proxy_app = create_model_proxy_app(config, token_counter)
-    mock_rental_app = create_mock_rental_app(config, mock_registry)
+    mock_rental_app = create_mock_rental_app(config, fixtures)
 
     proxy_task = asyncio.create_task(
         start_server(model_proxy_app, "0.0.0.0", config.model_proxy_port)
