@@ -73,7 +73,7 @@ development_status:
   # ── Epic 5: 可运行的仿真服务环境 ──
   epic-5: in-progress
   5-1-project-scaffold-config-system: done
-  5-2-dual-http-sim-services: backlog
+  5-2-dual-http-sim-services: done
   epic-5-retrospective: optional
 
   # ── Epic 6: 测试执行与结果判定 ──

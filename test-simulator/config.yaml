@@ -1,15 +1,16 @@
 # Test Simulator 全局配置文件
-# 修改 llm_proxy_url 和 llm_api_key 后即可运行
+# llm_api_key 从项目根目录 .api_key 文件自动读取，无需在此填写
 
 agent_base_url: "http://localhost:8191"             # Agent 服务地址（默认 8191）
 model_proxy_port: 8888                              # Model Proxy 监听端口（默认 8888）
-llm_proxy_url: "https://your-llm-proxy/v1/chat/completions"  # 必填：外部 LLM 代理完整 URL
-llm_api_key: "your-api-key"                         # 必填：LLM API Key（传递为 Authorization Bearer）
+llm_proxy_url: "https://api.siliconflow.cn/v1/chat/completions"  # SiliconFlow LLM 代理地址
+# llm_api_key: ""                                  # 可选：若不设置则从 api_key_file 读取
+api_key_file: "../.api_key"                         # API Key 文件路径（相对于 test-simulator/ 目录）
 mock_rental_port: 8080                              # Mock 租房 API 监听端口（默认 8080）
-rental_mode: "mock"                                 # mock | passthrough — mock 返回预定义 JSON，passthrough 转发真实 API
-rental_passthrough_url: "http://7.225.29.223:8080"  # 透传模式下的真实租房 API 地址
-test_user_id: "your-employee-id"                    # 必填：X-User-ID 请求头值（透传模式使用）
-test_cases_file: "test_cases.yaml"                  # 测试用例文件路径（相对于 test-simulator/ 目录）
-mock_data_file: "mock_data/default.yaml"            # Mock 数据文件路径（相对于 test-simulator/ 目录）
-timeout_per_case: 60                                # 单用例超时秒数（超时判 TIMEOUT，默认 60）
-report_dir: "_bmad-output/test-reports"             # 报告输出目录（相对于项目根目录，自动创建）
+rental_mode: "mock"                                 # mock | passthrough
+rental_passthrough_url: "http://7.225.29.223:8080"  # 透传模式：真实租房 API 地址
+test_user_id: "your-employee-id"                    # 必填：X-User-ID 请求头值
+test_cases_file: "test_cases.yaml"
+mock_data_file: "mock_data/default.yaml"
+timeout_per_case: 60
+report_dir: "_bmad-output/test-reports"
