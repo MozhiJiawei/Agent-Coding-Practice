@@ -21,6 +21,8 @@ from tools import (
     search_nearby_landmark,
     get_nearby_amenities,
     execute_action,
+    get_houses_by_community,
+    get_house_listings,
 )
 
 # ─────────────────────────────────────────────
@@ -68,7 +70,7 @@ class TestToolsConstant:
         assert isinstance(TOOLS, list)
 
     def test_tools_has_six_entries(self):
-        assert len(TOOLS) == 6
+        assert len(TOOLS) == 8
 
     def test_each_tool_has_type_function(self):
         for tool in TOOLS:
@@ -83,6 +85,8 @@ class TestToolsConstant:
             "search_nearby_landmark",
             "get_nearby_amenities",
             "execute_action",
+            "get_houses_by_community",
+            "get_house_listings",
         }
         actual_names = {tool["function"]["name"] for tool in TOOLS}
         assert actual_names == expected_names
@@ -312,41 +316,41 @@ class TestGetNearbyAmenitiesHappyPath:
     async def test_returns_amenities(self, mock_client):
         amenities_data = {"amenities": [{"name": "家乐福", "category": "商超", "distance": 300}]}
         mock_client.get = AsyncMock(return_value=make_mock_response(amenities_data))
-        result = await get_nearby_amenities(mock_client, house_id="HF_1")
+        result = await get_nearby_amenities(mock_client, community="建清园(南区)")
         assert result == amenities_data
 
     @pytest.mark.anyio
     async def test_default_max_distance_1000(self, mock_client):
         """未提供 max_distance_m 时默认为 1000（FR16）"""
         mock_client.get = AsyncMock(return_value=make_mock_response({}))
-        await get_nearby_amenities(mock_client, house_id="HF_1")
+        await get_nearby_amenities(mock_client, community="建清园(南区)")
         params = mock_client.get.call_args.kwargs.get("params", {})
         assert params.get("max_distance_m") == 1000
 
     @pytest.mark.anyio
     async def test_custom_max_distance_used(self, mock_client):
         mock_client.get = AsyncMock(return_value=make_mock_response({}))
-        await get_nearby_amenities(mock_client, house_id="HF_1", max_distance_m=500)
+        await get_nearby_amenities(mock_client, community="建清园(南区)", max_distance_m=500)
         params = mock_client.get.call_args.kwargs.get("params", {})
         assert params.get("max_distance_m") == 500
 
     @pytest.mark.anyio
     async def test_uses_x_user_id_header(self, mock_client):
         mock_client.get = AsyncMock(return_value=make_mock_response({}))
-        await get_nearby_amenities(mock_client, house_id="HF_1")
+        await get_nearby_amenities(mock_client, community="建清园(南区)")
         assert "X-User-ID" in mock_client.get.call_args.kwargs["headers"]
 
     @pytest.mark.anyio
     async def test_optional_category_included_when_provided(self, mock_client):
         mock_client.get = AsyncMock(return_value=make_mock_response({}))
-        await get_nearby_amenities(mock_client, house_id="HF_1", category="公园")
+        await get_nearby_amenities(mock_client, community="建清园(南区)", type="shopping")
         params = mock_client.get.call_args.kwargs.get("params", {})
-        assert params.get("category") == "公园"
+        assert params.get("type") == "shopping"
 
     @pytest.mark.anyio
     async def test_calls_correct_endpoint(self, mock_client):
         mock_client.get = AsyncMock(return_value=make_mock_response({}))
-        await get_nearby_amenities(mock_client, house_id="HF_1")
+        await get_nearby_amenities(mock_client, community="建清园(南区)")
         assert mock_client.get.call_args.args[0] == "/api/houses/nearby_landmarks"
 
 
@@ -385,11 +389,13 @@ class TestExecuteActionHappyPath:
         assert "X-User-ID" in mock_client.post.call_args.kwargs["headers"]
 
     @pytest.mark.anyio
-    async def test_listing_platform_in_json_body(self, mock_client):
+    async def test_listing_platform_in_query_params(self, mock_client):
         mock_client.post = AsyncMock(return_value=make_mock_response({}))
         await execute_action(mock_client, action="rent", house_id="HF_1", listing_platform="链家")
-        json_body = mock_client.post.call_args.kwargs.get("json", {})
-        assert json_body.get("listing_platform") == "链家"
+        params = mock_client.post.call_args.kwargs.get("params", {})
+        assert params.get("listing_platform") == "链家"
+        json_body = mock_client.post.call_args.kwargs.get("json")
+        assert not json_body
 
     @pytest.mark.anyio
     async def test_house_id_as_string(self, mock_client):
@@ -474,14 +480,14 @@ class TestGetNearbyAmenitiesErrorPath:
     @pytest.mark.anyio
     async def test_exception_returns_error_dict(self, mock_client):
         mock_client.get = AsyncMock(side_effect=Exception("Read timeout"))
-        result = await get_nearby_amenities(mock_client, house_id="HF_1")
+        result = await get_nearby_amenities(mock_client, community="建清园(南区)")
         assert "error" in result
         assert "get_nearby_amenities failed" in result["error"]
 
     @pytest.mark.anyio
     async def test_no_exception_raised(self, mock_client):
         mock_client.get = AsyncMock(side_effect=Exception("timeout"))
-        result = await get_nearby_amenities(mock_client, house_id="HF_1")
+        result = await get_nearby_amenities(mock_client, community="建清园(南区)")
         assert isinstance(result, dict)
 
 
@@ -611,3 +617,71 @@ class TestExecuteActionInvalidAction:
             mock_client.post = AsyncMock(return_value=make_mock_response({"ok": True}))
             result = await execute_action(mock_client, action=action, house_id="HF_1", listing_platform="安居客")
             assert "error" not in result, f"Valid action '{action}' should not return error"
+
+
+# ─────────────────────────────────────────────
+# get_houses_by_community 测试
+# ─────────────────────────────────────────────
+
+class TestGetHousesByCommunityHappyPath:
+    """AC-5 — get_houses_by_community 正常调用"""
+
+    @pytest.mark.anyio
+    async def test_calls_correct_endpoint(self, mock_client):
+        mock_client.get = AsyncMock(return_value=make_mock_response({"data": {"items": []}}))
+        await get_houses_by_community(mock_client, community="智学苑")
+        assert mock_client.get.call_args.args[0] == "/api/houses/by_community"
+
+    @pytest.mark.anyio
+    async def test_community_in_params(self, mock_client):
+        mock_client.get = AsyncMock(return_value=make_mock_response({"data": {"items": []}}))
+        await get_houses_by_community(mock_client, community="智学苑")
+        params = mock_client.get.call_args.kwargs.get("params", {})
+        assert params.get("community") == "智学苑"
+
+    @pytest.mark.anyio
+    async def test_uses_x_user_id_header(self, mock_client):
+        mock_client.get = AsyncMock(return_value=make_mock_response({"data": {"items": []}}))
+        await get_houses_by_community(mock_client, community="智学苑")
+        assert "X-User-ID" in mock_client.get.call_args.kwargs["headers"]
+
+    @pytest.mark.anyio
+    async def test_none_params_not_sent(self, mock_client):
+        mock_client.get = AsyncMock(return_value=make_mock_response({"data": {"items": []}}))
+        await get_houses_by_community(mock_client, community="智学苑", listing_platform=None)
+        params = mock_client.get.call_args.kwargs.get("params", {})
+        assert "listing_platform" not in params
+
+    @pytest.mark.anyio
+    async def test_exception_returns_error_dict(self, mock_client):
+        mock_client.get = AsyncMock(side_effect=Exception("Connection error"))
+        result = await get_houses_by_community(mock_client, community="智学苑")
+        assert "error" in result
+        assert "get_houses_by_community failed" in result["error"]
+
+
+# ─────────────────────────────────────────────
+# get_house_listings 测试
+# ─────────────────────────────────────────────
+
+class TestGetHouseListingsHappyPath:
+    """AC-6 — get_house_listings 正常调用"""
+
+    @pytest.mark.anyio
+    async def test_calls_correct_endpoint(self, mock_client):
+        mock_client.get = AsyncMock(return_value=make_mock_response({"data": {"items": []}}))
+        await get_house_listings(mock_client, house_id="HF_1")
+        assert mock_client.get.call_args.args[0] == "/api/houses/listings/HF_1"
+
+    @pytest.mark.anyio
+    async def test_uses_x_user_id_header(self, mock_client):
+        mock_client.get = AsyncMock(return_value=make_mock_response({"data": {"items": []}}))
+        await get_house_listings(mock_client, house_id="HF_1")
+        assert "X-User-ID" in mock_client.get.call_args.kwargs["headers"]
+
+    @pytest.mark.anyio
+    async def test_exception_returns_error_dict(self, mock_client):
+        mock_client.get = AsyncMock(side_effect=Exception("Timeout"))
+        result = await get_house_listings(mock_client, house_id="HF_1")
+        assert "error" in result
+        assert "get_house_listings failed" in result["error"]

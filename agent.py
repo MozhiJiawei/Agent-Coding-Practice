@@ -5,7 +5,8 @@ import httpx
 from openai import AsyncOpenAI
 from tools import (
     TOOLS, search_houses, search_landmark, search_nearby_landmark,
-    get_house_detail, get_nearby_amenities, execute_action
+    get_house_detail, get_nearby_amenities, execute_action,
+    get_houses_by_community, get_house_listings,
 )
 from logger import log_event
 
@@ -17,7 +18,9 @@ SYSTEM_PROMPT = """你是智能租房助手，帮助用户在北京寻找和租�
 - 查看房源详情 → 调用 get_house_detail
 - 搜索地标（地铁站/商圈/公司）→ 调用 search_landmark
 - 查找地标附近房源 → 调用 search_nearby_landmark
-- 查询周边生活配套 → 调用 get_nearby_amenities
+- 按小区名查可租房源（指代消解/查某小区详情）→ 调用 get_houses_by_community
+- 查同一房源在多个平台的挂牌价对比 → 调用 get_house_listings
+- 查询某小区周边商超/公园配套 → 调用 get_nearby_amenities（传小区名 community，不是房源ID）
 - 租房/退租/下架操作 → 必须调用 execute_action（action: rent/terminate/offline）
 
 意图分类：
@@ -25,13 +28,13 @@ SYSTEM_PROMPT = """你是智能租房助手，帮助用户在北京寻找和租�
 - 纯聊天或与房源无关的问题 → 直接自然语言回复，无需调工具
 
 输出格式：
-- 调用 search_houses 或 search_nearby_landmark 后，用自然语言描述推荐房源，系统自动处理 JSON 格式
+- 调用 search_houses、search_nearby_landmark 或 get_houses_by_community 后，用自然语言描述推荐房源，系统自动处理 JSON 格式
 - 禁止自行生成 JSON 格式输出
 - 禁止编造房源 ID，系统会从工具结果中自动提取
 - 每次最多推荐 5 套房源"""
 
 MAX_ITERATIONS = 10
-HOUSE_SEARCH_TOOLS = {"search_houses", "search_nearby_landmark"}
+HOUSE_SEARCH_TOOLS = {"search_houses", "search_nearby_landmark", "get_houses_by_community"}
 
 TOOL_DISPATCH: dict[str, Callable] = {
     "search_houses": search_houses,
@@ -40,6 +43,8 @@ TOOL_DISPATCH: dict[str, Callable] = {
     "get_house_detail": get_house_detail,
     "get_nearby_amenities": get_nearby_amenities,
     "execute_action": execute_action,
+    "get_houses_by_community": get_houses_by_community,
+    "get_house_listings": get_house_listings,
 }
 
 

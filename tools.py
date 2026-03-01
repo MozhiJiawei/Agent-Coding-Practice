@@ -24,14 +24,13 @@ TOOLS: list[dict] = [
                 "properties": {
                     "district": {
                         "type": "string",
-                        "description": "行政区，如 海淀、朝阳、通州、昌平、大兴、房山、西城、丰台、顺义、东城"
+                        "description": "行政区，逗号分隔可传多区，如 海淀、朝阳、通州、昌平、大兴、房山、西城、丰台、顺义、东城"
                     },
                     "min_price": {"type": "integer", "description": "最低月租金（元）"},
                     "max_price": {"type": "integer", "description": "最高月租金（元）"},
-                    "room_type": {
-                        "type": "string",
-                        "description": "户型，如 整租、合租、一居室、两居室、三居室、四居室"
-                    },
+                    "rental_type": {"type": "string", "description": "整租 或 合租"},
+                    "bedrooms": {"type": "string", "description": "卧室数，逗号分隔，如 \"1,2\""},
+                    "area": {"type": "string", "description": "商圈，逗号分隔，如 \"西二旗,上地\""},
                     "decoration": {
                         "type": "string",
                         "enum": ["精装", "简装", "豪华", "毛坯", "空房"],
@@ -41,15 +40,26 @@ TOOLS: list[dict] = [
                         "type": "string",
                         "description": "朝向，如 朝南、朝北、朝东、朝西、南北、东西"
                     },
+                    "elevator": {"type": "string", "description": "是否有电梯：true 或 false"},
+                    "min_area": {"type": "integer", "description": "最小面积（平米）"},
+                    "max_area": {"type": "integer", "description": "最大面积（平米）"},
+                    "property_type": {"type": "string", "description": "物业类型，如 住宅"},
                     "max_subway_dist": {
                         "type": "integer",
                         "description": "最大地铁距离（米），800=近地铁，1000=地铁可达"
                     },
+                    "subway_line": {"type": "string", "description": "地铁线路，如 13号线"},
+                    "subway_station": {"type": "string", "description": "地铁站名，如 车公庄站"},
+                    "utilities_type": {"type": "string", "description": "水电类型，如 民水民电"},
+                    "available_from_before": {"type": "string", "description": "可入住日期上限，YYYY-MM-DD，如 2026-03-10"},
+                    "commute_to_xierqi_max": {"type": "integer", "description": "到西二旗通勤时间上限（分钟）"},
                     "listing_platform": {
                         "type": "string",
                         "enum": ["链家", "安居客", "58同城"],
                         "description": "挂牌平台，默认安居客"
-                    }
+                    },
+                    "sort_by": {"type": "string", "enum": ["price", "area", "subway"], "description": "排序字段"},
+                    "sort_order": {"type": "string", "enum": ["asc", "desc"], "description": "排序方向"}
                 },
                 "required": []
             }
@@ -112,13 +122,48 @@ TOOLS: list[dict] = [
         "type": "function",
         "function": {
             "name": "get_nearby_amenities",
-            "description": "查询指定房源 1000 米内的生活配套（商超、公园等），返回名称、类别和步行距离。",
+            "description": "查询指定小区周边生活配套（商超/公园），按距离排序。需先通过 search_houses 或 get_house_detail 获知小区名。",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "house_id": {"type": "string", "description": "房源 ID，格式如 HF_1"},
-                    "category": {"type": "string", "description": "配套类别，如 商超、公园"},
+                    "community": {"type": "string", "description": "小区名，如 建清园(南区)，需与房源信息中的 community 字段完全一致"},
+                    "type": {
+                        "type": "string",
+                        "enum": ["shopping", "park"],
+                        "description": "地标类型：shopping(商超)/park(公园)，不传则返回全部"
+                    },
                     "max_distance_m": {"type": "integer", "description": "最大距离（米），默认 1000"}
+                },
+                "required": ["community"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_houses_by_community",
+            "description": "按小区名查询该小区下可租房源，用于指代消解（如用户说'这个小区'）或查某小区地铁/隐性属性。需传入精确小区名。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "community": {"type": "string", "description": "小区名，需与数据完全一致，如 建清园(南区)、保利锦上(二期)"},
+                    "listing_platform": {"type": "string", "enum": ["链家", "安居客", "58同城"], "description": "挂牌平台，不传默认安居客"},
+                    "page": {"type": "integer", "description": "页码，默认 1"},
+                    "page_size": {"type": "integer", "description": "每页条数，默认 10"}
+                },
+                "required": ["community"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_house_listings",
+            "description": "获取指定房源在链家/安居客/58同城三个平台的全部挂牌记录，用于比较同一房源的跨平台价格差异。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "house_id": {"type": "string", "description": "房源 ID，如 HF_1"}
                 },
                 "required": ["house_id"]
             }
@@ -265,13 +310,35 @@ async def execute_action(client: httpx.AsyncClient, **kwargs) -> dict:
 
         resp = await client.post(
             f"/api/houses/{house_id}/{action}",
-            json={"listing_platform": listing_platform},
+            params={"listing_platform": listing_platform},
             headers=_get_headers(),
         )
         resp.raise_for_status()
         return resp.json()
     except Exception as e:
         return {"error": f"execute_action failed: {str(e)}"}
+
+
+# ── get_houses_by_community ─────────────────────────────────────────────────
+async def get_houses_by_community(client: httpx.AsyncClient, **kwargs) -> dict:
+    try:
+        params: dict = {k: v for k, v in kwargs.items() if v is not None}
+        resp = await client.get("/api/houses/by_community", params=params, headers=_get_headers())
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as e:
+        return {"error": f"get_houses_by_community failed: {str(e)}"}
+
+
+# ── get_house_listings ───────────────────────────────────────────────────────
+async def get_house_listings(client: httpx.AsyncClient, **kwargs) -> dict:
+    try:
+        house_id = str(kwargs.get("house_id", ""))
+        resp = await client.get(f"/api/houses/listings/{house_id}", headers=_get_headers())
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as e:
+        return {"error": f"get_house_listings failed: {str(e)}"}
 
 
 # ── init_houses（Story 2.2 已实现，保持不变） ───────────────────────────────
