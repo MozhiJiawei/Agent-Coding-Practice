@@ -1,9 +1,12 @@
-"""Test Runner — Chat Client + 断言引擎 + 报告生成 (Story 6.1)"""
+"""Test Runner — Chat Client + 断言引擎 + 报告生成 (Story 6.1-6.2)"""
 from __future__ import annotations
 
 import asyncio
 import json
+import os
 import time
+import uuid
+from datetime import datetime
 from typing import Any
 
 import httpx
@@ -308,3 +311,75 @@ async def run_all_cases(
             result = await run_single_case(case, config, client, token_counter)
             results.append(result)
     return results
+
+
+# ── generate_reports ──────────────────────────────────────────────────────────
+
+
+def generate_reports(
+    results: list[CaseResult],
+    config: SimulatorConfig,
+    total_duration_ms: int,
+) -> str:
+    """Generate JSON and Markdown reports; return JSON report file path (AC4, AC5)."""
+    os.makedirs(config.report_dir, exist_ok=True)
+
+    now = datetime.now()
+    timestamp_str = now.strftime("%Y-%m-%d-%H%M%S")
+    timestamp_iso = now.strftime("%Y-%m-%dT%H:%M:%S")
+
+    total = len(results)
+    passed = sum(1 for r in results if r.status == "PASS")
+    failed = total - passed
+    pass_rate = f"{passed / total * 100:.1f}%" if total > 0 else "0.0%"
+
+    report_data = {
+        "meta": {
+            "run_id": str(uuid.uuid4()),
+            "timestamp": timestamp_iso,
+            "agent_base_url": config.agent_base_url,
+            "total_duration_ms": total_duration_ms,
+        },
+        "summary": {
+            "total": total,
+            "passed": passed,
+            "failed": failed,
+            "pass_rate": pass_rate,
+        },
+        "cases": [r.model_dump() for r in results],
+    }
+
+    json_path = os.path.join(config.report_dir, f"report-{timestamp_str}.json")
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(report_data, f, ensure_ascii=False, indent=2)
+
+    md_lines = [
+        f"# Test Report - {now.strftime('%Y-%m-%d %H:%M:%S')}",
+        "",
+        "## Summary",
+        "",
+        "| Metric | Value |",
+        "|--------|-------|",
+        f"| Total | {total} |",
+        f"| Passed | {passed} |",
+        f"| Failed | {failed} |",
+        f"| Pass Rate | {pass_rate} |",
+        "",
+        "## Cases",
+        "",
+        "| # | case_id | type | status | duration_ms | failure_reason |",
+        "|---|---------|------|--------|-------------|----------------|",
+    ]
+    for i, r in enumerate(results, 1):
+        fr = r.failure_reason or "-"
+        md_lines.append(
+            f"| {i} | {r.case_id} | {r.case_type} | {r.status} | {r.duration_ms} | {fr} |"
+        )
+
+    md_lines.extend(["", f"## Total: {passed} passed, {failed} failed"])
+
+    md_path = os.path.join(config.report_dir, f"report-{timestamp_str}.md")
+    with open(md_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(md_lines) + "\n")
+
+    return json_path

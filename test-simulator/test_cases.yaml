@@ -1,5 +1,5 @@
 # 测试用例文件
-# 完整断言引擎在 Story 6.1 中实现，当前仅用于链路验证
+# 断言引擎在 Story 6.1 中实现
 
 test_cases:
   - id: chat_hello
@@ -9,5 +9,30 @@ test_cases:
     expect:
       has_response: true
       response_not_empty: true
+      status_success: true
     tags:
       - smoke
+
+  - id: single_haidian_2br
+    type: Single
+    messages:
+      - "帮我找海淀区的两居室，整租，价格在3000到6000元之间"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - smoke
+      - tool-call
+
+  - id: multi_progressive
+    type: Multi
+    messages:
+      - "我想租房子，有什么推荐吗？"
+      - "海淀区有哪些两居室可以租？"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - multi-turn

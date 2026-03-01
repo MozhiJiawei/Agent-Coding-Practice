@@ -39,6 +39,9 @@ def create_model_proxy_app(config: SimulatorConfig, token_counter: TokenCounter)
     @app.post("/v1/chat/completions")
     async def proxy_chat(request: Request):
         body = await request.json()
+        # 用配置的模型名覆盖 agent 发来的空 model 字段，SiliconFlow 要求必须指定有效模型名
+        if not body.get("model"):
+            body = {**body, "model": config.llm_model}
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {api_key}",

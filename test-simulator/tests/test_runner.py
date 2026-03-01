@@ -1,9 +1,11 @@
 """Unit tests for runner.py — send_message, ASSERTION_RULES, check_assertions,
-run_single_case, print_case_result, run_all_cases (Story 6.1)"""
+run_single_case, print_case_result, run_all_cases, generate_reports (Story 6.1-6.2)"""
 from __future__ import annotations
 
 import asyncio
 import json
+import os
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import httpx
@@ -14,6 +16,7 @@ from runner import (
     ASSERTION_RULES,
     check_assertions,
     extract_house_ids,
+    generate_reports,
     print_case_result,
     run_all_cases,
     run_single_case,
@@ -657,3 +660,147 @@ async def test_run_all_cases_returns_all_results(monkeypatch):
     assert len(results) == 3
     result_ids = [r.case_id for r in results]
     assert result_ids == ["c1", "c2", "c3"]
+
+
+# ── generate_reports — Story 6.2 AC4, AC5 ────────────────────────────────────
+
+
+def make_results(passed: int = 2, failed: int = 1) -> list[CaseResult]:
+    results = []
+    for i in range(passed):
+        results.append(CaseResult(
+            case_id=f"case_pass_{i}", case_type="Chat",
+            status="PASS", duration_ms=1000 + i * 100, rounds=1,
+        ))
+    for i in range(failed):
+        results.append(CaseResult(
+            case_id=f"case_fail_{i}", case_type="Single",
+            status="FAIL", duration_ms=2000 + i * 100, rounds=1,
+            failure_reason=f"houses_match: expected ['HF_{i}'], got []",
+        ))
+    return results
+
+
+class TestGenerateReports:
+    """AC4 (JSON report) + AC5 (Markdown report)"""
+
+    def test_json_file_created_at_correct_path(self, tmp_path):
+        """AC4: JSON file saved to {report_dir}/report-{YYYY-MM-DD-HHmmss}.json"""
+        config = make_config(report_dir=str(tmp_path))
+        results = make_results(passed=1, failed=0)
+        json_path = generate_reports(results, config, total_duration_ms=1000)
+
+        assert json_path.endswith(".json")
+        assert os.path.exists(json_path)
+        # File name matches pattern report-YYYY-MM-DD-HHmmss.json
+        filename = os.path.basename(json_path)
+        assert filename.startswith("report-")
+        assert filename.endswith(".json")
+
+    def test_json_file_has_meta_structure(self, tmp_path):
+        """AC4: meta contains run_id, timestamp, agent_base_url, total_duration_ms"""
+        config = make_config(
+            report_dir=str(tmp_path),
+            agent_base_url="http://localhost:8191",
+        )
+        results = make_results(passed=1, failed=0)
+        json_path = generate_reports(results, config, total_duration_ms=5000)
+
+        with open(json_path, encoding="utf-8") as f:
+            data = json.load(f)
+
+        meta = data["meta"]
+        assert "run_id" in meta
+        assert "timestamp" in meta
+        assert meta["agent_base_url"] == "http://localhost:8191"
+        assert meta["total_duration_ms"] == 5000
+
+    def test_json_file_has_summary_structure(self, tmp_path):
+        """AC4: summary contains total, passed, failed, pass_rate"""
+        config = make_config(report_dir=str(tmp_path))
+        results = make_results(passed=2, failed=1)
+        json_path = generate_reports(results, config, total_duration_ms=3000)
+
+        with open(json_path, encoding="utf-8") as f:
+            data = json.load(f)
+
+        summary = data["summary"]
+        assert summary["total"] == 3
+        assert summary["passed"] == 2
+        assert summary["failed"] == 1
+        assert "pass_rate" in summary
+        assert "66" in summary["pass_rate"]  # 66.7%
+
+    def test_json_file_has_cases_array(self, tmp_path):
+        """AC4: cases array with full CaseResult data per case"""
+        config = make_config(report_dir=str(tmp_path))
+        results = make_results(passed=1, failed=1)
+        json_path = generate_reports(results, config, total_duration_ms=2000)
+
+        with open(json_path, encoding="utf-8") as f:
+            data = json.load(f)
+
+        assert "cases" in data
+        assert len(data["cases"]) == 2
+        # Each case entry should have core fields
+        for case_entry in data["cases"]:
+            assert "case_id" in case_entry
+            assert "status" in case_entry
+            assert "duration_ms" in case_entry
+
+    def test_markdown_file_created(self, tmp_path):
+        """AC5: Markdown file saved to {report_dir}/report-{timestamp}.md"""
+        config = make_config(report_dir=str(tmp_path))
+        results = make_results(passed=1, failed=1)
+        json_path = generate_reports(results, config, total_duration_ms=2000)
+
+        # Corresponding .md file should also exist
+        md_path = json_path.replace(".json", ".md")
+        assert os.path.exists(md_path)
+
+    def test_markdown_has_summary_table(self, tmp_path):
+        """AC5: Markdown contains summary table with case_id, type, status, duration_ms, failure_reason"""
+        config = make_config(report_dir=str(tmp_path))
+        results = make_results(passed=1, failed=1)
+        json_path = generate_reports(results, config, total_duration_ms=2000)
+
+        md_path = json_path.replace(".json", ".md")
+        content = Path(md_path).read_text(encoding="utf-8")
+
+        assert "case_id" in content
+        assert "status" in content
+        assert "duration_ms" in content
+        assert "failure_reason" in content
+
+    def test_markdown_has_totals_line(self, tmp_path):
+        """AC5: Markdown contains N passed, M failed totals line"""
+        config = make_config(report_dir=str(tmp_path))
+        results = make_results(passed=2, failed=1)
+        json_path = generate_reports(results, config, total_duration_ms=3000)
+
+        md_path = json_path.replace(".json", ".md")
+        content = Path(md_path).read_text(encoding="utf-8")
+
+        assert "2 passed" in content
+        assert "1 failed" in content
+
+    def test_report_dir_created_if_not_exists(self, tmp_path):
+        """AC4: os.makedirs ensures report_dir is created"""
+        new_dir = str(tmp_path / "nested" / "reports")
+        config = make_config(report_dir=new_dir)
+        results = make_results(passed=1, failed=0)
+
+        json_path = generate_reports(results, config, total_duration_ms=500)
+
+        assert os.path.exists(new_dir)
+        assert os.path.exists(json_path)
+
+    def test_returns_json_path_as_string(self, tmp_path):
+        """generate_reports returns the JSON report file path (str)"""
+        config = make_config(report_dir=str(tmp_path))
+        results = make_results(passed=1, failed=0)
+
+        result = generate_reports(results, config, total_duration_ms=500)
+
+        assert isinstance(result, str)
+        assert result.endswith(".json")

@@ -15,6 +15,7 @@ class SimulatorConfig(BaseModel):
     agent_base_url: str = "http://localhost:8191"
     model_proxy_port: int = 8888
     llm_proxy_url: str                              # 必填，无默认值
+    llm_model: str = "Qwen/Qwen3-32B"               # 转发给 LLM 的模型名
     llm_api_key: str | None = None                  # 可选：若不设置则从 api_key_file 读取
     api_key_file: str = "../.api_key"               # API Key 文件路径（相对于 test-simulator/ 运行目录）
     mock_rental_port: int = 8080

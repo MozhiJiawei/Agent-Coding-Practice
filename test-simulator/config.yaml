@@ -4,11 +4,12 @@
 agent_base_url: "http://localhost:8191"             # Agent 服务地址（默认 8191）
 model_proxy_port: 8888                              # Model Proxy 监听端口（默认 8888）
 llm_proxy_url: "https://api.siliconflow.cn/v1/chat/completions"  # SiliconFlow LLM 代理地址
+llm_model: "Qwen/Qwen3-32B"                         # 转发给 SiliconFlow 的模型名
 # llm_api_key: ""                                  # 可选：若不设置则从 api_key_file 读取
 api_key_file: "../.api_key"                         # API Key 文件路径（相对于 test-simulator/ 目录）
 mock_rental_port: 8080                              # Mock 租房 API 监听端口（默认 8080）
 fixture_file: "mock_data/default.yaml"              # Fixture 数据集路径（供 MockState 加载）
 test_user_id: "your-employee-id"                    # 必填：X-User-ID 请求头值
 test_cases_file: "test_cases.yaml"
-timeout_per_case: 60
+timeout_per_case: 180
 report_dir: "_bmad-output/test-reports"
