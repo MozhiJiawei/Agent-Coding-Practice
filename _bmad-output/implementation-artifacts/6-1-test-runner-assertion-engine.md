@@ -1,6 +1,6 @@
 # Story 6.1: Test Runner 与断言引擎
 
-Status: ready-for-dev
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -76,38 +76,38 @@ So that I can automatically verify whether the Agent produces correct responses 
 
 ## Tasks / Subtasks
 
-- [ ] Task 1：实现 send_message（AC: 2）
-  - [ ] 1.1 定义 `send_message(client, agent_base_url, session_id, model_ip, message) -> tuple[dict, None] | tuple[None, str]`
-  - [ ] 1.2 POST 至 `{agent_base_url}/api/v1/chat`，body `{"model_ip": model_ip, "session_id": session_id, "message": message}`
-  - [ ] 1.3 捕获 `httpx.ConnectError` 返回 `(None, "Chat 不通: {detail}")`
-  - [ ] 1.4 成功时解析 JSON 返回 `(body, None)`
+- [x] Task 1：实现 send_message（AC: 2）
+  - [x] 1.1 定义 `send_message(client, agent_base_url, session_id, model_ip, message) -> tuple[dict, None] | tuple[None, str]`
+  - [x] 1.2 POST 至 `{agent_base_url}/api/v1/chat`，body `{"model_ip": model_ip, "session_id": session_id, "message": message}`
+  - [x] 1.3 捕获 `httpx.ConnectError` 返回 `(None, "Chat 不通: {detail}")`
+  - [x] 1.4 成功时解析 JSON 返回 `(body, None)`
 
-- [ ] Task 2：实现 ASSERTION_RULES（AC: 3, 4, 5, 6）
-  - [ ] 2.1 实现 `has_response(response, expected)`：检查 response 存在
-  - [ ] 2.2 实现 `response_not_empty(response, expected)`：检查 response.response 非空
-  - [ ] 2.3 实现 `response_json_valid(response, expected)`：检查 response.response 为合法 JSON
-  - [ ] 2.4 实现 `houses_match(response, expected)`：精确匹配 houses 列表（expected 为 list[str]）
-  - [ ] 2.5 实现 `houses_match_subset(response, expected)`：子集匹配，expected_ids 从 `expect.houses_match` 取；检查 `set(expected) ⊆ set(actual)`
-  - [ ] 2.6 实现 `house_count_min(response, expected)`：检查 houses 数量 ≥ expected
-  - [ ] 2.7 实现 `status_success(response, expected)`：检查 response.status == "success"
-  - [ ] 2.8 定义 `check_assertions(response: dict, expect: ExpectRules, case: TestCase) -> tuple[bool, str]`，逐条检查 expect 规则
+- [x] Task 2：实现 ASSERTION_RULES（AC: 3, 4, 5, 6）
+  - [x] 2.1 实现 `has_response(response, expected)`：检查 response 存在
+  - [x] 2.2 实现 `response_not_empty(response, expected)`：检查 response.response 非空
+  - [x] 2.3 实现 `response_json_valid(response, expected)`：检查 response.response 为合法 JSON
+  - [x] 2.4 实现 `houses_match(response, expected)`：精确匹配 houses 列表（expected 为 list[str]）
+  - [x] 2.5 实现 `houses_match_subset(response, expected)`：子集匹配，expected_ids 从 `expect.houses_match` 取；检查 `set(expected) ⊆ set(actual)`
+  - [x] 2.6 实现 `house_count_min(response, expected)`：检查 houses 数量 ≥ expected
+  - [x] 2.7 实现 `status_success(response, expected)`：检查 response.status == "success"
+  - [x] 2.8 定义 `check_assertions(response: dict, expect: ExpectRules, case: TestCase) -> tuple[bool, str]`，逐条检查 expect 规则
 
-- [ ] Task 3：实现 run_single_case（AC: 1, 7, 8）
-  - [ ] 3.1 生成 `session_id = f"test-{case.id}-{int(time.time())}"`
-  - [ ] 3.2 使用 `model_ip = "127.0.0.1"`（或从 config 获取，若 SimulatorConfig 新增 model_ip 字段）
-  - [ ] 3.3 逐条消息调用 `send_message`，每轮 await 响应后再发下一轮
-  - [ ] 3.4 聚合最后一轮 response，调用 `check_assertions` 判定 PASS/FAIL
-  - [ ] 3.5 用 `asyncio.wait_for(..., timeout=config.timeout_per_case)` 包装，超时返回 TIMEOUT
-  - [ ] 3.6 构建 `CaseResult`，含 case_id、case_type、status、duration_ms、rounds、failure_reason、actual_response、token_usage
+- [x] Task 3：实现 run_single_case（AC: 1, 7, 8）
+  - [x] 3.1 生成 `session_id = f"test-{case.id}-{int(time.time())}"`
+  - [x] 3.2 使用 `model_ip = "127.0.0.1"`（与 stub 保持一致）
+  - [x] 3.3 逐条消息调用 `send_message`，每轮 await 响应后再发下一轮
+  - [x] 3.4 聚合最后一轮 response，调用 `check_assertions` 判定 PASS/FAIL
+  - [x] 3.5 用 `asyncio.wait_for(..., timeout=config.timeout_per_case)` 包装，超时返回 TIMEOUT
+  - [x] 3.6 构建 `CaseResult`，含 case_id、case_type、status、duration_ms、rounds、failure_reason、actual_response、token_usage
 
-- [ ] Task 4：实现 print_case_result（AC: 9, 10）
-  - [ ] 4.1 PASS：`[{idx}/{total}] {case_id} ...... PASS  ({duration}s)`
-  - [ ] 4.2 FAIL/ERROR/TIMEOUT：同上 + 下一行 `       ✗ {failure_reason}`
+- [x] Task 4：实现 print_case_result（AC: 9, 10）
+  - [x] 4.1 PASS：`[{idx}/{total}] {case_id} ...... PASS  ({duration}s)`
+  - [x] 4.2 FAIL/ERROR/TIMEOUT：同上 + 下一行 `       ✗ {failure_reason}`
 
-- [ ] Task 5：实现 run_all_cases 与导出
-  - [ ] 5.1 `run_all_cases(cases, config, token_counter) -> list[CaseResult]`
-  - [ ] 5.2 顺序执行每个 case，每 case 前 `token_counter.reset()`，执行后累加 token 到 CaseResult
-  - [ ] 5.3 导出 `send_message`、`run_single_case`、`run_all_cases`、`print_case_result`、`ASSERTION_RULES`、`check_assertions`
+- [x] Task 5：实现 run_all_cases 与导出
+  - [x] 5.1 `run_all_cases(cases, config, token_counter) -> list[CaseResult]`
+  - [x] 5.2 顺序执行每个 case，每 case 前 `token_counter.reset()`，执行后累加 token 到 CaseResult
+  - [x] 5.3 导出 `send_message`、`run_single_case`、`run_all_cases`、`print_case_result`、`ASSERTION_RULES`、`check_assertions`
 
 ## Dev Notes
 
@@ -210,10 +210,28 @@ expect:
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+claude-4.6-sonnet-medium-thinking (Cursor)
 
 ### Debug Log References
 
+无阻塞问题，所有任务一次通过。
+
 ### Completion Notes List
 
+- **Task 1 (send_message)**：实现 async POST 函数，精确匹配 AC2 接口格式；捕获 `httpx.ConnectError` 返回 `(None, "Chat 不通: ...")` 错误元组。
+- **Task 2 (ASSERTION_RULES + check_assertions)**：实现 7 个断言函数，均返回 `(bool, str)` 且永不抛异常（AC4）；`extract_house_ids` 辅助函数供三个 houses_* 断言共用；`check_assertions` 按规则逐条检查，首次失败即返回原因。
+- **Task 3 (run_single_case)**：session_id 格式 `test-{case.id}-{unix_ts}`；逐轮顺序发送（AC1）；用 `asyncio.wait_for` 包装超时（AC7）；`ConnectError` 返回 ERROR（AC8）；内部拆分 `_execute_case` 避免 TimeoutError 影响 rounds 计数。
+- **Task 4 (print_case_result)**：PASS 输出格式符合 AC9；FAIL/ERROR/TIMEOUT 追加 `✗ reason` 行（AC10）。
+- **Task 5 (run_all_cases)**：独立创建 `AsyncClient`，每 case 前重置 `token_counter`；顺序执行返回 `list[CaseResult]`。
+- **测试**：52 个单元测试，覆盖所有 AC；运行全套 193 个测试，零回归。
+
 ### File List
+
+- `test-simulator/runner.py` — 主要实现文件（从 stub 完整实现）
+- `test-simulator/tests/test_runner.py` — 单元测试（55 个测试）
+- `test-simulator/tests/__init__.py` — 测试包初始化文件
+
+### Change Log
+
+- 2026-03-01: 实现 Story 6.1 — Test Runner 与断言引擎（runner.py 从 stub 完整实现，新增 test_runner.py）
+- 2026-03-01: Code Review 修复 — [H1] houses_match 改用 sorted 比较（对齐架构 set 语义）；[M1] _house_count_min 加 ValueError 保护（AC4 合规）；[M2] send_message 扩展异常捕获（非 JSON 响应、超时、HTTP 错误）；[M3] 新增 tests/__init__.py；[M4] run_all_cases 测试改用 mock run_single_case；新增 3 个测试覆盖修复项。全套 196 测试通过，零回归。
