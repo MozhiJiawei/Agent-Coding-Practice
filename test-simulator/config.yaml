@@ -13,5 +13,5 @@ test_user_id: "your-employee-id"                    # 必填：X-User-ID 请求�
 test_cases_file: "test_cases.yaml"
 timeout_per_case: 720
 report_dir: "_bmad-output/test-reports"
-max_concurrency: 15
+max_concurrency: 30
 dashboard_port: 8877

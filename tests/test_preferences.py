@@ -19,8 +19,10 @@ from tools import (
     UserPreferences,
     resolve_location,
     build_area_district_map,
+    build_landmark_names,
     update_preferences,
     AREA_TO_DISTRICT,
+    LANDMARK_NAMES,
 )
 
 
@@ -46,7 +48,7 @@ def fresh_prefs():
 
 @pytest.fixture(autouse=True)
 def setup_area_map():
-    """每个测试前设置 AREA_TO_DISTRICT，测试后清理"""
+    """每个测试前设置 AREA_TO_DISTRICT 和 LANDMARK_NAMES，测试后清理"""
     AREA_TO_DISTRICT.clear()
     AREA_TO_DISTRICT.update({
         "望京": "朝阳",
@@ -55,8 +57,11 @@ def setup_area_map():
         "亦庄": "大兴",
         "回龙观": "昌平",
     })
+    LANDMARK_NAMES.clear()
+    LANDMARK_NAMES.update({"望京SOHO", "国贸", "中关村", "鸟巢"})
     yield
     AREA_TO_DISTRICT.clear()
+    LANDMARK_NAMES.clear()
 
 
 # ─────────────────────────────────────────────
@@ -206,6 +211,105 @@ class TestResolveLocation:
     def test_result_is_dict(self):
         result = resolve_location("海淀")
         assert isinstance(result, dict)
+
+    # ── 规则2b: 模糊归一（后缀剥离后匹配系统精确名称） ──────────────────────
+
+    def test_area_with_shangquan_suffix(self):
+        """望京商圈 → area: 望京（去掉"商圈"后缀后命中 AREA_TO_DISTRICT）"""
+        result = resolve_location("望京商圈")
+        assert result == {"area": "望京", "district": "朝阳"}
+
+    def test_area_with_shangyequ_suffix(self):
+        """望京商业区 → area: 望京"""
+        result = resolve_location("望京商业区")
+        assert result == {"area": "望京", "district": "朝阳"}
+
+    def test_area_with_pianqu_suffix(self):
+        """望京片区 → area: 望京"""
+        result = resolve_location("望京片区")
+        assert result == {"area": "望京", "district": "朝阳"}
+
+    def test_area_fujin_resolves_to_area_when_known(self):
+        """望京附近 → 候选串"望京"在 AREA_TO_DISTRICT 中 → 优先返回 area，而非 landmark"""
+        result = resolve_location("望京附近")
+        assert result == {"area": "望京", "district": "朝阳"}
+
+    def test_district_fuzzy_suffix_not_affected(self):
+        """海淀区 仍由规则1处理，不进入模糊逻辑"""
+        result = resolve_location("海淀区")
+        assert result == {"district": "海淀"}
+
+    def test_unknown_fujin_still_landmark(self):
+        """国贸附近 → 候选串"国贸"不在系统存储 → 仍返回 landmark_query"""
+        result = resolve_location("国贸附近")
+        assert result == {"landmark_query": "国贸"}
+
+    def test_unknown_shangquan_falls_to_landmark(self):
+        """神秘商圈 → 候选串"神秘"不在系统存储 → 整体作为 landmark_query"""
+        result = resolve_location("神秘商圈")
+        assert result == {"landmark_query": "神秘商圈"}
+
+    # ── 规则3b/3c: 反向子串匹配（系统精确名是 location 的子串） ─────────────
+
+    def test_area_substr_in_location(self):
+        """望京核心区域 → "望京"是子串 → area: 望京（规则3b）"""
+        result = resolve_location("望京核心区域")
+        assert result == {"area": "望京", "district": "朝阳"}
+
+    def test_area_substr_priority_over_district(self):
+        """西二旗科技园 → "西二旗"是子串，area 优先于 district（规则3b）"""
+        result = resolve_location("西二旗科技园")
+        assert result == {"area": "西二旗", "district": "海淀"}
+
+    def test_district_substr_in_location(self):
+        """北京海淀地区 → "海淀"是子串，无 area 命中 → district: 海淀（规则3c）"""
+        result = resolve_location("北京海淀地区")
+        assert result == {"district": "海淀"}
+
+    def test_truly_unknown_location_still_landmark(self):
+        """火星基地 → 无任何子串命中 → landmark_query（规则4）"""
+        result = resolve_location("火星基地")
+        assert result == {"landmark_query": "火星基地"}
+
+    # ── 规则3d: 反向子串匹配 — 地标名称是 location 的子串 ────────────────────
+
+    def test_landmark_substr_in_location(self):
+        """鸟巢体育场周边 → "鸟巢"是子串 → landmark_query: 鸟巢（精确名，规则3d）"""
+        result = resolve_location("鸟巢体育场周边")
+        assert result == {"landmark_query": "鸟巢"}
+
+    def test_landmark_substr_wangjing_soho_note(self):
+        """望京SOHO周边 → "望京"(area)先于"望京SOHO"(landmark)命中规则3b，返回 area"""
+        result = resolve_location("望京SOHO周边")
+        assert result == {"area": "望京", "district": "朝阳"}
+
+    def test_landmark_substr_another(self):
+        """国贸中心地带 → "国贸"是子串 → landmark_query: 国贸"""
+        result = resolve_location("国贸中心地带")
+        assert result == {"landmark_query": "国贸"}
+
+    def test_area_has_priority_over_landmark_substr(self):
+        """望京新天地 → "望京"(area)命中规则3b，优先于规则3d"""
+        result = resolve_location("望京新天地")
+        assert result == {"area": "望京", "district": "朝阳"}
+
+    def test_landmark_substr_no_match_falls_to_rule4(self):
+        """火星基地遗址 → 无任何子串命中 → landmark_query 原始输入（规则4）"""
+        result = resolve_location("火星基地遗址")
+        assert result == {"landmark_query": "火星基地遗址"}
+
+    def test_build_landmark_names_basic(self):
+        """build_landmark_names 正确提取 name 字段"""
+        landmarks = [
+            {"name": "望京SOHO", "category": "mall"},
+            {"name": "国贸", "category": "office"},
+            {"category": "subway"},  # 无 name，应跳过
+        ]
+        result = build_landmark_names(landmarks)
+        assert result == {"望京SOHO", "国贸"}
+
+    def test_build_landmark_names_empty(self):
+        assert build_landmark_names([]) == set()
 
 
 # ─────────────────────────────────────────────

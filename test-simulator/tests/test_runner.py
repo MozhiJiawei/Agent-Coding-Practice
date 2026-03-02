@@ -11,9 +11,11 @@ from unittest.mock import AsyncMock, MagicMock
 import httpx
 import pytest
 
-from config import CaseResult, ExpectRules, SimulatorConfig, TestCase, TokenCounter
+from config import CaseResult, ExpectRules, SimulatorConfig, TestCase, TokenCounter, ToolCallArgsExpect
 from runner import (
     ASSERTION_RULES,
+    _locations_equivalent,
+    _strip_location_suffix,
     check_assertions,
     extract_house_ids,
     generate_reports,
@@ -307,6 +309,59 @@ class TestStatusSuccess:
         assert ok is False
 
 
+# ── tool_call_args（含 location 模糊等价）───────────────────────────────────────
+
+class TestToolCallArgs:
+    def _make_response(self, tool_name: str, args: dict) -> dict:
+        return {
+            "response": "ok",
+            "status": "success",
+            "tool_results": [{"tool_name": tool_name, "args": args}],
+        }
+
+    def test_pass_location_haidian_qu_fuzzy(self):
+        """期望 ['海淀']，实际 ['海淀区'] → 模糊等价通过"""
+        expect = {"tool": "update_preferences", "contains": {"location": ["海淀"]}}
+        resp = self._make_response("update_preferences", {"location": ["海淀区"]})
+        ok, msg = ASSERTION_RULES["tool_call_args"](resp, expect)
+        assert ok is True, msg
+
+    def test_pass_location_wangjing_shangquan_fuzzy(self):
+        """期望 ['望京']，实际 ['望京商圈'] → 模糊等价通过"""
+        expect = {"tool": "update_preferences", "contains": {"location": ["望京"]}}
+        resp = self._make_response("update_preferences", {"location": ["望京商圈"]})
+        ok, msg = ASSERTION_RULES["tool_call_args"](resp, expect)
+        assert ok is True, msg
+
+    def test_pass_location_exact_match(self):
+        """精确匹配仍通过"""
+        expect = {"tool": "update_preferences", "contains": {"location": ["海淀"]}}
+        resp = self._make_response("update_preferences", {"location": ["海淀"]})
+        ok, msg = ASSERTION_RULES["tool_call_args"](resp, expect)
+        assert ok is True, msg
+
+    def test_fail_location_mismatch(self):
+        """期望 ['海淀']，实际 ['朝阳区'] → 失败"""
+        expect = {"tool": "update_preferences", "contains": {"location": ["海淀"]}}
+        resp = self._make_response("update_preferences", {"location": ["朝阳区"]})
+        ok, msg = ASSERTION_RULES["tool_call_args"](resp, expect)
+        assert ok is False
+        assert "location" in msg
+
+
+class TestLocationFuzzyHelpers:
+    def test_strip_location_suffix(self):
+        assert _strip_location_suffix("海淀区") == "海淀"
+        assert _strip_location_suffix("望京商圈") == "望京"
+        assert _strip_location_suffix("朝阳区") == "朝阳"
+        assert _strip_location_suffix("国贸附近") == "国贸"
+
+    def test_locations_equivalent(self):
+        assert _locations_equivalent(["海淀"], ["海淀区"]) is True
+        assert _locations_equivalent(["望京"], ["望京商圈"]) is True
+        assert _locations_equivalent(["海淀"], ["朝阳区"]) is False
+
+
 # ── check_assertions ──────────────────────────────────────────────────────────
 
 def test_check_assertions_all_pass():
@@ -352,6 +407,26 @@ def test_check_assertions_houses_match_subset_mode():
     response = make_agent_response(json.dumps({"houses": ["HF_42", "HF_107"]}))
     passed, reason = check_assertions(response, expect, case)
     assert passed is True
+
+
+def test_check_assertions_tool_call_args_location_fuzzy():
+    """tool_call_args 中 location 支持模糊等价：期望 ['海淀']，实际 ['海淀区'] 通过"""
+    case = make_case()
+    expect = ExpectRules(
+        tool_call_args=ToolCallArgsExpect(
+            tool="update_preferences",
+            contains={"location": ["海淀"], "bedrooms": "2"},
+        )
+    )
+    response = {
+        "response": "ok",
+        "status": "success",
+        "tool_results": [
+            {"tool_name": "update_preferences", "args": {"location": ["海淀区"], "bedrooms": "2"}}
+        ],
+    }
+    passed, reason = check_assertions(response, expect, case)
+    assert passed is True, reason
 
 
 # ── send_message — AC2 ────────────────────────────────────────────────────────

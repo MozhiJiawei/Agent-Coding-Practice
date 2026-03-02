@@ -9,6 +9,7 @@ from logger import log_event
 from tools import (
     init_houses, get_all_houses_for_debug, get_all_landmarks_for_debug,
     UserPreferences, build_area_district_map, AREA_TO_DISTRICT,
+    build_landmark_names, LANDMARK_NAMES,
 )
 
 # 支持环境变量覆盖，与 debug_init_houses.py 一致，便于 Mock 或不同网络环境
@@ -69,13 +70,13 @@ async def chat_endpoint(request: ChatRequest, req: Request):
             log_event("SESSION_INIT", request.session_id, {})
             await init_houses(client)
             all_houses = await get_all_houses_for_debug(client)
-            log_event("DEBUG_ALL_HOUSES", request.session_id, {"raw_response": all_houses})
+            # log_event("DEBUG_ALL_HOUSES", request.session_id, {"raw_response": all_houses})
             for platform, data in all_houses.items():
                 total = data.get("total", 0)
                 items = data.get("items", [])
                 print(f"[{request.session_id}] {platform}: total={total}, items={len(items)}")
             all_landmarks = await get_all_landmarks_for_debug(client)
-            log_event("DEBUG_ALL_LANDMARKS", request.session_id, {"raw_response": all_landmarks})
+            # log_event("DEBUG_ALL_LANDMARKS", request.session_id, {"raw_response": all_landmarks})
             # 构建 area → district 映射表并更新模块级全局
             all_items: list[dict] = []
             for platform_data in all_houses.values():
@@ -83,6 +84,10 @@ async def chat_endpoint(request: ChatRequest, req: Request):
             area_map = build_area_district_map(all_items)
             AREA_TO_DISTRICT.update(area_map)
             log_event("AREA_DISTRICT_MAP", request.session_id, {"map_size": len(area_map)})
+            # 构建地标名称集合并更新模块级全局
+            landmark_items = all_landmarks.get("items", [])
+            LANDMARK_NAMES.update(build_landmark_names(landmark_items))
+            log_event("LANDMARK_NAMES", request.session_id, {"count": len(LANDMARK_NAMES)})
             sessions[request.session_id] = []
             sessions[request.session_id].append({"role": "system", "content": SYSTEM_PROMPT})
             session_stats[request.session_id] = {"total_tokens": 0, "total_time_slices": 0}

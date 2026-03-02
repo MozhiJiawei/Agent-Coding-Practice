@@ -8,6 +8,13 @@
 $env:USER_ID = "<你的工号>"; uvicorn main:app --host 0.0.0.0 --port 8191
 ```
 
+## e2e测试
+
+```
+.\run_e2e.ps1 -UserId "EMP001" -SimAll
+http://localhost:8877/ 
+```
+
 ## Smoke Test
 
 ```powershell

@@ -22,6 +22,9 @@ DISTRICTS = {"海淀", "朝阳", "通州", "昌平", "大兴", "房山", "西城
 # 模块级全局映射表，由 build_area_district_map 填充（启动时由 main.py 调用）
 AREA_TO_DISTRICT: dict[str, str] = {}
 
+# 模块级地标名称集合，由 build_landmark_names 填充（启动时由 main.py 调用）
+LANDMARK_NAMES: set[str] = set()
+
 
 class UserPreferences(BaseModel):
     # ── 位置（LLM 输入统一字段） ──
@@ -72,13 +75,27 @@ def build_area_district_map(all_houses: list[dict]) -> dict[str, str]:
     return mapping
 
 
+def build_landmark_names(landmarks: list[dict]) -> set[str]:
+    """从地标列表中提取 name 字段，构建用于反向子串匹配的地标名称集合。"""
+    return {lm["name"] for lm in landmarks if lm.get("name")}
+
+
+_LOCATION_FUZZY_SUFFIXES = ("商圈", "商业区", "片区", "附近")
+
+
 def resolve_location(location: str) -> dict:
     """将 LLM 输入的位置路由为 district / area / landmark_query。
 
     路由规则（优先级从高到低）：
     1. 去掉"区"后缀后，若在 DISTRICTS 中 → {"district": "XX"}
-    2. 若在 AREA_TO_DISTRICT 中 → {"area": "XX", "district": "YY"}
+    2. 若在 AREA_TO_DISTRICT 中（精确匹配）→ {"area": "XX", "district": "YY"}
+    2b. 模糊归一：依次去掉"商圈"/"商业区"/"片区"/"附近"后，若候选串在
+        AREA_TO_DISTRICT 中 → {"area": 精确名, "district": "YY"}；
+        若候选串在 DISTRICTS 中 → {"district": 精确名}
     3. 以"附近"结尾 → {"landmark_query": "XX"} （去掉"附近"）
+    3b. 反向子串匹配：若系统内置 area 名称是 location 的子串 → {"area": 匹配名, "district": "YY"}
+    3c. 反向子串匹配：若系统内置 district 名称是 location 的子串 → {"district": 匹配名}
+    3d. 反向子串匹配：若系统内置 landmark 名称是 location 的子串 → {"landmark_query": 匹配名}
     4. 其他 → {"landmark_query": location}
     """
     # 规则1: 区名（支持"海淀"和"海淀区"两种写法）
@@ -86,14 +103,39 @@ def resolve_location(location: str) -> dict:
     if stripped in DISTRICTS:
         return {"district": stripped}
 
-    # 规则2: 商圈（依赖 AREA_TO_DISTRICT 映射）
+    # 规则2: 商圈（依赖 AREA_TO_DISTRICT 映射，精确匹配）
     if location in AREA_TO_DISTRICT:
         return {"area": location, "district": AREA_TO_DISTRICT[location]}
 
-    # 规则3: 地标（"XX附近"）
+    # 规则2b: 模糊归一 — 去掉常见后缀后尝试精确匹配，将 LLM 模糊输入转化为系统精确名称
+    # 优先检查 AREA_TO_DISTRICT（O(1) set lookup），再检查 DISTRICTS
+    for suffix in _LOCATION_FUZZY_SUFFIXES:
+        if location.endswith(suffix):
+            cand = location.removesuffix(suffix)
+            if cand in AREA_TO_DISTRICT:
+                return {"area": cand, "district": AREA_TO_DISTRICT[cand]}
+            if cand in DISTRICTS:
+                return {"district": cand}
+
+    # 规则3: 地标（"XX附近"，候选串不在系统存储中时才落到此处）
     if location.endswith("附近"):
         landmark = location.removesuffix("附近")
         return {"landmark_query": landmark}
+
+    # 规则3b: 反向子串匹配 — 系统内置 area 是 location 的子串（area 比 district 更精确，优先）
+    for area, district in AREA_TO_DISTRICT.items():
+        if area in location:
+            return {"area": area, "district": district}
+
+    # 规则3c: 反向子串匹配 — 系统内置 district 是 location 的子串
+    for district in DISTRICTS:
+        if district in location:
+            return {"district": district}
+
+    # 规则3d: 反向子串匹配 — 系统内置 landmark 名称是 location 的子串，返回精确名称作为查询词
+    for name in LANDMARK_NAMES:
+        if name in location:
+            return {"landmark_query": name}
 
     # 规则4: 未知，作为地标查询
     return {"landmark_query": location}

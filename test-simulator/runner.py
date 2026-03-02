@@ -24,6 +24,29 @@ from config import (
 
 # ── 辅助函数 ──────────────────────────────────────────────────────────────────
 
+# 位置常见后缀，用于 tool_call_args 中 location 的模糊等价判定
+_LOCATION_SUFFIXES = ("商圈", "商业区", "片区", "附近", "区")
+
+
+def _strip_location_suffix(loc: str) -> str:
+    """去掉位置常见后缀，得到规范化字符串用于等价比较。"""
+    s = loc
+    for suffix in _LOCATION_SUFFIXES:
+        if s.endswith(suffix):
+            return s.removesuffix(suffix)
+    return s
+
+
+def _locations_equivalent(expected: list, actual: list) -> bool:
+    """判断 expected 与 actual 在位置语义上是否等价（支持 海淀区↔海淀、望京商圈↔望京 等）。"""
+    if not isinstance(expected, list) or not isinstance(actual, list):
+        return False
+    exp_strs = [str(x) for x in expected]
+    act_strs = [str(x) for x in actual]
+    exp_norm = {_strip_location_suffix(e) for e in exp_strs}
+    act_norm = {_strip_location_suffix(a) for a in act_strs}
+    return exp_norm <= act_norm
+
 
 def extract_house_ids(resp_text: str) -> list[str]:
     """从 Agent response 文本中解析房源 ID 列表。
@@ -131,7 +154,10 @@ def _tool_call_args(response: dict, expected: Any) -> tuple[bool, str]:
     mismatches: list[str] = []
     for key, expected_val in contains.items():
         actual_val = actual_args.get(key)
-        if actual_val != expected_val:
+        if key == "location" and isinstance(expected_val, list) and isinstance(actual_val, list):
+            if not _locations_equivalent(expected_val, actual_val):
+                mismatches.append(f"{key}: 期望 {expected_val!r}, 实际 {actual_val!r}")
+        elif actual_val != expected_val:
             mismatches.append(f"{key}: 期望 {expected_val!r}, 实际 {actual_val!r}")
 
     if mismatches:

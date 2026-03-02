@@ -66,10 +66,14 @@ $repoRoot     = Split-Path -Parent $PSScriptRoot
 $simulatorDir = Join-Path $repoRoot "test-simulator"
 $logsDir      = Join-Path $repoRoot "logs"
 
-# 强制清理 logs 目录，确保日志会被重新生成
+# 强制清理 logs 目录，确保日志会被重新生成（文件被占用时跳过清理继续执行）
 if (Test-Path $logsDir) {
-    Remove-Item -Path $logsDir -Recurse -Force
-    Write-Host "[e2e] Cleaned logs directory (will be regenerated)"
+    try {
+        Remove-Item -Path $logsDir -Recurse -Force -ErrorAction Stop
+        Write-Host "[e2e] Cleaned logs directory (will be regenerated)"
+    } catch {
+        Write-Host "[e2e] WARN: Could not clean logs (files in use), continuing..."
+    }
 }
 New-Item -ItemType Directory -Path $logsDir -Force | Out-Null
 
