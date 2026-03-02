@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     执行顺序：
-      1. 后台启动 test-simulator (Model Proxy :8888 + Mock Rental :8080)
+      1. 后台启动 test-simulator (Model Proxy :8888 + Mock Rental :8080 + Dashboard :8877)
       2. 后台启动主 Agent (:8191)，并将 RENTAL_API_BASE 指向 Mock Rental
       3. 轮询健康探测，等待三个服务全部就绪
       4a. 若指定 -SimCase 或 -SimAll：运行 test-simulator 用例（test_cases.yaml）
@@ -175,11 +175,12 @@ try {
     $managedPids.Add($agentProc.Id)
     Write-Host "[e2e]   PID $($agentProc.Id) → logs\agent.log"
 
-    # ── 3. 等待三个服务健康就绪 ──────────────────────────────────────────────────
+    # ── 3. 等待四个服务健康就绪 ──────────────────────────────────────────────────
     $services = [ordered]@{
         "Model Proxy(8888)" = "http://localhost:8888/docs"
         "Mock Rental(8080)" = "http://localhost:8080/docs"
         "Agent(8191)"       = "http://localhost:8191/docs"
+        "Dashboard(8877)"   = "http://localhost:8877/"
     }
     $ready = Wait-ServicesReady -Services $services -TimeoutSec $ReadyTimeoutSec
     if (-not $ready) {

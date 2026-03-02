@@ -14,15 +14,48 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 import sys
 import time
+from datetime import datetime
 
 # Windows GBK 终端兼容：强制 UTF-8 输出
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
+import httpx
+
 from config import load_config, load_test_cases
 from runner import generate_reports, print_case_result, run_cases_parallel
+
+
+def post_result_to_dashboard(result: dict, config) -> None:
+    """POST case result to Dashboard for visualization."""
+    url = f"http://localhost:{config.dashboard_port}/api/case-result"
+    try:
+        with httpx.Client(timeout=5.0) as client:
+            client.post(url, json=result)
+    except Exception:
+        pass  # Dashboard may not be running
+
+
+def save_html_report(config) -> str | None:
+    """Fetch export-html from Dashboard and save to report_dir. Returns path or None."""
+    url = f"http://localhost:{config.dashboard_port}/api/export-html"
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            r = client.get(url)
+            if r.status_code != 200:
+                return None
+            html = r.text
+    except Exception:
+        return None
+    os.makedirs(config.report_dir, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
+    path = os.path.join(config.report_dir, f"report-{timestamp}.html")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(html)
+    return path
 
 
 def parse_args() -> argparse.Namespace:
@@ -65,14 +98,16 @@ async def run(args: argparse.Namespace) -> int:
 
     t0 = time.perf_counter()
 
+    def on_result(done: int, total: int, result) -> None:
+        print_case_result(done, total, result)
+        post_result_to_dashboard(result.model_dump(), config)
+        sys.stdout.flush()
+
     results = await run_cases_parallel(
         cases,
         config,
         max_concurrency=concurrency,
-        on_result=lambda done, total, result: (
-            print_case_result(done, total, result),
-            sys.stdout.flush(),
-        ),
+        on_result=on_result,
     )
 
     elapsed_ms = int((time.perf_counter() - t0) * 1000)
@@ -92,6 +127,9 @@ async def run(args: argparse.Namespace) -> int:
     if results:
         report_path = generate_reports(results, config, elapsed_ms)
         print(f"\nReport: {report_path}", flush=True)
+        html_path = save_html_report(config)
+        if html_path:
+            print(f"HTML report: {html_path}", flush=True)
 
     return 0 if failed == 0 else 1
 

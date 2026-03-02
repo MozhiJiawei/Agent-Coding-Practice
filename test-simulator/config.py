@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 # 1. 标准库导入
-from typing import Literal
+from typing import Any, Literal
 
 # 2. 第三方库导入
 import yaml
@@ -25,6 +25,7 @@ class SimulatorConfig(BaseModel):
     timeout_per_case: int = 60
     report_dir: str = "_bmad-output/test-reports"
     max_concurrency: int = 15
+    dashboard_port: int = 8877
 
 
 class ToolCallArgsExpect(BaseModel):
@@ -63,6 +64,14 @@ class TestCase(BaseModel):
 TestCase.__test__ = False  # prevent pytest collection warning
 
 
+class RoundDetail(BaseModel):
+    """Per-round conversation detail for visualization."""
+    round_num: int
+    user_message: str
+    agent_response_raw: dict[str, Any] | None = None  # full Agent response body
+    error: str | None = None
+
+
 class TokenUsage(BaseModel):
     prompt_tokens: int = 0
     completion_tokens: int = 0
@@ -78,6 +87,8 @@ class CaseResult(BaseModel):
     failure_reason: str | None = None
     actual_response: str | None = None
     token_usage: TokenUsage | None = None
+    rounds_detail: list[RoundDetail] = []
+    session_id: str | None = None
 
 
 # 4. TokenCounter 辅助类

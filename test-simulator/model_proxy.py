@@ -3,12 +3,16 @@ from __future__ import annotations
 
 from pathlib import Path
 from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING
 
 import httpx
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from config import SimulatorConfig, TokenCounter
+
+if TYPE_CHECKING:
+    from dashboard import InteractionStore
 
 
 def load_api_key(config: SimulatorConfig) -> str:
@@ -24,13 +28,18 @@ def load_api_key(config: SimulatorConfig) -> str:
     return key_path.read_text(encoding="utf-8").splitlines()[0].strip()
 
 
-def create_model_proxy_app(config: SimulatorConfig, token_counter: TokenCounter) -> FastAPI:
+def create_model_proxy_app(
+    config: SimulatorConfig,
+    token_counter: TokenCounter,
+    interaction_store: "InteractionStore | None" = None,
+) -> FastAPI:
     api_key = load_api_key(config)  # 启动时加载一次，闭包捕获，不每请求读文件
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.client = httpx.AsyncClient(timeout=120.0)
         app.state.token_counter = token_counter
+        app.state.interaction_store = interaction_store
         yield
         await app.state.client.aclose()
 
@@ -65,11 +74,21 @@ def create_model_proxy_app(config: SimulatorConfig, token_counter: TokenCounter)
                 )
             if "usage" in data:
                 request.app.state.token_counter.add(data["usage"])
+            store = getattr(request.app.state, "interaction_store", None)
+            if store is not None and session_id:
+                store.log(session_id, body, data)
             return JSONResponse(content=data, status_code=resp.status_code)
         except Exception as e:
             return JSONResponse(
                 status_code=502,
                 content={"error": f"LLM proxy unavailable: {e}"},
             )
+
+    @app.get("/v1/interactions/{session_id}")
+    async def get_interactions(request: Request, session_id: str) -> dict:
+        store = getattr(request.app.state, "interaction_store", None)
+        if store is None:
+            return {"interactions": []}
+        return {"interactions": store.get(session_id)}
 
     return app

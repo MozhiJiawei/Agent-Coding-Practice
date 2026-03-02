@@ -14,11 +14,12 @@ import httpx
 from config import (
     CaseResult,
     ExpectRules,
+    RoundDetail,
+    RoundExpect,
     SimulatorConfig,
     TestCase,
     TokenCounter,
     TokenUsage,
-    RoundExpect,
 )
 
 # ── 辅助函数 ──────────────────────────────────────────────────────────────────
@@ -298,29 +299,53 @@ async def _execute_case(
                 token_usage=token_counter.to_token_usage(),
             )
 
-    session_id = f"test-{case.id}-{int(time.time())}"
+    session_id = f"test-{case.id}-{uuid.uuid4().hex[:8]}"
     model_ip = "127.0.0.1"
     t_start = time.perf_counter()
     rounds = 0
     last_body: dict | None = None
+    rounds_detail: list[RoundDetail] = []
+
+    def make_result(
+        status: str,
+        elapsed_ms: int,
+        rounds: int,
+        failure_reason: str | None = None,
+        actual_response: str | None = None,
+    ) -> CaseResult:
+        return CaseResult(
+            case_id=case.id,
+            case_type=case.type,
+            status=status,  # type: ignore[arg-type]
+            duration_ms=elapsed_ms,
+            rounds=rounds,
+            failure_reason=failure_reason,
+            actual_response=actual_response,
+            token_usage=token_counter.to_token_usage(),
+            rounds_detail=rounds_detail.copy(),
+            session_id=session_id,
+        )
 
     for msg in case.messages:
         body, err = await send_message(
             client, config.agent_base_url, session_id, model_ip, msg
         )
         if err is not None:
-            elapsed_ms = int((time.perf_counter() - t_start) * 1000)
-            return CaseResult(
-                case_id=case.id,
-                case_type=case.type,
-                status="ERROR",
-                duration_ms=elapsed_ms,
-                rounds=rounds,
-                failure_reason=err,
-                token_usage=token_counter.to_token_usage(),
+            rounds_detail.append(
+                RoundDetail(round_num=rounds + 1, user_message=msg, error=err)
             )
+            elapsed_ms = int((time.perf_counter() - t_start) * 1000)
+            return make_result("ERROR", elapsed_ms, rounds, failure_reason=err)
         rounds += 1
         last_body = body
+        rounds_detail.append(
+            RoundDetail(
+                round_num=rounds,
+                user_message=msg,
+                agent_response_raw=body,
+                error=None,
+            )
+        )
 
         # 每轮独立断言（round_expects）
         round_expect: RoundExpect | None = next(
@@ -330,42 +355,33 @@ async def _execute_case(
             r_passed, r_reason = check_assertions(body, round_expect.expect, case)
             if not r_passed:
                 elapsed_ms = int((time.perf_counter() - t_start) * 1000)
-                return CaseResult(
-                    case_id=case.id,
-                    case_type=case.type,
-                    status="FAIL",
-                    duration_ms=elapsed_ms,
-                    rounds=rounds,
+                return make_result(
+                    "FAIL",
+                    elapsed_ms,
+                    rounds,
                     failure_reason=f"[Round {rounds}] {r_reason}",
                     actual_response=body.get("response"),
-                    token_usage=token_counter.to_token_usage(),
                 )
 
     elapsed_ms = int((time.perf_counter() - t_start) * 1000)
 
     if case.expect is None or last_body is None:
         status = "PASS" if last_body is not None else "FAIL"
-        return CaseResult(
-            case_id=case.id,
-            case_type=case.type,
-            status=status,  # type: ignore[arg-type]
-            duration_ms=elapsed_ms,
-            rounds=rounds,
+        return make_result(
+            status,
+            elapsed_ms,
+            rounds,
             failure_reason=None if status == "PASS" else "No response received",
             actual_response=last_body.get("response") if last_body else None,
-            token_usage=token_counter.to_token_usage(),
         )
 
     passed, reason = check_assertions(last_body, case.expect, case)
-    return CaseResult(
-        case_id=case.id,
-        case_type=case.type,
-        status="PASS" if passed else "FAIL",
-        duration_ms=elapsed_ms,
-        rounds=rounds,
+    return make_result(
+        "PASS" if passed else "FAIL",
+        elapsed_ms,
+        rounds,
         failure_reason=reason if not passed else None,
         actual_response=last_body.get("response"),
-        token_usage=token_counter.to_token_usage(),
     )
 
 

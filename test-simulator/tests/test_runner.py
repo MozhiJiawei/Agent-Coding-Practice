@@ -458,7 +458,7 @@ async def test_run_single_case_sends_messages_in_order_ac1():
 
 @pytest.mark.asyncio
 async def test_run_single_case_session_id_format_ac2():
-    """AC2: session_id format = test-{case.id}-{unix_timestamp}"""
+    """AC2: session_id format = test-{case.id}-{uuid_hex8}"""
     config = make_config()
     case = make_case(id="my-case", messages=["hi"])
     token_counter = TokenCounter()
@@ -473,8 +473,8 @@ async def test_run_single_case_session_id_format_ac2():
     session_id = call_json["session_id"]
     assert session_id.startswith("test-my-case-")
     parts = session_id.split("-")
-    # Last part should be a numeric timestamp
-    assert parts[-1].isdigit()
+    # Last part should be 8-char hex (uuid4 hex prefix)
+    assert len(parts[-1]) == 8 and all(c in "0123456789abcdef" for c in parts[-1])
 
 
 @pytest.mark.asyncio
@@ -544,7 +544,7 @@ def test_print_case_result_pass_ac9(capsys):
     )
     print_case_result(1, 3, result)
     out = capsys.readouterr().out
-    assert "[1/3]" in out
+    assert "[done 1/3]" in out or "[1/3]" in out
     assert "test-001" in out
     assert "PASS" in out
     assert "1.5s" in out
@@ -562,7 +562,7 @@ def test_print_case_result_fail_ac10(capsys):
     )
     print_case_result(2, 3, result)
     out = capsys.readouterr().out
-    assert "[2/3]" in out
+    assert "[done 2/3]" in out or "[2/3]" in out
     assert "test-002" in out
     assert "FAIL" in out
     assert "2.0s" in out

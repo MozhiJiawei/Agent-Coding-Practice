@@ -14,3 +14,4 @@ test_cases_file: "test_cases.yaml"
 timeout_per_case: 720
 report_dir: "_bmad-output/test-reports"
 max_concurrency: 15
+dashboard_port: 8877

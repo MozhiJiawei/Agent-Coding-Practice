@@ -14,6 +14,7 @@ if hasattr(sys.stdout, "reconfigure"):
 import uvicorn
 
 from config import TokenCounter, load_config, load_fixtures, load_test_cases
+from dashboard import InteractionStore, create_dashboard_app
 from mock_rental import create_mock_rental_app
 from model_proxy import create_model_proxy_app
 from runner import generate_reports, print_case_result, run_cases_parallel
@@ -29,9 +30,11 @@ async def main_async(args: argparse.Namespace) -> None:
     config = load_config("config.yaml")
     fixtures = load_fixtures(config.fixture_file)
     token_counter = TokenCounter()
+    interaction_store = InteractionStore()
 
-    model_proxy_app = create_model_proxy_app(config, token_counter)
+    model_proxy_app = create_model_proxy_app(config, token_counter, interaction_store)
     mock_rental_app = create_mock_rental_app(config, fixtures)
+    dashboard_app = create_dashboard_app(interaction_store)
 
     proxy_task = asyncio.create_task(
         start_server(model_proxy_app, "0.0.0.0", config.model_proxy_port)
@@ -39,9 +42,15 @@ async def main_async(args: argparse.Namespace) -> None:
     rental_task = asyncio.create_task(
         start_server(mock_rental_app, "0.0.0.0", config.mock_rental_port)
     )
+    dashboard_task = asyncio.create_task(
+        start_server(dashboard_app, "0.0.0.0", config.dashboard_port)
+    )
 
     await asyncio.sleep(1.0)
-    print(f"[sim] Model Proxy :{config.model_proxy_port} + Mock Rental :{config.mock_rental_port} started")
+    print(
+        f"[sim] Model Proxy :{config.model_proxy_port} + Mock Rental :{config.mock_rental_port} "
+        f"+ Dashboard :{config.dashboard_port} started"
+    )
 
     try:
         cases = load_test_cases(config.test_cases_file)
@@ -65,9 +74,10 @@ async def main_async(args: argparse.Namespace) -> None:
             print("[sim] No --case/--tag/--all specified. Services running for manual testing.")
             print("  curl -X POST http://localhost:8191/api/v1/chat -H \"Content-Type: application/json\" \\")
             print("    -d '{\"model_ip\":\"127.0.0.1\",\"session_id\":\"test-001\",\"message\":\"你好\"}'")
+            print(f"[sim] Dashboard: http://localhost:{config.dashboard_port}/")
             print("[sim] Ctrl+C to stop")
             try:
-                await asyncio.gather(proxy_task, rental_task)
+                await asyncio.gather(proxy_task, rental_task, dashboard_task)
             except asyncio.CancelledError:
                 pass
             return
@@ -93,9 +103,11 @@ async def main_async(args: argparse.Namespace) -> None:
                 failed = len(results) - passed
                 print(f"\nResults: {passed} passed, {failed} failed ({elapsed_ms / 1000:.1f}s total)")
                 print(f"Report: {report_path}")
+                print(f"Dashboard: http://localhost:{config.dashboard_port}/")
     finally:
         proxy_task.cancel()
         rental_task.cancel()
+        dashboard_task.cancel()
 
 
 def parse_args() -> argparse.Namespace:
