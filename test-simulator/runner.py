@@ -181,6 +181,33 @@ def _tool_call_args(response: dict, expected: Any) -> tuple[bool, str]:
     return (True, "")
 
 
+def _tool_call_chain(response: dict, expected: Any) -> tuple[bool, str]:
+    """验证工具按预期顺序链式调用（先 update_preferences，再 search_by_preferences 等）。
+
+    expected 为工具名列表，如 ["update_preferences", "search_by_preferences"]。
+    实际调用序列的前缀必须与 expected 一致（允许实际有更多后续调用）。
+    """
+    if not isinstance(expected, list) or not expected:
+        return (False, "tool_call_chain: invalid expected config (non-empty list required)")
+    tool_results = response.get("tool_results", [])
+    actual = [r.get("tool_name") for r in tool_results if r.get("tool_name")]
+    # 实际序列的前 len(expected) 个必须与 expected 完全一致
+    if len(actual) < len(expected):
+        return (
+            False,
+            f"tool_call_chain: 期望至少 {len(expected)} 个工具调用且顺序为 {expected}，"
+            f"实际仅 {len(actual)} 个: {actual}",
+        )
+    for i, exp_name in enumerate(expected):
+        if actual[i] != exp_name:
+            return (
+                False,
+                f"tool_call_chain: 第 {i + 1} 个调用期望 '{exp_name}'，实际为 '{actual[i]}'；"
+                f"期望顺序 {expected}，实际 {actual}",
+            )
+    return (True, "")
+
+
 def _no_tool_call(response: dict, expected: Any) -> tuple[bool, str]:
     """验证本轮响应中未调用任何工具。"""
     tool_results = response.get("tool_results", [])
@@ -201,6 +228,7 @@ ASSERTION_RULES: dict[str, Any] = {
     "house_count_min": _house_count_min,
     "status_success": _status_success,
     "tool_call_args": _tool_call_args,
+    "tool_call_chain": _tool_call_chain,
     "no_tool_call": _no_tool_call,
 }
 
@@ -233,6 +261,8 @@ def check_assertions(
         checks.append(("status_success", expect.status_success))
     if expect.tool_call_args is not None:
         checks.append(("tool_call_args", expect.tool_call_args.model_dump()))
+    if expect.tool_call_chain is not None:
+        checks.append(("tool_call_chain", expect.tool_call_chain))
     if expect.no_tool_call is not None:
         checks.append(("no_tool_call", expect.no_tool_call))
 

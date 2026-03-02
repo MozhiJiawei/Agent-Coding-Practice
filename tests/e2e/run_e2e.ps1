@@ -40,6 +40,9 @@
 .PARAMETER AgentPort
     可选。主 Agent 监听端口，默认 8191。
 
+.PARAMETER AutoFindPorts
+    可选。若指定，则自动寻找未占用端口，避免与已有服务冲突。
+
 .EXAMPLE
     .\tests\e2e\run_e2e.ps1
     .\tests\e2e\run_e2e.ps1 -UserId "EMP001"
@@ -47,6 +50,7 @@
     .\tests\e2e\run_e2e.ps1 -UserId "EMP001" -SimTag "ev03"
     .\tests\e2e\run_e2e.ps1 -UserId "EMP002" -ReadyTimeoutSec 60
     .\tests\e2e\run_e2e.ps1 -UserId "EMP002" -ModelProxyPort 8988 -MockRentalPort 8180 -DashboardPort 8977 -AgentPort 8291
+    .\tests\e2e\run_e2e.ps1 -AutoFindPorts -SimCase "ev06_wangjing_to_daxing_rental_flow"
 #>
 [CmdletBinding()]
 param(
@@ -62,7 +66,9 @@ param(
     [int]$ModelProxyPort = 8888,
     [int]$MockRentalPort = 8080,
     [int]$DashboardPort = 8877,
-    [int]$AgentPort = 8191
+    [int]$AgentPort = 8191,
+
+    [switch]$AutoFindPorts = $false
 )
 
 Set-StrictMode -Version Latest
@@ -97,6 +103,51 @@ New-Item -ItemType Directory -Path $e2eReportsDir -Force | Out-Null
 $managedPids = [System.Collections.Generic.List[int]]::new()
 
 # ─── 工具函数 ─────────────────────────────────────────────────────────────────
+
+function Test-PortInUse {
+    param([int]$Port)
+    try {
+        $listener = New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::Any, $Port)
+        $listener.Start()
+        $listener.Stop()
+        return $false  # 绑定成功，端口可用
+    } catch {
+        return $true   # 绑定失败，端口被占用
+    }
+}
+
+function Get-FreePort {
+    param([int]$PreferredPort, [int[]]$ExcludePorts = @())
+    $port = $PreferredPort
+    $attempts = 0
+    $maxAttempts = 100
+    while ($attempts -lt $maxAttempts) {
+        if ($port -notin $ExcludePorts -and -not (Test-PortInUse -Port $port)) {
+            return $port
+        }
+        $port += 1
+        $attempts++
+    }
+    throw "Cannot find free port after $maxAttempts attempts"
+}
+
+function Get-FourFreePorts {
+    param(
+        [int]$BaseModelProxy = 8888,
+        [int]$BaseMockRental = 8080,
+        [int]$BaseDashboard = 8877,
+        [int]$BaseAgent = 8191
+    )
+    $used = @()
+    $p1 = Get-FreePort -PreferredPort $BaseModelProxy -ExcludePorts $used
+    $used += $p1
+    $p2 = Get-FreePort -PreferredPort $BaseMockRental -ExcludePorts $used
+    $used += $p2
+    $p3 = Get-FreePort -PreferredPort $BaseDashboard -ExcludePorts $used
+    $used += $p3
+    $p4 = Get-FreePort -PreferredPort $BaseAgent -ExcludePorts $used
+    return @{ ModelProxy = $p1; MockRental = $p2; Dashboard = $p3; Agent = $p4 }
+}
 
 function Test-ServiceReady {
     param([string]$Url)
@@ -167,6 +218,18 @@ function Invoke-Cleanup {
 $exitCode = 1
 
 try {
+    # ── 可选：自动寻找未占用端口 ────────────────────────────────────────────────
+    if ($AutoFindPorts) {
+        Write-Host "[e2e] AutoFindPorts: searching for free ports..."
+        $ports = Get-FourFreePorts -BaseModelProxy $ModelProxyPort -BaseMockRental $MockRentalPort `
+            -BaseDashboard $DashboardPort -BaseAgent $AgentPort
+        $ModelProxyPort = $ports.ModelProxy
+        $MockRentalPort = $ports.MockRental
+        $DashboardPort = $ports.Dashboard
+        $AgentPort = $ports.Agent
+        Write-Host "[e2e] Using ports: ModelProxy=$ModelProxyPort MockRental=$MockRentalPort Dashboard=$DashboardPort Agent=$AgentPort"
+    }
+
     Write-Host "[e2e] ════════════════════════════════════════════"
     Write-Host "[e2e]  E2E Test Runner (default: SimAll)"
     Write-Host "[e2e]  USER_ID         : $UserId"
@@ -220,6 +283,11 @@ try {
         Write-Host "[e2e] Startup failed. Check tests\e2e\logs\ for details."
         $exitCode = 2
     } else {
+        # ── 3b. Dashboard 就绪后自动打开浏览器 ─────────────────────────────────────
+        $dashboardUrl = "http://localhost:$DashboardPort/"
+        Write-Host "[e2e] Opening Dashboard: $dashboardUrl"
+        Start-Process $dashboardUrl
+
         # ── 4. 运行 test-simulator 用例（默认 SimAll 全部用例）───────────────────
         Write-Host ""
         if ($SimCase -ne "") {

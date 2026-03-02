@@ -349,6 +349,43 @@ class TestToolCallArgs:
         assert "location" in msg
 
 
+class TestToolCallChain:
+    """tool_call_chain: 验证链式调用顺序"""
+
+    def _make_response(self, tool_results: list[dict]) -> dict:
+        return {
+            "response": '{"houses": ["HF_33"]}',
+            "status": "success",
+            "tool_results": tool_results,
+        }
+
+    def test_pass_update_then_search(self):
+        """先 update_preferences 再 search_by_preferences → 通过"""
+        resp = self._make_response([
+            {"tool_name": "update_preferences", "args": {"location": ["海淀"]}},
+            {"tool_name": "search_by_preferences", "args": {}},
+        ])
+        ok, msg = ASSERTION_RULES["tool_call_chain"](resp, ["update_preferences", "search_by_preferences"])
+        assert ok is True, msg
+
+    def test_fail_search_before_update(self):
+        """search 在 update 之前 → 失败"""
+        resp = self._make_response([
+            {"tool_name": "search_by_preferences", "args": {}},
+            {"tool_name": "update_preferences", "args": {}},
+        ])
+        ok, msg = ASSERTION_RULES["tool_call_chain"](resp, ["update_preferences", "search_by_preferences"])
+        assert ok is False
+        assert "update_preferences" in msg
+
+    def test_fail_only_update(self):
+        """仅 update 无 search → 失败"""
+        resp = self._make_response([{"tool_name": "update_preferences", "args": {}}])
+        ok, msg = ASSERTION_RULES["tool_call_chain"](resp, ["update_preferences", "search_by_preferences"])
+        assert ok is False
+        assert "至少" in msg or "实际" in msg
+
+
 class TestLocationFuzzyHelpers:
     def test_strip_location_suffix(self):
         assert _strip_location_suffix("海淀区") == "海淀"

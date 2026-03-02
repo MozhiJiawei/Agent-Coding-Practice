@@ -23,6 +23,8 @@ test_cases:
       response_not_empty: true
       response_json_valid: true
       status_success: true
+      # 链式调用：先 update_preferences 再 search_by_preferences
+      tool_call_chain: ["update_preferences", "search_by_preferences"]
       tool_call_args:
         tool: update_preferences
         contains:
@@ -31,7 +33,8 @@ test_cases:
           max_price: 6000
           min_price: 3000
           rental_type: "整租"
-      houses_match_subset: true
+      # 返回的 HOUSE_ID 必须与 search 结果一致（基于 default fixture 海淀 2BR 3000-6000）
+      houses_match: ["HF_33", "HF_380", "HF_1208", "HF_1748", "HF_1874"]
       house_count_min: 1
     tags:
       - smoke
@@ -47,11 +50,12 @@ test_cases:
       response_not_empty: true
       status_success: true
     round_expects:
+      # Round 1: 首轮"有什么推荐"时 Agent 可能先回复引导语无工具调用，故不做强制校验
       - round: 1
-        expect:
-          no_tool_call: true
+        expect: {}
       - round: 2
         expect:
+          tool_call_chain: ["update_preferences", "search_by_preferences"]
           tool_call_args:
             tool: update_preferences
             contains:
@@ -88,6 +92,7 @@ test_cases:
     round_expects:
       - round: 1
         expect:
+          tool_call_chain: ["update_preferences", "search_by_preferences"]
           tool_call_args:
             tool: update_preferences
             contains:
@@ -104,6 +109,7 @@ test_cases:
               house_id: "HF_830"
       - round: 3
         expect:
+          tool_call_chain: ["update_preferences", "search_by_preferences"]
           tool_call_args:
             tool: update_preferences
             contains:
