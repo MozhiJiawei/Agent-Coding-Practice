@@ -28,11 +28,12 @@ def _clear_sessions():
 
 @pytest.fixture(autouse=True)
 def _mock_init_houses():
-    """防止 init_houses 发起真实 HTTP POST 请求。
+    """防止 init_houses 和 get_all_houses_for_debug 发起真实 HTTP 请求。
     需要显式测试 init_houses 行为的测试类可用自己的 patch 覆盖此 fixture。
     """
     with patch("main.init_houses", new=AsyncMock(return_value={"status": "ok"})):
-        yield
+        with patch("main.get_all_houses_for_debug", new=AsyncMock(return_value={"total": 0, "items": []})):
+            yield
 
 
 @pytest.fixture(autouse=True)

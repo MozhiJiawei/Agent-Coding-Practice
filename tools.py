@@ -341,6 +341,12 @@ async def get_house_listings(client: httpx.AsyncClient, **kwargs) -> dict:
         return {"error": f"get_house_listings failed: {str(e)}"}
 
 
+# ── get_all_houses_for_debug：session 初始化时获取全量房屋用于调试 ───────
+async def get_all_houses_for_debug(client: httpx.AsyncClient) -> dict:
+    """调用查询接口获取当前全量房屋信息，用于 session 初始化调试"""
+    return await search_houses(client)
+
+
 # ── init_houses（Story 2.2 已实现，保持不变） ───────────────────────────────
 async def init_houses(client: httpx.AsyncClient) -> dict:
     try:

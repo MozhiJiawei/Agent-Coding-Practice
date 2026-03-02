@@ -6,7 +6,7 @@ import httpx
 from pydantic import BaseModel
 from agent import run_agent, SYSTEM_PROMPT
 from logger import log_event
-from tools import init_houses
+from tools import init_houses, get_all_houses_for_debug
 
 # 支持环境变量覆盖，与 debug_init_houses.py 一致，便于 Mock 或不同网络环境
 RENTAL_API_BASE = os.environ.get("RENTAL_API_BASE", "http://7.225.29.223:8080")
@@ -60,6 +60,8 @@ async def chat_endpoint(request: ChatRequest, req: Request):
             log_event("SESSION_START", request.session_id, {})
             log_event("SESSION_INIT", request.session_id, {})
             await init_houses(client)
+            all_houses = await get_all_houses_for_debug(client)
+            log_event("DEBUG_ALL_HOUSES", request.session_id, {"raw_response": all_houses})
             sessions[request.session_id] = []
             sessions[request.session_id].append({"role": "system", "content": SYSTEM_PROMPT})
         history = sessions[request.session_id]

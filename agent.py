@@ -151,6 +151,11 @@ async def run_agent(
                         "args": str(args)[:200],
                         "result_preview": json.dumps(result, ensure_ascii=False)[:300],
                     })
+                    log_event("TOOL_RESPONSE", session_id, {
+                        "tool_name": tool_name,
+                        "args": args,
+                        "raw_result": result,
+                    })
 
                     tools_called.add(tool_name)
                     tool_results_log.append({
