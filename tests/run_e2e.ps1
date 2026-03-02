@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     执行顺序：
-      0. 强制清理 <repo_root>/logs 目录，确保日志会重新生成
+      0. 删除 <repo_root>/logs 目录内所有 jsonl 文件
       1. 后台启动 test-simulator (Model Proxy :8888 + Mock Rental :8080 + Dashboard :8877)
       2. 后台启动主 Agent (:8191)，并将 RENTAL_API_BASE 指向 Mock Rental
       3. 轮询健康探测，等待三个服务全部就绪
@@ -72,13 +72,18 @@ $repoRoot     = Split-Path -Parent $PSScriptRoot
 $simulatorDir = Join-Path $repoRoot "test-simulator"
 $logsDir      = Join-Path $repoRoot "logs"
 
-# 强制清理 logs 目录，确保日志会被重新生成（文件被占用时跳过清理继续执行）
+# 删除 logs 目录内所有 jsonl 文件（文件被占用时跳过继续执行）
 if (Test-Path $logsDir) {
     try {
-        Remove-Item -Path $logsDir -Recurse -Force -ErrorAction Stop
-        Write-Host "[e2e] Cleaned logs directory (will be regenerated)"
+        $jsonlFiles = Get-ChildItem -Path $logsDir -Filter "*.jsonl" -File -ErrorAction Stop
+        foreach ($f in $jsonlFiles) {
+            Remove-Item -Path $f.FullName -Force -ErrorAction Stop
+        }
+        if ($jsonlFiles.Count -gt 0) {
+            Write-Host "[e2e] Removed $($jsonlFiles.Count) jsonl file(s) from logs"
+        }
     } catch {
-        Write-Host "[e2e] WARN: Could not clean logs (files in use), continuing..."
+        Write-Host "[e2e] WARN: Could not remove jsonl files in logs (files in use?), continuing..."
     }
 }
 New-Item -ItemType Directory -Path $logsDir -Force | Out-Null
