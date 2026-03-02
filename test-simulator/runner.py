@@ -157,6 +157,13 @@ def _tool_call_args(response: dict, expected: Any) -> tuple[bool, str]:
         if key == "location" and isinstance(expected_val, list) and isinstance(actual_val, list):
             if not _locations_equivalent(expected_val, actual_val):
                 mismatches.append(f"{key}: 期望 {expected_val!r}, 实际 {actual_val!r}")
+        elif key == "decoration" and isinstance(expected_val, str) and isinstance(actual_val, str):
+            # 精装修/精修 与 精装 等价，简装修/简修 与 简装 等价
+            _dec_norm = {"精装修": "精装", "精修": "精装", "精": "精装", "简装修": "简装", "简修": "简装", "简": "简装"}
+            exp_norm = _dec_norm.get(expected_val, expected_val)
+            act_norm = _dec_norm.get(actual_val, actual_val)
+            if exp_norm != act_norm:
+                mismatches.append(f"{key}: 期望 {expected_val!r}, 实际 {actual_val!r}")
         elif actual_val != expected_val:
             mismatches.append(f"{key}: 期望 {expected_val!r}, 实际 {actual_val!r}")
 

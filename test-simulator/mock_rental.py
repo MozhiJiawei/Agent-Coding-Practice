@@ -349,7 +349,10 @@ def create_mock_rental_app(
         if "rental_type" in params:
             result = [h for h in result if h.get("rental_type") == params["rental_type"]]
         if "decoration" in params:
-            result = [h for h in result if h.get("decoration") == params["decoration"]]
+            # 归一化：精装修/精修→精装，简装修/简修→简装，兼容 LLM 输出
+            dec = params["decoration"]
+            dec_norm = {"精装修": "精装", "精修": "精装", "精": "精装", "简装修": "简装", "简修": "简装", "简": "简装"}.get(dec, dec)
+            result = [h for h in result if h.get("decoration") == dec_norm]
         if "orientation" in params:
             result = [h for h in result if h.get("orientation") == params["orientation"]]
         if "elevator" in params:
