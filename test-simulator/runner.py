@@ -200,6 +200,38 @@ async def send_message(
 # ── run_single_case (内部实现，不含 timeout 包装) ──────────────────────────────
 
 
+async def _reload_fixture_for_case(
+    case: TestCase,
+    config: SimulatorConfig,
+    client: httpx.AsyncClient,
+) -> str | None:
+    """若 case.fixture_file 已指定，则向 Mock Rental 发送重载请求。
+
+    Returns None on success, error message on failure.
+    """
+    if not case.fixture_file:
+        return None
+
+    from config import load_fixtures  # noqa: PLC0415 (local import to avoid circular)
+
+    try:
+        fixtures = load_fixtures(case.fixture_file)
+    except Exception as exc:  # noqa: BLE001
+        return f"fixture_file 加载失败 ({case.fixture_file}): {exc}"
+
+    reload_url = f"http://localhost:{config.mock_rental_port}/api/houses/_reload_fixture"
+    try:
+        resp = await client.post(reload_url, json=fixtures)
+        if resp.status_code != 200:
+            return f"_reload_fixture 返回非 200: {resp.status_code}"
+    except httpx.ConnectError as exc:
+        return f"_reload_fixture 连接失败: {exc}"
+    except httpx.HTTPError as exc:
+        return f"_reload_fixture HTTP 错误: {exc}"
+
+    return None
+
+
 async def _execute_case(
     case: TestCase,
     config: SimulatorConfig,
@@ -207,6 +239,20 @@ async def _execute_case(
     token_counter: TokenCounter,
 ) -> CaseResult:
     """Core case execution without timeout wrapper."""
+    # ── 按用例切换 fixture（如已指定）────────────────────────────────────────
+    if case.fixture_file:
+        reload_err = await _reload_fixture_for_case(case, config, client)
+        if reload_err:
+            return CaseResult(
+                case_id=case.id,
+                case_type=case.type,
+                status="ERROR",
+                duration_ms=0,
+                rounds=0,
+                failure_reason=reload_err,
+                token_usage=token_counter.to_token_usage(),
+            )
+
     session_id = f"test-{case.id}-{int(time.time())}"
     model_ip = "127.0.0.1"
     t_start = time.perf_counter()

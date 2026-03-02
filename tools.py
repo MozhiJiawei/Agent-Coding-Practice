@@ -343,8 +343,30 @@ async def get_house_listings(client: httpx.AsyncClient, **kwargs) -> dict:
 
 # ── get_all_houses_for_debug：session 初始化时获取全量房屋用于调试 ───────
 async def get_all_houses_for_debug(client: httpx.AsyncClient) -> dict:
-    """调用查询接口获取当前全量房屋信息，用于 session 初始化调试"""
-    return await search_houses(client)
+    """不受 MAX_PAGES 限制地翻页，获取全量房源用于调试日志。"""
+    all_items: list = []
+    page = 1
+    page_size = 200
+    total = None
+    while True:
+        try:
+            resp = await client.get(
+                "/api/houses/by_platform",
+                params={"page": page, "page_size": page_size},
+                headers=_get_headers(),
+            )
+            resp.raise_for_status()
+        except Exception as e:
+            break
+        inner = resp.json().get("data", resp.json())
+        items = inner.get("items", [])
+        if total is None:
+            total = inner.get("total", 0)
+        all_items.extend(items)
+        if not items or len(all_items) >= total:
+            break
+        page += 1
+    return {"total": total or len(all_items), "items": all_items}
 
 
 # ── init_houses（Story 2.2 已实现，保持不变） ───────────────────────────────

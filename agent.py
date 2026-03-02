@@ -1,5 +1,7 @@
 import json
+import math
 import re
+import time
 from typing import Callable
 import httpx
 from openai import AsyncOpenAI
@@ -67,6 +69,9 @@ async def run_agent(
         tools_called: set[str] = set()
         tool_results_log: list[dict] = []
         iterations = 0
+        total_tokens = 0
+        total_time_slices = 0
+        llm_call_time_ms = 0
         # 指向本轮新消息的起始位置：用户消息已被 main.py 追加，退一位
         prev_len = len(history) - 1
 
@@ -77,6 +82,9 @@ async def run_agent(
                     "response": "Tool call limit exceeded",
                     "status": "error",
                     "tool_results": tool_results_log,
+                    "total_tokens": total_tokens,
+                    "total_time_slices": total_time_slices,
+                    "llm_call_time_ms": llm_call_time_ms,
                 }
 
             create_kwargs: dict = {
@@ -95,22 +103,27 @@ async def run_agent(
                 "new_message_count": len(new_messages),
                 "new_messages": new_messages,
             })
+            _llm_start = time.time()
             response = await llm_client.chat.completions.create(**create_kwargs)
+            llm_call_time_ms += int((time.time() - _llm_start) * 1000)
+            if response.usage:
+                call_tokens = response.usage.total_tokens
+                total_tokens += call_tokens
+                t = 1 + max(0, (call_tokens / 1000 - 1)) * 0.3
+                total_time_slices += math.ceil(t)
             if not response.choices:
                 log_event("ERROR", session_id, {"error": "LLM returned empty choices"})
                 return {
                     "response": "LLM returned empty choices",
                     "status": "error",
                     "tool_results": tool_results_log,
+                    "total_tokens": total_tokens,
+                    "total_time_slices": total_time_slices,
+                    "llm_call_time_ms": llm_call_time_ms,
                 }
             choice = response.choices[0]
             message = choice.message
             finish_reason = choice.finish_reason
-
-            log_event("MODEL_RESPONSE", session_id, {
-                "finish_reason": finish_reason,
-                "content_preview": (message.content or "")[:100],
-            })
 
             # 追加 assistant message（手动构建，避免 SDK 内部字段）
             assistant_msg: dict = {"role": "assistant", "content": message.content}
@@ -176,6 +189,11 @@ async def run_agent(
 
         content = message.content or ""
 
+        _stats = {
+            "total_tokens": total_tokens,
+            "total_time_slices": total_time_slices,
+            "llm_call_time_ms": llm_call_time_ms,
+        }
         if tools_called & HOUSE_SEARCH_TOOLS:
             raw_ids = re.findall(r'HF_\d+', content)
             seen: set[str] = set()
@@ -188,6 +206,6 @@ async def run_agent(
                 {"message": content, "houses": houses},
                 ensure_ascii=False,
             )
-            return {"response": response_str, "status": "success", "tool_results": tool_results_log}
+            return {"response": response_str, "status": "success", "tool_results": tool_results_log, **_stats}
         else:
-            return {"response": content, "status": "success", "tool_results": tool_results_log}
+            return {"response": content, "status": "success", "tool_results": tool_results_log, **_stats}

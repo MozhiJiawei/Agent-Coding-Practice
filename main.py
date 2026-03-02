@@ -35,6 +35,8 @@ class ChatResponse(BaseModel):
 
 # 全局 Session 存储
 sessions: dict[str, list] = {}
+# 全局 Session 统计（累计 token 数和时间片数）
+session_stats: dict[str, dict] = {}
 
 
 # lifespan 上下文（httpx.AsyncClient 全生命周期）
@@ -64,9 +66,10 @@ async def chat_endpoint(request: ChatRequest, req: Request):
             log_event("DEBUG_ALL_HOUSES", request.session_id, {"raw_response": all_houses})
             sessions[request.session_id] = []
             sessions[request.session_id].append({"role": "system", "content": SYSTEM_PROMPT})
+            session_stats[request.session_id] = {"total_tokens": 0, "total_time_slices": 0}
         history = sessions[request.session_id]
         history.append({"role": "user", "content": request.message})
-        log_event("RAW_REQUEST", request.session_id, {
+        log_event("USER_REQUEST", request.session_id, {
             "model_ip": request.model_ip,
             "message": request.message,
         })
@@ -82,11 +85,23 @@ async def chat_endpoint(request: ChatRequest, req: Request):
             timestamp=int(time.time()),
             duration_ms=duration_ms,
         )
-        log_event("RAW_RESPONSE", request.session_id, {
+        log_event("USER_RESPONSE", request.session_id, {
             "status": chat_response.status,
             "duration_ms": chat_response.duration_ms,
             "response": chat_response.response,
         })
+        # 累计 session 统计并打印摘要
+        stats = session_stats.setdefault(request.session_id, {"total_tokens": 0, "total_time_slices": 0})
+        stats["total_tokens"] += result.get("total_tokens", 0)
+        stats["total_time_slices"] += result.get("total_time_slices", 0)
+        llm_call_time_ms = result.get("llm_call_time_ms", 0)
+        program_time_ms = duration_ms - llm_call_time_ms
+        print(
+            f"[{request.session_id}] "
+            f"session累计token: {stats['total_tokens']} | "
+            f"折算时间片: {stats['total_time_slices']} | "
+            f"本次程序运行时间(扣除模型调用): {program_time_ms}ms"
+        )
         return chat_response
     except Exception as e:
         log_event("ERROR", request.session_id, {"error": str(e)}, exc=e)

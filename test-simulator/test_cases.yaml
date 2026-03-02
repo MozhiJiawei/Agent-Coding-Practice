@@ -36,3 +36,32 @@ test_cases:
       status_success: true
     tags:
       - multi-turn
+
+  # ── EV-06: 望京→大兴→回望京→租房 完整多轮流程 ────────────────────────────────
+  # 对应日志: logs/eval_l00933108_EV-06_1772418693132800790.jsonl
+  # mock_data: mock_data/EV-06.yaml（由 extract_mock_data.py 从日志自动生成）
+  #
+  # 对话轨迹：
+  #   Turn 1 → 搜索望京/朝阳 2BR 电梯房 ≤8000，返回含 HF_56（绿城公馆）
+  #   Turn 2 → 追问地铁距离（对话上下文理解）
+  #   Turn 3 → 切换大兴区 2BR ≤4000
+  #   Turn 4 → 返回望京，询问 HF_56 详情
+  #   Turn 5 → 执行租房动作，HF_56 状态变为 rented
+  - id: ev06_wangjing_to_daxing_rental_flow
+    type: Multi
+    fixture_file: "mock_data/EV-06.yaml"
+    messages:
+      - "我想在望京租一套两居室，预算8000以内，有电梯"
+      - "这套离地铁多远？"
+      - "换大兴区的看看吧，两居室，预算4000以内"
+      - "还是最开始望京那套比较好，它的详细情况怎么样？"
+      - "这套可以租吗？我想租这套"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev06
+      - multi-turn
+      - rental-flow
+      - tool-call

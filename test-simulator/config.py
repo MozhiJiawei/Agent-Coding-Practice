@@ -43,6 +43,7 @@ class TestCase(BaseModel):
     messages: list[str]
     expect: ExpectRules | None = None
     tags: list[str] = []
+    fixture_file: str | None = None   # 可选：为本用例加载指定 mock_data fixture
 
 
 TestCase.__test__ = False  # prevent pytest collection warning

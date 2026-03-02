@@ -110,6 +110,14 @@ class MockState:
         for h in self.houses.values():
             h["status"] = h["_initial_status"]
 
+    def reload(self, fixtures_houses: list[dict]) -> None:
+        """用新的 fixture 数据完全替换当前房源状态（用于按用例切换 mock_data）。"""
+        self.houses = {}
+        for h in fixtures_houses:
+            entry = dict(h)
+            entry["_initial_status"] = h["status"]
+            self.houses[h["house_id"]] = entry
+
     def update_status(self, house_id: str, new_status: str) -> dict | None:
         """更新指定房源状态，返回更新后的房源（不含内部字段）或 None。"""
         h = self.houses.get(house_id)
@@ -572,5 +580,30 @@ def create_mock_rental_app(
         if updated is None:
             return _err404(f"未找到房源 {house_id}")
         return _ok(_apply_platform(updated, listing_platform))
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # 内部管理端点（测试框架专用）
+    # ══════════════════════════════════════════════════════════════════════════
+
+    @app.post("/api/houses/_reload_fixture")
+    async def reload_fixture(request: Request):
+        """重新加载 fixture 数据（仅供 test runner 在用例间切换 mock_data 使用）。
+
+        请求体: {"houses": [...], "landmarks": [...]}
+        """
+        body = await request.json()
+        new_houses: list[dict] = body.get("houses", [])
+        new_landmarks: list[dict] = body.get("landmarks", [])
+
+        mock_state: MockState = request.app.state.mock_state
+        mock_state.reload(new_houses)
+
+        if new_landmarks:
+            request.app.state.landmarks = new_landmarks
+
+        return _ok({
+            "reloaded_houses": len(new_houses),
+            "reloaded_landmarks": len(new_landmarks),
+        })
 
     return app
