@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 # 1. 标准库导入
+import os
 from typing import Any, Literal
 
 # 2. 第三方库导入
@@ -129,7 +130,17 @@ def load_config(path: str) -> SimulatorConfig:
         data = yaml.safe_load(f)
     if not isinstance(data, dict):
         raise ValueError(f"{path}: expected a YAML mapping with SimulatorConfig fields, got {type(data).__name__}")
-    return SimulatorConfig(**data)
+    cfg = SimulatorConfig(**data)
+    # 环境变量覆盖端口，支持多实例并行运行
+    if (v := os.environ.get("SIM_MODEL_PROXY_PORT")) is not None:
+        cfg.model_proxy_port = int(v)
+    if (v := os.environ.get("SIM_MOCK_RENTAL_PORT")) is not None:
+        cfg.mock_rental_port = int(v)
+    if (v := os.environ.get("SIM_DASHBOARD_PORT")) is not None:
+        cfg.dashboard_port = int(v)
+    if (v := os.environ.get("SIM_AGENT_BASE_URL")) is not None:
+        cfg.agent_base_url = v
+    return cfg
 
 
 def load_test_cases(path: str) -> list[TestCase]:

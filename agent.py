@@ -1,5 +1,6 @@
 import json
 import math
+import os
 import time
 from functools import partial
 from typing import Callable
@@ -34,6 +35,7 @@ SYSTEM_PROMPT = """你是智能租房助手，帮助用户在北京寻找和租�
 
 MAX_ITERATIONS = 10
 HOUSE_SEARCH_TOOLS = {"update_preferences"}
+MODEL_PROXY_PORT = int(os.environ.get("MODEL_PROXY_PORT", "8888"))
 
 # 静态工具分发表（不含 update_preferences，因其需在运行时绑定 session_prefs）
 TOOL_DISPATCH: dict[str, Callable] = {
@@ -63,7 +65,7 @@ async def run_agent(
 
     async with httpx.AsyncClient(trust_env=False, timeout=60.0) as llm_http_client:
         llm_client = AsyncOpenAI(
-            base_url=f"http://{model_ip}:8888/v1",
+            base_url=f"http://{model_ip}:{MODEL_PROXY_PORT}/v1",
             api_key="placeholder",
             http_client=llm_http_client,
             default_headers={"Session-ID": session_id},

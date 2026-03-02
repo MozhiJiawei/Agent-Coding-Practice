@@ -23,10 +23,10 @@ from pathlib import Path
 import httpx
 import pytest
 
-# ─── 服务地址常量 ───────────────────────────────────────────────
-AGENT_URL = "http://localhost:8191"
-MODEL_PROXY_URL = "http://localhost:8888"
-MOCK_RENTAL_URL = "http://localhost:8080"
+# ─── 服务地址常量（支持环境变量覆盖，便于多实例并行）───────────────
+AGENT_URL = os.environ.get("PYTEST_AGENT_URL", "http://localhost:8191")
+MODEL_PROXY_URL = os.environ.get("PYTEST_MODEL_PROXY_URL", "http://localhost:8888")
+MOCK_RENTAL_URL = os.environ.get("PYTEST_MOCK_RENTAL_URL", "http://localhost:8080")
 SILICONFLOW_URL = "https://api.siliconflow.cn"
 API_KEY_FILE = Path(__file__).parents[2] / ".api_key"
 
@@ -99,19 +99,19 @@ def http_client():
 @pytest.fixture
 def require_agent(agent_available):
     if not agent_available:
-        pytest.skip("Agent(8191) 未运行，跳过测试。启动命令: USER_ID=xxx python -m uvicorn main:app --port 8191")
+        pytest.skip(f"Agent({AGENT_URL}) 未运行，跳过测试。启动命令: USER_ID=xxx python -m uvicorn main:app --port <port>")
 
 
 @pytest.fixture
 def require_model_proxy(model_proxy_available):
     if not model_proxy_available:
-        pytest.skip("Model Proxy(8888) 未运行，跳过测试。启动命令: cd test-simulator && python main.py")
+        pytest.skip(f"Model Proxy({MODEL_PROXY_URL}) 未运行，跳过测试。启动命令: cd test-simulator && python main.py")
 
 
 @pytest.fixture
 def require_mock_rental(mock_rental_available):
     if not mock_rental_available:
-        pytest.skip("Mock Rental(8080) 未运行，跳过测试。启动命令: cd test-simulator && python main.py")
+        pytest.skip(f"Mock Rental({MOCK_RENTAL_URL}) 未运行，跳过测试。启动命令: cd test-simulator && python main.py")
 
 
 @pytest.fixture
@@ -125,11 +125,11 @@ def require_full_stack(agent_available, model_proxy_available, mock_rental_avail
     """要求全部服务 + API Key 就绪，否则 skip。"""
     missing = []
     if not agent_available:
-        missing.append("Agent(8191)")
+        missing.append(f"Agent({AGENT_URL})")
     if not model_proxy_available:
-        missing.append("Model Proxy(8888)")
+        missing.append(f"Model Proxy({MODEL_PROXY_URL})")
     if not mock_rental_available:
-        missing.append("Mock Rental(8080)")
+        missing.append(f"Mock Rental({MOCK_RENTAL_URL})")
     if not api_key_available:
         missing.append(".api_key 文件")
     if missing:

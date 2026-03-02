@@ -15,11 +15,16 @@
 #   bash tests/run_e2e.sh -u EMP001
 #   bash tests/run_e2e.sh -u EMP001 -p "tests/e2e/ -v -m smoke"
 #   bash tests/run_e2e.sh -u EMP001 -t 60
+#   bash tests/run_e2e.sh -u EMP002 -m 8988 -r 8180 -d 8977 -a 8291
 #
 # 参数：
 #   -u USER_ID      必填。竞赛注册员工 ID，作为 USER_ID 环境变量传给主 Agent。
 #   -p PYTEST_ARGS  可选。传给 pytest 的参数字符串（默认: "tests/e2e/ -v"）。
 #   -t TIMEOUT_SEC  可选。等待服务就绪的最大秒数（默认: 30）。
+#   -m MODEL_PROXY  可选。Model Proxy 端口（默认: 8888）。
+#   -r MOCK_RENTAL  可选。Mock Rental 端口（默认: 8080）。
+#   -d DASHBOARD    可选。Dashboard 端口（默认: 8877）。
+#   -a AGENT        可选。主 Agent 端口（默认: 8191）。
 #   -h              显示帮助信息。
 # =============================================================================
 
@@ -27,11 +32,15 @@ set -uo pipefail
 
 # ─── 帮助信息 ─────────────────────────────────────────────────────────────────
 usage() {
-    echo "Usage: $(basename "$0") -u USER_ID [-p PYTEST_ARGS] [-t TIMEOUT_SEC]"
+    echo "Usage: $(basename "$0") -u USER_ID [-p PYTEST_ARGS] [-t TIMEOUT_SEC] [-m MODEL_PROXY] [-r MOCK_RENTAL] [-d DASHBOARD] [-a AGENT]"
     echo ""
     echo "  -u USER_ID      Required. Employee ID for the agent (USER_ID env var)."
     echo "  -p PYTEST_ARGS  Optional. pytest arguments. Default: 'tests/e2e/ -v'"
     echo "  -t TIMEOUT_SEC  Optional. Service ready timeout in seconds. Default: 30"
+    echo "  -m MODEL_PROXY  Optional. Model Proxy port. Default: 8888"
+    echo "  -r MOCK_RENTAL  Optional. Mock Rental port. Default: 8080"
+    echo "  -d DASHBOARD    Optional. Dashboard port. Default: 8877"
+    echo "  -a AGENT        Optional. Agent port. Default: 8191"
     echo "  -h              Show this help message."
     exit 1
 }
@@ -40,12 +49,20 @@ usage() {
 USER_ID=""
 PYTEST_ARGS="tests/e2e/ -v"
 READY_TIMEOUT=30
+MODEL_PROXY_PORT=8888
+MOCK_RENTAL_PORT=8080
+DASHBOARD_PORT=8877
+AGENT_PORT=8191
 
-while getopts "u:p:t:h" opt; do
+while getopts "u:p:t:m:r:d:a:h" opt; do
     case "$opt" in
         u) USER_ID="$OPTARG" ;;
         p) PYTEST_ARGS="$OPTARG" ;;
         t) READY_TIMEOUT="$OPTARG" ;;
+        m) MODEL_PROXY_PORT="$OPTARG" ;;
+        r) MOCK_RENTAL_PORT="$OPTARG" ;;
+        d) DASHBOARD_PORT="$OPTARG" ;;
+        a) AGENT_PORT="$OPTARG" ;;
         h) usage ;;
         *) usage ;;
     esac
@@ -105,9 +122,10 @@ wait_services_ready() {
 
     while [[ $SECONDS -lt $deadline ]]; do
         pending=()
-        service_ready "http://localhost:8888/docs" || pending+=("Model Proxy(8888)")
-        service_ready "http://localhost:8080/docs" || pending+=("Mock Rental(8080)")
-        service_ready "http://localhost:8191/docs" || pending+=("Agent(8191)")
+        service_ready "http://localhost:${MODEL_PROXY_PORT}/docs" || pending+=("Model Proxy(${MODEL_PROXY_PORT})")
+        service_ready "http://localhost:${MOCK_RENTAL_PORT}/docs" || pending+=("Mock Rental(${MOCK_RENTAL_PORT})")
+        service_ready "http://localhost:${AGENT_PORT}/docs" || pending+=("Agent(${AGENT_PORT})")
+        service_ready "http://localhost:${DASHBOARD_PORT}/" || pending+=("Dashboard(${DASHBOARD_PORT})")
 
         if [[ ${#pending[@]} -eq 0 ]]; then
             echo "[e2e] All services ready."
@@ -127,13 +145,19 @@ echo "[e2e]  E2E Test Runner"
 echo "[e2e]  USER_ID         : $USER_ID"
 echo "[e2e]  pytest args     : $PYTEST_ARGS"
 echo "[e2e]  service timeout : ${READY_TIMEOUT}s"
+echo "[e2e]  ports           : ModelProxy=$MODEL_PROXY_PORT MockRental=$MOCK_RENTAL_PORT Dashboard=$DASHBOARD_PORT Agent=$AGENT_PORT"
 echo "[e2e] ════════════════════════════════════════════"
 
 # 将环境变量导出给所有子进程
 export USER_ID
-export RENTAL_API_BASE="http://localhost:8080"
+export RENTAL_API_BASE="http://localhost:${MOCK_RENTAL_PORT}"
+export MODEL_PROXY_PORT
+export SIM_MODEL_PROXY_PORT="$MODEL_PROXY_PORT"
+export SIM_MOCK_RENTAL_PORT="$MOCK_RENTAL_PORT"
+export SIM_DASHBOARD_PORT="$DASHBOARD_PORT"
+export SIM_AGENT_BASE_URL="http://localhost:${AGENT_PORT}"
 
-# ── 1. 启动 test-simulator（Model Proxy :8888 + Mock Rental :8080）────────────
+# ── 1. 启动 test-simulator（Model Proxy + Mock Rental + Dashboard）────────────
 echo "[e2e] Starting test-simulator..."
 (
     cd "$SIMULATOR_DIR"
@@ -143,11 +167,11 @@ SIM_PID=$!
 MANAGED_PIDS+=("$SIM_PID")
 echo "[e2e]   PID $SIM_PID → logs/simulator.log"
 
-# ── 2. 启动主 Agent（:8191）──────────────────────────────────────────────────
+# ── 2. 启动主 Agent ──────────────────────────────────────────────────────────
 echo "[e2e] Starting main agent..."
 (
     cd "$REPO_ROOT"
-    exec python -m uvicorn main:app --host 0.0.0.0 --port 8191
+    exec python -m uvicorn main:app --host 0.0.0.0 --port "$AGENT_PORT"
 ) > "$LOGS_DIR/agent.log" 2> "$LOGS_DIR/agent_err.log" &
 AGENT_PID=$!
 MANAGED_PIDS+=("$AGENT_PID")
@@ -160,6 +184,9 @@ if ! wait_services_ready; then
 fi
 
 # ── 4. 运行 pytest ─────────────────────────────────────────────────────────────
+export PYTEST_AGENT_URL="http://localhost:${AGENT_PORT}"
+export PYTEST_MODEL_PROXY_URL="http://localhost:${MODEL_PROXY_PORT}"
+export PYTEST_MOCK_RENTAL_URL="http://localhost:${MOCK_RENTAL_PORT}"
 echo ""
 echo "[e2e] Running: python -m pytest $PYTEST_ARGS"
 echo "[e2e] ──────────────────────────────────────────────"

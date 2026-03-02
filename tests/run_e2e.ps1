@@ -35,12 +35,25 @@
 .PARAMETER ReadyTimeoutSec
     可选。等待所有服务健康就绪的最大秒数，默认 30。
 
+.PARAMETER ModelProxyPort
+    可选。Model Proxy 监听端口，默认 8888。支持多实例并行时避免端口冲突。
+
+.PARAMETER MockRentalPort
+    可选。Mock Rental 监听端口，默认 8080。
+
+.PARAMETER DashboardPort
+    可选。Dashboard 监听端口，默认 8877。
+
+.PARAMETER AgentPort
+    可选。主 Agent 监听端口，默认 8191。
+
 .EXAMPLE
     .\tests\run_e2e.ps1 -UserId "EMP001"
     .\tests\run_e2e.ps1 -UserId "EMP001" -PytestArgs "tests/e2e/ -v -m smoke"
     .\tests\run_e2e.ps1 -UserId "EMP001" -SimCase "ev06_wangjing_to_daxing_rental_flow"
     .\tests\run_e2e.ps1 -UserId "EMP001" -SimAll
     .\tests\run_e2e.ps1 -UserId "EMP001" -ReadyTimeoutSec 60
+    .\tests\run_e2e.ps1 -UserId "EMP002" -SimAll -ModelProxyPort 8988 -MockRentalPort 8180 -DashboardPort 8977 -AgentPort 8291
 #>
 [CmdletBinding()]
 param(
@@ -55,7 +68,12 @@ param(
 
     [switch]$SimAll,
 
-    [int]$ReadyTimeoutSec = 30
+    [int]$ReadyTimeoutSec = 30,
+
+    [int]$ModelProxyPort = 8888,
+    [int]$MockRentalPort = 8080,
+    [int]$DashboardPort = 8877,
+    [int]$AgentPort = 8191
 )
 
 Set-StrictMode -Version Latest
@@ -156,13 +174,19 @@ try {
     Write-Host "[e2e]  USER_ID         : $UserId"
     Write-Host "[e2e]  pytest args     : $PytestArgs"
     Write-Host "[e2e]  service timeout : ${ReadyTimeoutSec}s"
+    Write-Host "[e2e]  ports           : ModelProxy=$ModelProxyPort MockRental=$MockRentalPort Dashboard=$DashboardPort Agent=$AgentPort"
     Write-Host "[e2e] ════════════════════════════════════════════"
 
     # 将环境变量注入当前进程（子进程自动继承）
-    $env:USER_ID         = $UserId
-    $env:RENTAL_API_BASE = "http://localhost:8080"
+    $env:USER_ID                = $UserId
+    $env:RENTAL_API_BASE        = "http://localhost:$MockRentalPort"
+    $env:MODEL_PROXY_PORT       = [string]$ModelProxyPort
+    $env:SIM_MODEL_PROXY_PORT   = [string]$ModelProxyPort
+    $env:SIM_MOCK_RENTAL_PORT   = [string]$MockRentalPort
+    $env:SIM_DASHBOARD_PORT     = [string]$DashboardPort
+    $env:SIM_AGENT_BASE_URL     = "http://localhost:$AgentPort"
 
-    # ── 1. 启动 test-simulator（Model Proxy :8888 + Mock Rental :8080）──────────
+    # ── 1. 启动 test-simulator（Model Proxy + Mock Rental + Dashboard）──────────
     Write-Host "[e2e] Starting test-simulator..."
     $simProc = Start-Process python `
         -ArgumentList "main.py" `
@@ -174,10 +198,10 @@ try {
     $managedPids.Add($simProc.Id)
     Write-Host "[e2e]   PID $($simProc.Id) → logs\simulator.log"
 
-    # ── 2. 启动主 Agent（:8191）────────────────────────────────────────────────
+    # ── 2. 启动主 Agent ────────────────────────────────────────────────────────
     Write-Host "[e2e] Starting main agent..."
     $agentProc = Start-Process python `
-        -ArgumentList @("-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8191") `
+        -ArgumentList @("-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", [string]$AgentPort) `
         -WorkingDirectory $repoRoot `
         -RedirectStandardOutput (Join-Path $logsDir "agent.log") `
         -RedirectStandardError  (Join-Path $logsDir "agent_err.log") `
@@ -188,10 +212,10 @@ try {
 
     # ── 3. 等待四个服务健康就绪 ──────────────────────────────────────────────────
     $services = [ordered]@{
-        "Model Proxy(8888)" = "http://localhost:8888/docs"
-        "Mock Rental(8080)" = "http://localhost:8080/docs"
-        "Agent(8191)"       = "http://localhost:8191/docs"
-        "Dashboard(8877)"   = "http://localhost:8877/"
+        "Model Proxy($ModelProxyPort)" = "http://localhost:$ModelProxyPort/docs"
+        "Mock Rental($MockRentalPort)" = "http://localhost:$MockRentalPort/docs"
+        "Agent($AgentPort)"            = "http://localhost:$AgentPort/docs"
+        "Dashboard($DashboardPort)"    = "http://localhost:$DashboardPort/"
     }
     $ready = Wait-ServicesReady -Services $services -TimeoutSec $ReadyTimeoutSec
     if (-not $ready) {
@@ -220,6 +244,9 @@ try {
         }
     } else {
         # ── 4b. 运行 pytest ─────────────────────────────────────────────────────
+        $env:PYTEST_AGENT_URL        = "http://localhost:$AgentPort"
+        $env:PYTEST_MODEL_PROXY_URL  = "http://localhost:$ModelProxyPort"
+        $env:PYTEST_MOCK_RENTAL_URL  = "http://localhost:$MockRentalPort"
         Write-Host ""
         Write-Host "[e2e] Running: python -m pytest $PytestArgs"
         Write-Host "[e2e] ──────────────────────────────────────────────"
