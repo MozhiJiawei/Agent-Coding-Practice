@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """从 JSONL 评估日志提取 mock_data，生成 test-simulator 可用的 YAML fixture。
 
-仅读取日志中的 DEBUG_ALL_HOUSES 事件，将其 items 全量转换为 fixture 格式输出。
+读取日志中的 DEBUG_ALL_HOUSES 与 DEBUG_ALL_LANDMARKS 事件，将其 items 全量转换为
+fixture 格式输出（含 landmarks 与 houses）。
 
 用法（在 test-simulator/ 目录下运行）：
   python extract_mock_data.py <jsonl_path> [output_yaml]
 
 示例：
-  python extract_mock_data.py ../logs/eval_l00933108_EV-06_1772418693132800790.jsonl mock_data/EV-06.yaml
+  python extract_mock_data.py ../logs/eval_l00933108_EV-06_1772426116496476236.jsonl mock_data/EV-06.yaml
 """
 from __future__ import annotations
 
@@ -26,7 +27,9 @@ REQUIRED_FIELDS = {
     "orientation", "elevator",
 }
 
-# 输出字段顺序（可读性优先）
+LANDMARK_REQUIRED_FIELDS = {"id", "name", "category", "district", "longitude", "latitude"}
+
+# 房源输出字段顺序（可读性优先）
 _ORDERED_FIELDS = [
     "house_id", "community", "district", "area", "address",
     "bedrooms", "livingrooms", "bathrooms", "area_sqm",
@@ -78,11 +81,27 @@ def house_to_fixture(h: dict) -> dict:
     return entry
 
 
+def landmark_to_fixture(lm: dict) -> dict:
+    """将原始地标 dict 转换为 fixture 所需格式（含必填字段校验）。保留 details 等完整字段。"""
+    missing = LANDMARK_REQUIRED_FIELDS - set(lm.keys())
+    if missing:
+        raise ValueError(f"地标 {lm.get('id', '?')} 缺少必填字段: {missing}")
+
+    entry: dict = {}
+    for k, v in lm.items():
+        if k in ("longitude", "latitude"):
+            entry[k] = _safe_float(v)
+        else:
+            entry[k] = v
+    return entry
+
+
 # ── 主提取逻辑 ────────────────────────────────────────────────────────────────
 
 
 def extract_mock_data(jsonl_path: Path, output_path: Path) -> None:
     all_houses: list[dict] = []
+    all_landmarks: list[dict] = []
     session_id: str = "unknown"
 
     print(f"[extract] 读取日志: {jsonl_path}")
@@ -102,9 +121,15 @@ def extract_mock_data(jsonl_path: Path, output_path: Path) -> None:
                 session_id = event.get("session_id", "unknown")
 
             if event.get("event") == "DEBUG_ALL_HOUSES":
-                all_houses = event.get("details", {}).get("raw_response", {}).get("items", [])
-                print(f"  [DEBUG_ALL_HOUSES] 找到 {len(all_houses)} 套房源")
-                break  # 只需要第一个 DEBUG_ALL_HOUSES 事件
+                items = event.get("details", {}).get("raw_response", {}).get("items", [])
+                if items:
+                    all_houses = items
+                    print(f"  [DEBUG_ALL_HOUSES] 找到 {len(all_houses)} 套房源")
+            elif event.get("event") == "DEBUG_ALL_LANDMARKS":
+                items = event.get("details", {}).get("raw_response", {}).get("items", [])
+                if items:
+                    all_landmarks = items
+                    print(f"  [DEBUG_ALL_LANDMARKS] 找到 {len(all_landmarks)} 个地标")
 
     if not all_houses:
         print("错误: 未找到 DEBUG_ALL_HOUSES 事件或 items 为空", file=sys.stderr)
@@ -122,15 +147,27 @@ def extract_mock_data(jsonl_path: Path, output_path: Path) -> None:
     if skipped:
         print(f"  共跳过 {skipped} 套字段不完整的房源")
 
+    fixture_landmarks: list[dict] = []
+    lm_skipped = 0
+    for lm in all_landmarks:
+        try:
+            fixture_landmarks.append(landmark_to_fixture(lm))
+        except ValueError as e:
+            print(f"  警告（跳过地标）: {e}", file=sys.stderr)
+            lm_skipped += 1
+    if lm_skipped:
+        print(f"  共跳过 {lm_skipped} 个字段不完整的地标")
+
     # ── 写出 YAML ──────────────────────────────────────────────────────────────
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8") as f:
         f.write("# Mock Fixture — 由 extract_mock_data.py 自动生成\n")
         f.write(f"# 源日志: {jsonl_path.name}\n")
         f.write(f"# session_id: {session_id}\n")
+        f.write(f"# 地标数量: {len(fixture_landmarks)}\n")
         f.write(f"# 房源数量: {len(fixture_houses)}\n\n")
         yaml.dump(
-            {"landmarks": [], "houses": fixture_houses},
+            {"landmarks": fixture_landmarks, "houses": fixture_houses},
             f,
             allow_unicode=True,
             default_flow_style=False,
@@ -138,12 +175,12 @@ def extract_mock_data(jsonl_path: Path, output_path: Path) -> None:
         )
 
     print(f"[extract] OK 已写出: {output_path}")
-    print(f"          {len(fixture_houses)} 套房源")
+    print(f"          {len(fixture_landmarks)} 个地标, {len(fixture_houses)} 套房源")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="从 JSONL 评估日志的 DEBUG_ALL_HOUSES 事件生成 mock_data YAML fixture",
+        description="从 JSONL 评估日志的 DEBUG_ALL_HOUSES、DEBUG_ALL_LANDMARKS 事件生成 mock_data YAML fixture",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
