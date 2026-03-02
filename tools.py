@@ -369,6 +369,19 @@ async def get_all_houses_for_debug(client: httpx.AsyncClient) -> dict:
     return {"total": total or len(all_items), "items": all_items}
 
 
+# ── get_all_landmarks_for_debug：session 初始化时获取全量地标用于调试 ──────
+async def get_all_landmarks_for_debug(client: httpx.AsyncClient) -> dict:
+    """获取全量地标数据用于调试日志。"""
+    try:
+        resp = await client.get("/api/landmarks")
+        resp.raise_for_status()
+        inner = resp.json().get("data", resp.json())
+        items = inner.get("items", [])
+        return {"total": len(items), "items": items}
+    except Exception as e:
+        return {"error": f"get_all_landmarks_for_debug failed: {str(e)}", "total": 0, "items": []}
+
+
 # ── init_houses（Story 2.2 已实现，保持不变） ───────────────────────────────
 async def init_houses(client: httpx.AsyncClient) -> dict:
     try:
