@@ -140,6 +140,8 @@ def load_config(path: str) -> SimulatorConfig:
         cfg.dashboard_port = int(v)
     if (v := os.environ.get("SIM_AGENT_BASE_URL")) is not None:
         cfg.agent_base_url = v
+    if (v := os.environ.get("SIM_REPORT_DIR")) is not None:
+        cfg.report_dir = v
     return cfg
 
 

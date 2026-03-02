@@ -93,7 +93,6 @@ def _mock_init_houses():
 def _mock_run_agent():
     """防止 run_agent 发起真实 LLM 调用。
     默认返回空成功响应；需要测试真实 run_agent 行为的测试可用自己的 patch 覆盖此 fixture。
-    E2E 测试（test_e2e_epic2.py）通过模块级 autouse fixture 覆盖此 mock，使用真实实现。
     """
     default_result = {"response": "Agent not implemented", "status": "error", "tool_results": []}
     with patch("main.run_agent", new=AsyncMock(return_value=default_result)):

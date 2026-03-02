@@ -3,7 +3,7 @@
 **日期**: 2026-03-02  
 **模型**: Qwen3-32B  
 **测试范围**: 全量 35 个用例（chat_hello / single_haidian_2br / multi_progressive + ev01–ev32）  
-**执行命令**: `.\tests\run_e2e.ps1 -UserId "37274" -SimAll -ReadyTimeoutSec 60`  
+**执行命令**: `.\tests\e2e\run_e2e.ps1 -UserId "37274" -ReadyTimeoutSec 60`  
 **说明**: 测试因耗时过长（单用例最长 309s）被中途手动终止，已完成 18/35 个用例
 
 ---

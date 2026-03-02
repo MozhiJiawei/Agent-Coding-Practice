@@ -32,6 +32,8 @@ htmlcov/
 
 # Runtime logs
 logs/
+tests/e2e/logs/
+tests/e2e/reports/
 
 # OS
 .DS_Store

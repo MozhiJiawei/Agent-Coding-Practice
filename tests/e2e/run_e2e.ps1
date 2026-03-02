@@ -11,7 +11,8 @@
       4. 运行 test-simulator 用例（test_cases.yaml）：默认 SimAll 全部用例；或通过 -SimCase/-SimTag 指定
       5. 无论测试结果如何，在 finally 块中强制终止所有已启动的进程（含子进程）
 
-    日志输出写入 <repo_root>/logs/ 目录（自动创建，建议加入 .gitignore）。
+    进程输出日志写入 tests/e2e/logs/；HTML/JSON/MD 报告写入 tests/e2e/reports/。
+    主 Agent 的 jsonl 会话日志仍写入 <repo_root>/logs/（不修改）。
 
 .PARAMETER UserId
     可选。竞赛注册员工 ID，通过 USER_ID 环境变量传给主 Agent。默认 "EMP001"。
@@ -40,12 +41,12 @@
     可选。主 Agent 监听端口，默认 8191。
 
 .EXAMPLE
-    .\tests\run_e2e.ps1
-    .\tests\run_e2e.ps1 -UserId "EMP001"
-    .\tests\run_e2e.ps1 -UserId "EMP001" -SimCase "ev06_wangjing_to_daxing_rental_flow"
-    .\tests\run_e2e.ps1 -UserId "EMP001" -SimTag "ev03"
-    .\tests\run_e2e.ps1 -UserId "EMP002" -ReadyTimeoutSec 60
-    .\tests\run_e2e.ps1 -UserId "EMP002" -ModelProxyPort 8988 -MockRentalPort 8180 -DashboardPort 8977 -AgentPort 8291
+    .\tests\e2e\run_e2e.ps1
+    .\tests\e2e\run_e2e.ps1 -UserId "EMP001"
+    .\tests\e2e\run_e2e.ps1 -UserId "EMP001" -SimCase "ev06_wangjing_to_daxing_rental_flow"
+    .\tests\e2e\run_e2e.ps1 -UserId "EMP001" -SimTag "ev03"
+    .\tests\e2e\run_e2e.ps1 -UserId "EMP002" -ReadyTimeoutSec 60
+    .\tests\e2e\run_e2e.ps1 -UserId "EMP002" -ModelProxyPort 8988 -MockRentalPort 8180 -DashboardPort 8977 -AgentPort 8291
 #>
 [CmdletBinding()]
 param(
@@ -67,12 +68,15 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-# ─── 路径解析 ──────────────────────────────────────────────────────────────────
-$repoRoot     = Split-Path -Parent $PSScriptRoot
+# ─── 路径解析（脚本位于 tests/e2e/）────────────────────────────────────────────
+$repoRoot     = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$e2eDir       = $PSScriptRoot
 $simulatorDir = Join-Path $repoRoot "test-simulator"
-$logsDir      = Join-Path $repoRoot "logs"
+$logsDir      = Join-Path $repoRoot "logs"           # 主 Agent jsonl 目录（不修改）
+$e2eLogsDir   = Join-Path $e2eDir "logs"             # simulator/agent 进程输出
+$e2eReportsDir = Join-Path $e2eDir "reports"         # HTML/JSON/MD 报告
 
-# 删除 logs 目录内所有 jsonl 文件（文件被占用时跳过继续执行）
+# 删除 logs 目录内所有 jsonl 文件（主 Agent 写入位置，文件被占用时跳过继续执行）
 if (Test-Path $logsDir) {
     try {
         $jsonlFiles = Get-ChildItem -Path $logsDir -Filter "*.jsonl" -File -ErrorAction Stop
@@ -86,7 +90,8 @@ if (Test-Path $logsDir) {
         Write-Host "[e2e] WARN: Could not remove jsonl files in logs (files in use?), continuing..."
     }
 }
-New-Item -ItemType Directory -Path $logsDir -Force | Out-Null
+New-Item -ItemType Directory -Path $e2eLogsDir -Force | Out-Null
+New-Item -ItemType Directory -Path $e2eReportsDir -Force | Out-Null
 
 # ─── 进程 PID 记录表 ───────────────────────────────────────────────────────────
 $managedPids = [System.Collections.Generic.List[int]]::new()
@@ -177,30 +182,31 @@ try {
     $env:SIM_MOCK_RENTAL_PORT   = [string]$MockRentalPort
     $env:SIM_DASHBOARD_PORT     = [string]$DashboardPort
     $env:SIM_AGENT_BASE_URL     = "http://localhost:$AgentPort"
+    $env:SIM_REPORT_DIR         = $e2eReportsDir   # HTML/JSON/MD 报告输出到 tests/e2e/reports
 
     # ── 1. 启动 test-simulator（Model Proxy + Mock Rental + Dashboard）──────────
     Write-Host "[e2e] Starting test-simulator..."
     $simProc = Start-Process python `
         -ArgumentList "main.py" `
         -WorkingDirectory $simulatorDir `
-        -RedirectStandardOutput (Join-Path $logsDir "simulator.log") `
-        -RedirectStandardError  (Join-Path $logsDir "simulator_err.log") `
+        -RedirectStandardOutput (Join-Path $e2eLogsDir "simulator.log") `
+        -RedirectStandardError  (Join-Path $e2eLogsDir "simulator_err.log") `
         -NoNewWindow `
         -PassThru
     $managedPids.Add($simProc.Id)
-    Write-Host "[e2e]   PID $($simProc.Id) → logs\simulator.log"
+    Write-Host "[e2e]   PID $($simProc.Id) → tests\e2e\logs\simulator.log"
 
     # ── 2. 启动主 Agent ────────────────────────────────────────────────────────
     Write-Host "[e2e] Starting main agent..."
     $agentProc = Start-Process python `
         -ArgumentList @("-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", [string]$AgentPort) `
         -WorkingDirectory $repoRoot `
-        -RedirectStandardOutput (Join-Path $logsDir "agent.log") `
-        -RedirectStandardError  (Join-Path $logsDir "agent_err.log") `
+        -RedirectStandardOutput (Join-Path $e2eLogsDir "agent.log") `
+        -RedirectStandardError  (Join-Path $e2eLogsDir "agent_err.log") `
         -NoNewWindow `
         -PassThru
     $managedPids.Add($agentProc.Id)
-    Write-Host "[e2e]   PID $($agentProc.Id) → logs\agent.log"
+    Write-Host "[e2e]   PID $($agentProc.Id) → tests\e2e\logs\agent.log"
 
     # ── 3. 等待四个服务健康就绪 ──────────────────────────────────────────────────
     $services = [ordered]@{
@@ -211,7 +217,7 @@ try {
     }
     $ready = Wait-ServicesReady -Services $services -TimeoutSec $ReadyTimeoutSec
     if (-not $ready) {
-        Write-Host "[e2e] Startup failed. Check logs\ for details."
+        Write-Host "[e2e] Startup failed. Check tests\e2e\logs\ for details."
         $exitCode = 2
     } else {
         # ── 4. 运行 test-simulator 用例（默认 SimAll 全部用例）───────────────────
