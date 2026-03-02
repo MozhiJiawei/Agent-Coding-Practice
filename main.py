@@ -6,7 +6,10 @@ import httpx
 from pydantic import BaseModel
 from agent import run_agent, SYSTEM_PROMPT
 from logger import log_event
-from tools import init_houses, get_all_houses_for_debug, get_all_landmarks_for_debug
+from tools import (
+    init_houses, get_all_houses_for_debug, get_all_landmarks_for_debug,
+    UserPreferences, build_area_district_map, AREA_TO_DISTRICT,
+)
 
 # 支持环境变量覆盖，与 debug_init_houses.py 一致，便于 Mock 或不同网络环境
 RENTAL_API_BASE = os.environ.get("RENTAL_API_BASE", "http://7.225.29.223:8080")
@@ -37,6 +40,8 @@ class ChatResponse(BaseModel):
 sessions: dict[str, list] = {}
 # 全局 Session 统计（累计 token 数和时间片数）
 session_stats: dict[str, dict] = {}
+# 全局 Session 偏好存储（session_id → UserPreferences）
+session_preferences: dict[str, UserPreferences] = {}
 
 
 # lifespan 上下文（httpx.AsyncClient 全生命周期）
@@ -70,16 +75,30 @@ async def chat_endpoint(request: ChatRequest, req: Request):
                 print(f"[{request.session_id}] {platform}: total={total}, items={len(items)}")
             all_landmarks = await get_all_landmarks_for_debug(client)
             log_event("DEBUG_ALL_LANDMARKS", request.session_id, {"raw_response": all_landmarks})
+            # 构建 area → district 映射表并更新模块级全局
+            all_items: list[dict] = []
+            for platform_data in all_houses.values():
+                all_items.extend(platform_data.get("items", []))
+            area_map = build_area_district_map(all_items)
+            AREA_TO_DISTRICT.update(area_map)
+            log_event("AREA_DISTRICT_MAP", request.session_id, {"map_size": len(area_map)})
             sessions[request.session_id] = []
             sessions[request.session_id].append({"role": "system", "content": SYSTEM_PROMPT})
             session_stats[request.session_id] = {"total_tokens": 0, "total_time_slices": 0}
+            session_preferences[request.session_id] = UserPreferences()
         history = sessions[request.session_id]
         history.append({"role": "user", "content": request.message})
         log_event("USER_REQUEST", request.session_id, {
             "model_ip": request.model_ip,
             "message": request.message,
         })
-        result = await run_agent(history, request.model_ip, client, session_id=request.session_id)
+        result = await run_agent(
+            history,
+            request.model_ip,
+            client,
+            session_id=request.session_id,
+            session_prefs=session_preferences.get(request.session_id),
+        )
         if result is None:
             result = {"response": "Agent not implemented", "status": "error", "tool_results": []}
         duration_ms = int((time.time() - start_time) * 1000)

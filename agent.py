@@ -2,51 +2,45 @@ import json
 import math
 import re
 import time
+from functools import partial
 from typing import Callable
 import httpx
 from openai import AsyncOpenAI
 from tools import (
-    TOOLS, search_houses, search_landmark, search_nearby_landmark,
-    get_house_detail, get_nearby_amenities, execute_action,
-    get_houses_by_community, get_house_listings,
+    TOOLS, get_house_detail, execute_action, get_house_listings,
+    update_preferences, UserPreferences,
 )
 from logger import log_event
 
 # 模块顶层常量
 SYSTEM_PROMPT = """你是智能租房助手，帮助用户在北京寻找和租赁房源。
 
-工具使用规则：
-- 搜索房源（按区域/价格/户型/装修/朝向/地铁距离）→ 调用 search_houses
-- 查看房源详情 → 调用 get_house_detail
-- 搜索地标（地铁站/商圈/公司）→ 调用 search_landmark
-- 查找地标附近房源 → 调用 search_nearby_landmark
-- 按小区名查可租房源（指代消解/查某小区详情）→ 调用 get_houses_by_community
-- 查同一房源在多个平台的挂牌价对比 → 调用 get_house_listings
-- 查询某小区周边商超/公园配套 → 调用 get_nearby_amenities（传小区名 community，不是房源ID）
-- 租房/退租/下架操作 → 必须调用 execute_action（action: rent/terminate/offline）
+核心工作流：
+1. 用户表达租房需求时 → 调用 update_preferences 提取偏好，系统自动搜索匹配房源
+2. 用户想看某套房源详情 → 调用 get_house_detail
+3. 用户想跨平台比价 → 调用 get_house_listings
+4. 用户确认要租房/退租 → 调用 execute_action
 
-意图分类：
-- 涉及房源信息、租赁操作 → 必须调用工具，禁止猜测或编造数据
-- 纯聊天或与房源无关的问题 → 直接自然语言回复，无需调工具
+使用 update_preferences 的规则：
+- 每轮对话只提取本轮新增或变更的偏好字段
+- 位置统一放在 location 字段，支持区名/商圈/地标
+- "换XX看看" 场景需设置 clear_location=true
+- 纯聊天或与房源无关的问题 → 直接自然语言回复，禁止调工具
 
 输出格式：
-- 调用 search_houses、search_nearby_landmark 或 get_houses_by_community 后，用自然语言描述推荐房源，系统自动处理 JSON 格式
+- 调用 update_preferences 后，用自然语言描述偏好和推荐房源，系统自动处理 JSON 格式
 - 禁止自行生成 JSON 格式输出
 - 禁止编造房源 ID，系统会从工具结果中自动提取
 - 每次最多推荐 5 套房源"""
 
 MAX_ITERATIONS = 10
-HOUSE_SEARCH_TOOLS = {"search_houses", "search_nearby_landmark", "get_houses_by_community"}
+HOUSE_SEARCH_TOOLS = {"update_preferences"}
 
+# 静态工具分发表（不含 update_preferences，因其需在运行时绑定 session_prefs）
 TOOL_DISPATCH: dict[str, Callable] = {
-    "search_houses": search_houses,
-    "search_landmark": search_landmark,
-    "search_nearby_landmark": search_nearby_landmark,
     "get_house_detail": get_house_detail,
-    "get_nearby_amenities": get_nearby_amenities,
-    "execute_action": execute_action,
-    "get_houses_by_community": get_houses_by_community,
     "get_house_listings": get_house_listings,
+    "execute_action": execute_action,
 }
 
 
@@ -55,9 +49,19 @@ async def run_agent(
     model_ip: str,
     client: httpx.AsyncClient,
     session_id: str = "",
+    session_prefs: UserPreferences | None = None,
 ) -> dict:
     # trust_env=False 不走代理，避免使用 HTTP_PROXY/HTTPS_PROXY 环境变量
     # 评测接口要求必须携带 Session-ID 请求头
+    if session_prefs is None:
+        session_prefs = UserPreferences()
+
+    # 构建本地分发表：将 update_preferences 绑定到当前 session 的偏好对象
+    local_dispatch: dict[str, Callable] = {
+        **TOOL_DISPATCH,
+        "update_preferences": partial(update_preferences, session_prefs=session_prefs),
+    }
+
     async with httpx.AsyncClient(trust_env=False, timeout=60.0) as llm_http_client:
         llm_client = AsyncOpenAI(
             base_url=f"http://{model_ip}:8888/v1",
@@ -125,6 +129,13 @@ async def run_agent(
             message = choice.message
             finish_reason = choice.finish_reason
 
+            log_event("MODEL_RESPONSE", session_id, {
+                "iteration": iterations,
+                "finish_reason": finish_reason,
+                "has_tool_calls": bool(message.tool_calls),
+                "content_preview": (message.content or "")[:200],
+            })
+
             # 追加 assistant message（手动构建，避免 SDK 内部字段）
             assistant_msg: dict = {"role": "assistant", "content": message.content}
             if message.tool_calls:
@@ -152,7 +163,7 @@ async def run_agent(
                     except (json.JSONDecodeError, TypeError):
                         args = {}
 
-                    fn = TOOL_DISPATCH.get(tool_name)
+                    fn = local_dispatch.get(tool_name)
                     if fn is None:
                         result = {"error": f"Unknown tool: {tool_name}"}
                         log_event("ERROR", session_id, {"error": f"Unknown tool: {tool_name}", "tool_name": tool_name})

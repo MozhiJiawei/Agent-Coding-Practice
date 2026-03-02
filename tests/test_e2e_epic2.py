@@ -44,6 +44,7 @@ def make_llm_response(content: str, tool_calls=None, finish_reason: str = "stop"
     choice.finish_reason = finish_reason
     resp = MagicMock()
     resp.choices = [choice]
+    resp.usage = None
     return resp
 
 
@@ -291,7 +292,7 @@ class TestE2EAgentLoopExecution:
 
     def test_tool_call_loop_executes_and_returns_json(self):
         """E2E: 工具调用后 Format Guard 返回合法 JSON 字符串"""
-        tool_call = make_tool_call_mock("search_houses", {"district": "海淀"})
+        tool_call = make_tool_call_mock("update_preferences", {"location": ["海淀"]})
         responses = [
             make_llm_response("", tool_calls=[tool_call], finish_reason="tool_calls"),
             make_llm_response("为您推荐：HF_1、HF_2、HF_3", tool_calls=None, finish_reason="stop"),
@@ -300,15 +301,12 @@ class TestE2EAgentLoopExecution:
 
         with patch("agent.AsyncOpenAI") as mock_cls:
             mock_cls.return_value.chat.completions.create = mock_create
-            with patch("agent.TOOL_DISPATCH", {
-                "search_houses": AsyncMock(return_value={"total": 3, "items": []})
-            }):
-                with TestClient(app) as client:
-                    resp = client.post("/api/v1/chat", json={
-                        "model_ip": "10.0.0.1",
-                        "session_id": "tool-test",
-                        "message": "找海淀区两居室"
-                    })
+            with TestClient(app) as client:
+                resp = client.post("/api/v1/chat", json={
+                    "model_ip": "10.0.0.1",
+                    "session_id": "tool-test",
+                    "message": "找海淀区两居室"
+                })
 
         data = resp.json()
         assert data["status"] == "success"
@@ -318,7 +316,7 @@ class TestE2EAgentLoopExecution:
 
     def test_tool_results_field_populated_after_tool_call(self):
         """E2E: 工具调用后 tool_results 字段包含执行记录"""
-        tool_call = make_tool_call_mock("search_houses", {"district": "朝阳"})
+        tool_call = make_tool_call_mock("update_preferences", {"location": ["朝阳"]})
         responses = [
             make_llm_response("", tool_calls=[tool_call], finish_reason="tool_calls"),
             make_llm_response("推荐 HF_5", tool_calls=None, finish_reason="stop"),
@@ -327,29 +325,26 @@ class TestE2EAgentLoopExecution:
 
         with patch("agent.AsyncOpenAI") as mock_cls:
             mock_cls.return_value.chat.completions.create = mock_create
-            with patch("agent.TOOL_DISPATCH", {
-                "search_houses": AsyncMock(return_value={"houses": ["HF_5"]})
-            }):
-                with TestClient(app) as client:
-                    resp = client.post("/api/v1/chat", json={
-                        "model_ip": "10.0.0.1",
-                        "session_id": "tr-test",
-                        "message": "朝阳区有房吗？"
-                    })
+            with TestClient(app) as client:
+                resp = client.post("/api/v1/chat", json={
+                    "model_ip": "10.0.0.1",
+                    "session_id": "tr-test",
+                    "message": "朝阳区有房吗？"
+                })
 
         data = resp.json()
         assert len(data["tool_results"]) >= 1
-        assert data["tool_results"][0]["tool_name"] == "search_houses"
+        assert data["tool_results"][0]["tool_name"] == "update_preferences"
 
     def test_max_iterations_returns_error_status(self):
         """E2E: 达到最大迭代次数时 status = 'error'"""
-        tool_call = make_tool_call_mock("search_houses", {})
+        tool_call = make_tool_call_mock("get_house_detail", {"house_id": "HF_1"})
         mock_create = AsyncMock(return_value=make_llm_response(
             "", tool_calls=[tool_call], finish_reason="tool_calls"
         ))
         with patch("agent.AsyncOpenAI") as mock_cls:
             mock_cls.return_value.chat.completions.create = mock_create
-            with patch("agent.TOOL_DISPATCH", {"search_houses": AsyncMock(return_value={})}):
+            with patch("agent.TOOL_DISPATCH", {"get_house_detail": AsyncMock(return_value={})}):
                 with TestClient(app) as client:
                     resp = client.post("/api/v1/chat", json={
                         "model_ip": "10.0.0.1",

@@ -1,13 +1,12 @@
 """
-tests/test_tools.py — Story 3.1: tools.py 全量工具实现 TDD 测试
+tests/test_tools.py — Story 3.1 + Story 8.1: tools.py 全量工具实现 TDD 测试
 
-覆盖范围（Task 8）:
-  8.1 — 6 个工具各自 happy path（mock httpx 响应）
-  8.2 — 6 个工具各自 error path（mock httpx 抛异常）
-  8.3 — search_houses 翻页逻辑（多页 mock，验证 all_items 合并）
-  8.4 — TOOLS 常量结构验证（name 一致性、listing_platform enum 一致性）
-  8.5 — execute_action 无效 action 返回 error dict
-  8.6 — 全量回归由运行全套测试套件保障（此处仅包含 tools 测试）
+覆盖范围：
+  - TOOLS 常量结构验证（Story 8.1: 4 个工具）
+  - get_house_detail happy/error path
+  - get_house_listings happy/error path
+  - execute_action happy/error path（含无效 action）
+  - search_houses、search_landmark 等旧工具函数仍存在（Python 函数保留但不在 TOOLS 中）
 """
 import pytest
 from unittest.mock import AsyncMock, MagicMock
@@ -64,70 +63,60 @@ def make_error_response(status_code: int = 500):
 # ─────────────────────────────────────────────
 
 class TestToolsConstant:
-    """验证 TOOLS 常量格式与一致性（AC: 2）"""
+    """验证 TOOLS 常量格式与一致性（Story 8.1: 4 工具体系）"""
 
     def test_tools_is_list(self):
         assert isinstance(TOOLS, list)
 
-    def test_tools_has_six_entries(self):
-        assert len(TOOLS) == 8
+    def test_tools_has_four_entries(self):
+        """Story 8.1: TOOLS 仅包含 4 个工具"""
+        assert len(TOOLS) == 4
 
     def test_each_tool_has_type_function(self):
         for tool in TOOLS:
             assert tool.get("type") == "function", f"tool missing type=function: {tool}"
 
-    def test_tool_names_match_python_functions(self):
-        """每个 schema 的 name 字段必须与 Python 函数名完全一致"""
+    def test_tool_names_are_four_new_tools(self):
+        """Story 8.1: 4 个工具 — update_preferences、get_house_detail、get_house_listings、execute_action"""
         expected_names = {
-            "search_houses",
+            "update_preferences",
             "get_house_detail",
-            "search_landmark",
-            "search_nearby_landmark",
-            "get_nearby_amenities",
-            "execute_action",
-            "get_houses_by_community",
             "get_house_listings",
+            "execute_action",
         }
         actual_names = {tool["function"]["name"] for tool in TOOLS}
         assert actual_names == expected_names
 
-    def test_listing_platform_enum_consistent(self):
-        """search_houses / search_nearby_landmark / execute_action 的 listing_platform enum 必须一致"""
-        expected_enum = ["链家", "安居客", "58同城"]
-        tools_with_platform = ["search_houses", "search_nearby_landmark", "execute_action"]
-        for tool in TOOLS:
-            name = tool["function"]["name"]
-            if name in tools_with_platform:
-                props = tool["function"]["parameters"]["properties"]
-                assert "listing_platform" in props, f"{name} missing listing_platform"
-                actual_enum = props["listing_platform"].get("enum")
-                assert actual_enum == expected_enum, (
-                    f"{name} listing_platform enum mismatch: {actual_enum}"
-                )
+    def test_old_search_tools_removed_from_tools(self):
+        """旧工具（search_houses 等）已从 TOOLS 中移除"""
+        old_tool_names = {"search_houses", "search_landmark", "search_nearby_landmark",
+                         "get_nearby_amenities", "get_houses_by_community"}
+        actual_names = {tool["function"]["name"] for tool in TOOLS}
+        assert actual_names.isdisjoint(old_tool_names), (
+            f"旧工具仍在 TOOLS 中: {actual_names & old_tool_names}"
+        )
 
-    def test_search_houses_has_no_required_params(self):
+    def test_execute_action_listing_platform_enum(self):
+        """execute_action 的 listing_platform enum 保持一致"""
+        expected_enum = ["链家", "安居客", "58同城"]
         for tool in TOOLS:
-            if tool["function"]["name"] == "search_houses":
+            if tool["function"]["name"] == "execute_action":
+                props = tool["function"]["parameters"]["properties"]
+                assert "listing_platform" in props
+                actual_enum = props["listing_platform"].get("enum")
+                assert actual_enum == expected_enum
+
+    def test_update_preferences_has_no_required_params(self):
+        for tool in TOOLS:
+            if tool["function"]["name"] == "update_preferences":
                 required = tool["function"]["parameters"].get("required", [])
-                assert required == [], f"search_houses should have no required params, got {required}"
+                assert required == [], f"update_preferences should have no required params, got {required}"
 
     def test_get_house_detail_requires_house_id(self):
         for tool in TOOLS:
             if tool["function"]["name"] == "get_house_detail":
                 required = tool["function"]["parameters"].get("required", [])
                 assert "house_id" in required
-
-    def test_search_landmark_requires_query(self):
-        for tool in TOOLS:
-            if tool["function"]["name"] == "search_landmark":
-                required = tool["function"]["parameters"].get("required", [])
-                assert "query" in required
-
-    def test_search_nearby_landmark_requires_landmark_id(self):
-        for tool in TOOLS:
-            if tool["function"]["name"] == "search_nearby_landmark":
-                required = tool["function"]["parameters"].get("required", [])
-                assert "landmark_id" in required
 
     def test_execute_action_required_fields(self):
         for tool in TOOLS:
@@ -136,6 +125,20 @@ class TestToolsConstant:
                 assert "action" in required
                 assert "house_id" in required
                 assert "listing_platform" in required
+
+    def test_update_preferences_schema_has_location(self):
+        for tool in TOOLS:
+            if tool["function"]["name"] == "update_preferences":
+                props = tool["function"]["parameters"]["properties"]
+                assert "location" in props
+                assert props["location"]["type"] == "array"
+
+    def test_update_preferences_schema_has_clear_location(self):
+        for tool in TOOLS:
+            if tool["function"]["name"] == "update_preferences":
+                props = tool["function"]["parameters"]["properties"]
+                assert "clear_location" in props
+                assert props["clear_location"]["type"] == "boolean"
 
 
 # ─────────────────────────────────────────────

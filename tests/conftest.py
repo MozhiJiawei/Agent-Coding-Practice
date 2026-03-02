@@ -1,8 +1,8 @@
 """
 pytest conftest：全局测试环境配置。
 - 预设 USER_ID 环境变量，避免 tools.py 模块级 KeyError
-- autouse fixture 在每个测试前清空 sessions，保证测试隔离
-- autouse mock init_houses 防止测试中发起真实 HTTP 请求
+- autouse fixture 在每个测试前清空 sessions / session_preferences，保证测试隔离
+- autouse mock init_houses / get_all_houses_for_debug / get_all_landmarks_for_debug 防止发起真实 HTTP 请求
 - anyio 后端限定为 asyncio（trio 未安装）
 """
 import os
@@ -22,14 +22,16 @@ def anyio_backend():
 @pytest.fixture(autouse=True)
 def _clear_sessions():
     _main_module.sessions.clear()
+    _main_module.session_preferences.clear()
     yield
     _main_module.sessions.clear()
+    _main_module.session_preferences.clear()
 
 
 @pytest.fixture(autouse=True)
 def _mock_init_houses():
-    """防止 init_houses 和 get_all_houses_for_debug 发起真实 HTTP 请求。
-    需要显式测试 init_houses 行为的测试类可用自己的 patch 覆盖此 fixture。
+    """防止 init_houses、get_all_houses_for_debug、get_all_landmarks_for_debug 发起真实 HTTP 请求。
+    需要显式测试这些行为的测试类可用自己的 patch 覆盖此 fixture。
     """
     with patch("main.init_houses", new=AsyncMock(return_value={"status": "ok"})):
         with patch(
@@ -42,7 +44,11 @@ def _mock_init_houses():
                 }
             ),
         ):
-            yield
+            with patch(
+                "main.get_all_landmarks_for_debug",
+                new=AsyncMock(return_value={"total": 0, "items": []}),
+            ):
+                yield
 
 
 @pytest.fixture(autouse=True)

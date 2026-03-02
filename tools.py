@@ -1,6 +1,8 @@
 import asyncio
 import os
+from typing import Optional
 import httpx
+from pydantic import BaseModel
 
 # 模块顶层常量（必须在模块加载时读取一次）
 # 支持环境变量覆盖，与 debug_init_houses.py 一致；tools 不创建 client，client 由 main 传入且已设置 trust_env=False 不走代理
@@ -13,54 +15,191 @@ def _get_headers() -> dict:
     return {"X-User-ID": USER_ID.encode("utf-8")}
 
 
-# ── Task 1: TOOLS 常量（OpenAI function-calling 格式） ──────────────────────
+# ── Story 8.1: UserPreferences 数据模型 ─────────────────────────────────────
+
+DISTRICTS = {"海淀", "朝阳", "通州", "昌平", "大兴", "房山", "西城", "丰台", "顺义", "东城"}
+
+# 模块级全局映射表，由 build_area_district_map 填充（启动时由 main.py 调用）
+AREA_TO_DISTRICT: dict[str, str] = {}
+
+
+class UserPreferences(BaseModel):
+    # ── 位置（LLM 输入统一字段） ──
+    location: Optional[list[str]] = None
+    clear_location: bool = False
+
+    # ── 内部字段（代码路由后写入，LLM 不直接设置） ──
+    districts: Optional[list[str]] = None
+    areas: Optional[list[str]] = None
+    landmark_queries: Optional[list[str]] = None
+
+    # ── 硬约束 ──
+    min_price: Optional[int] = None
+    max_price: Optional[int] = None
+    bedrooms: Optional[str] = None
+    rental_type: Optional[str] = None
+    decoration: Optional[str] = None
+    elevator: Optional[bool] = None
+    min_area: Optional[int] = None
+    max_area: Optional[int] = None
+    utilities_type: Optional[str] = None
+    subway_line: Optional[str] = None
+    near_subway: Optional[bool] = None
+    listing_platform: Optional[str] = None
+    available_before: Optional[str] = None
+    max_commute_minutes: Optional[int] = None
+
+    # ── 软偏好 ──
+    noise_preference: Optional[str] = None
+    orientation: Optional[str] = None
+    floor_pref: Optional[str] = None
+    no_agent_fee: Optional[bool] = None
+    payment_method: Optional[str] = None
+
+    # ── 上下文记忆 ──
+    mentioned_house_ids: list[str] = []
+    current_focus_house_id: Optional[str] = None
+
+
+def build_area_district_map(all_houses: list[dict]) -> dict[str, str]:
+    """从全量房源数据中构建 area → district 映射表，跳过 area/district 为空的记录。"""
+    mapping: dict[str, str] = {}
+    for house in all_houses:
+        area = house.get("area")
+        district = house.get("district")
+        if area and district:
+            mapping[area] = district
+    return mapping
+
+
+def resolve_location(location: str) -> dict:
+    """将 LLM 输入的位置路由为 district / area / landmark_query。
+
+    路由规则（优先级从高到低）：
+    1. 去掉"区"后缀后，若在 DISTRICTS 中 → {"district": "XX"}
+    2. 若在 AREA_TO_DISTRICT 中 → {"area": "XX", "district": "YY"}
+    3. 以"附近"结尾 → {"landmark_query": "XX"} （去掉"附近"）
+    4. 其他 → {"landmark_query": location}
+    """
+    # 规则1: 区名（支持"海淀"和"海淀区"两种写法）
+    stripped = location.removesuffix("区")
+    if stripped in DISTRICTS:
+        return {"district": stripped}
+
+    # 规则2: 商圈（依赖 AREA_TO_DISTRICT 映射）
+    if location in AREA_TO_DISTRICT:
+        return {"area": location, "district": AREA_TO_DISTRICT[location]}
+
+    # 规则3: 地标（"XX附近"）
+    if location.endswith("附近"):
+        landmark = location.removesuffix("附近")
+        return {"landmark_query": landmark}
+
+    # 规则4: 未知，作为地标查询
+    return {"landmark_query": location}
+
+
+async def update_preferences(
+    client: httpx.AsyncClient,
+    session_prefs: UserPreferences,
+    **kwargs,
+) -> dict:
+    """合并 LLM 提取的偏好参数到 session，调用 resolve_location 路由位置，返回当前偏好摘要。
+
+    Story 8.1：本函数暂不触发自动搜索，仅返回偏好摘要。
+    自动搜索逻辑在 Story 8.2 实现。
+    """
+    # 处理 clear_location：清除历史位置相关字段
+    clear = kwargs.pop("clear_location", False)
+    if clear:
+        session_prefs.location = None
+        session_prefs.districts = None
+        session_prefs.areas = None
+        session_prefs.landmark_queries = None
+
+    # 处理 location 字段：累加并路由
+    new_locations: list[str] = kwargs.pop("location", None) or []
+    if new_locations:
+        existing = session_prefs.location or []
+        if clear:
+            session_prefs.location = new_locations
+        else:
+            merged = list(existing)
+            for loc in new_locations:
+                if loc not in merged:
+                    merged.append(loc)
+            session_prefs.location = merged
+
+        # 路由每个位置到 district / area / landmark_query
+        new_districts: list[str] = []
+        new_areas: list[str] = []
+        new_landmarks: list[str] = []
+        for loc in (session_prefs.location or []):
+            routed = resolve_location(loc)
+            if "area" in routed:
+                # 商圈路由：写入 areas，并将对应 district 也写入 districts
+                new_areas.append(routed["area"])
+                if "district" in routed:
+                    new_districts.append(routed["district"])
+            elif "district" in routed:
+                # 纯区名路由
+                new_districts.append(routed["district"])
+            if "landmark_query" in routed:
+                new_landmarks.append(routed["landmark_query"])
+
+        session_prefs.districts = new_districts if new_districts else None
+        session_prefs.areas = new_areas if new_areas else None
+        session_prefs.landmark_queries = new_landmarks if new_landmarks else None
+
+    # 合并其余偏好字段（只更新传入的非 None 字段）
+    updatable_fields = {
+        "min_price", "max_price", "bedrooms", "rental_type", "decoration",
+        "elevator", "min_area", "max_area", "utilities_type", "subway_line",
+        "near_subway", "listing_platform", "available_before", "max_commute_minutes",
+        "noise_preference", "orientation", "floor_pref", "no_agent_fee", "payment_method",
+    }
+    for field, value in kwargs.items():
+        if field in updatable_fields and value is not None:
+            setattr(session_prefs, field, value)
+
+    # 构建并返回偏好摘要
+    summary = session_prefs.model_dump(exclude_none=True, exclude={"clear_location"})
+    return {"preferences": summary, "status": "updated"}
+
+
+# ── Story 8.1: 4 工具体系 TOOLS 列表 ────────────────────────────────────────
 TOOLS: list[dict] = [
     {
         "type": "function",
         "function": {
-            "name": "search_houses",
-            "description": "搜索可租房源，支持多维度筛选：区域、价格、户型、装修、朝向、地铁距离。自动处理分页，返回完整结果集（最多5页）。",
+            "name": "update_preferences",
+            "description": "提取或更新用户的租房偏好。调用后系统自动搜索并返回匹配房源。每轮只需提取本轮新增/变更的偏好，系统自动与历史偏好合并。",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "district": {
-                        "type": "string",
-                        "description": "行政区，逗号分隔可传多区，如 海淀、朝阳、通州、昌平、大兴、房山、西城、丰台、顺义、东城"
+                    "location": {
+                        "type": "array", "items": {"type": "string"},
+                        "description": "用户提到的位置（行政区/商圈/地标均可），如 ['望京']、['海淀']、['国贸附近']"
+                    },
+                    "clear_location": {
+                        "type": "boolean",
+                        "description": "true=清除之前的位置偏好（用于'换XX看看'场景）"
                     },
                     "min_price": {"type": "integer", "description": "最低月租金（元）"},
                     "max_price": {"type": "integer", "description": "最高月租金（元）"},
+                    "bedrooms": {"type": "string", "description": "卧室数，如 '2' 或 '2,3'"},
                     "rental_type": {"type": "string", "description": "整租 或 合租"},
-                    "bedrooms": {"type": "string", "description": "卧室数，逗号分隔，如 \"1,2\""},
-                    "area": {"type": "string", "description": "商圈，逗号分隔，如 \"西二旗,上地\""},
-                    "decoration": {
-                        "type": "string",
-                        "enum": ["精装", "简装", "豪华", "毛坯", "空房"],
-                        "description": "装修类型"
-                    },
-                    "orientation": {
-                        "type": "string",
-                        "description": "朝向，如 朝南、朝北、朝东、朝西、南北、东西"
-                    },
-                    "elevator": {"type": "string", "description": "是否有电梯：true 或 false"},
+                    "decoration": {"type": "string", "description": "精装/简装/豪华/毛坯"},
+                    "elevator": {"type": "boolean", "description": "是否需要电梯"},
                     "min_area": {"type": "integer", "description": "最小面积（平米）"},
-                    "max_area": {"type": "integer", "description": "最大面积（平米）"},
-                    "property_type": {"type": "string", "description": "物业类型，如 住宅"},
-                    "max_subway_dist": {
-                        "type": "integer",
-                        "description": "最大地铁距离（米），800=近地铁，1000=地铁可达"
-                    },
+                    "near_subway": {"type": "boolean", "description": "是否要求近地铁"},
                     "subway_line": {"type": "string", "description": "地铁线路，如 13号线"},
-                    "subway_station": {"type": "string", "description": "地铁站名，如 车公庄站"},
                     "utilities_type": {"type": "string", "description": "水电类型，如 民水民电"},
-                    "available_from_before": {"type": "string", "description": "可入住日期上限，YYYY-MM-DD，如 2026-03-10"},
-                    "commute_to_xierqi_max": {"type": "integer", "description": "到西二旗通勤时间上限（分钟）"},
-                    "listing_platform": {
-                        "type": "string",
-                        "enum": ["链家", "安居客", "58同城"],
-                        "description": "挂牌平台，默认安居客"
-                    },
-                    "sort_by": {"type": "string", "enum": ["price", "area", "subway"], "description": "排序字段"},
-                    "sort_order": {"type": "string", "enum": ["asc", "desc"], "description": "排序方向"}
+                    "listing_platform": {"type": "string", "description": "挂牌平台：链家/安居客/58同城"},
+                    "available_before": {"type": "string", "description": "可入住日期上限，YYYY-MM-DD"},
+                    "max_commute_minutes": {"type": "integer", "description": "到西二旗通勤上限（分钟）"},
+                    "noise_preference": {"type": "string", "description": "噪音偏好，如 安静"},
+                    "orientation": {"type": "string", "description": "朝向偏好，如 朝南"}
                 },
                 "required": []
             }
@@ -77,82 +216,6 @@ TOOLS: list[dict] = [
                     "house_id": {"type": "string", "description": "房源 ID，格式如 HF_1、HF_25"}
                 },
                 "required": ["house_id"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "search_landmark",
-            "description": "按关键词模糊搜索地标（地铁站、公司、商圈等），返回 landmark_id 供后续查地标附近房源使用。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "搜索关键词，如 '西二旗'、'百度'、'国贸'"},
-                    "category": {"type": "string", "description": "地标类别，如 地铁站、公司、商圈"},
-                    "district": {"type": "string", "description": "行政区筛选"}
-                },
-                "required": ["query"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "search_nearby_landmark",
-            "description": "查询以指定地标为圆心、指定距离范围内的可租房源，返回含步行距离和步行时间。需先调用 search_landmark 获取 landmark_id。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "landmark_id": {"type": "string", "description": "地标 ID（来自 search_landmark 返回结果）"},
-                    "max_distance": {"type": "integer", "description": "最大距离（米），默认 2000"},
-                    "min_price": {"type": "integer", "description": "最低月租金（元）"},
-                    "max_price": {"type": "integer", "description": "最高月租金（元）"},
-                    "room_type": {"type": "string", "description": "户型，如 整租、合租"},
-                    "listing_platform": {
-                        "type": "string",
-                        "enum": ["链家", "安居客", "58同城"],
-                        "description": "挂牌平台，默认安居客"
-                    }
-                },
-                "required": ["landmark_id"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_nearby_amenities",
-            "description": "查询指定小区周边生活配套（商超/公园），按距离排序。需先通过 search_houses 或 get_house_detail 获知小区名。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "community": {"type": "string", "description": "小区名，如 建清园(南区)，需与房源信息中的 community 字段完全一致"},
-                    "type": {
-                        "type": "string",
-                        "enum": ["shopping", "park"],
-                        "description": "地标类型：shopping(商超)/park(公园)，不传则返回全部"
-                    },
-                    "max_distance_m": {"type": "integer", "description": "最大距离（米），默认 1000"}
-                },
-                "required": ["community"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_houses_by_community",
-            "description": "按小区名查询该小区下可租房源，用于指代消解（如用户说'这个小区'）或查某小区地铁/隐性属性。需传入精确小区名。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "community": {"type": "string", "description": "小区名，需与数据完全一致，如 建清园(南区)、保利锦上(二期)"},
-                    "listing_platform": {"type": "string", "enum": ["链家", "安居客", "58同城"], "description": "挂牌平台，不传默认安居客"},
-                    "page": {"type": "integer", "description": "页码，默认 1"},
-                    "page_size": {"type": "integer", "description": "每页条数，默认 10"}
-                },
-                "required": ["community"]
             }
         }
     },

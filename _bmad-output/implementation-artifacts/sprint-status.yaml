@@ -85,7 +85,7 @@ development_status:
 
   # ── Epic 7: 开箱即用示例与端到端验证 ──
   epic-7: backlog
-  7-1-sample-configs-e2e-smoke: backlog           # test_cases.yaml 三示例用例 + config.yaml 注释 + 冒烟验证
+  7-1-sample-configs-e2e-smoke: done           # test_cases.yaml 三示例用例 + config.yaml 注释 + 冒烟验证
   epic-7-retrospective: optional
 
   # ── Epic 8: 结构化用户偏好记忆系统 ──
