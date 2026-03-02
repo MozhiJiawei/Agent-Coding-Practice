@@ -87,3 +87,10 @@ development_status:
   epic-7: backlog
   7-1-sample-configs-e2e-smoke: backlog           # test_cases.yaml 三示例用例 + config.yaml 注释 + 冒烟验证
   epic-7-retrospective: optional
+
+  # ── Epic 8: 结构化用户偏好记忆系统 ──
+  epic-8: backlog
+  8-1-preferences-model-update-tool: ready-for-dev   # UserPreferences 模型 + update_preferences 工具 + LLM 提参验证
+  8-2-auto-search-pipeline: ready-for-dev             # 自动搜索流水线 + 规则过滤 + 工具精简
+  8-3-bug-fixes-robustness: ready-for-dev             # Bug 修复（HF_ID/幻觉/租错房/偏好丢失）+ 健壮性增强
+  epic-8-retrospective: optional
