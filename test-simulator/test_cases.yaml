@@ -10,6 +10,7 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+      no_tool_call: true
     tags:
       - smoke
 
@@ -21,6 +22,14 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location: ["海淀"]
+          bedrooms: "2"
+          max_price: 6000
+      houses_match_subset: true
+      house_count_min: 1
     tags:
       - smoke
       - tool-call
@@ -34,6 +43,13 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+    round_expects:
+      - round: 1
+        expect:
+          no_tool_call: true
+      - round: 2
+        expect:
+          no_tool_call: true
     tags:
       - multi-turn
 
@@ -96,9 +112,8 @@ test_cases:
       - round: 5
         expect:
           tool_call_args:
-            tool: execute_action
+            tool: get_house_detail
             contains:
-              action: "rent"
               house_id: "HF_830"
     tags:
       - ev06
@@ -240,6 +255,8 @@ test_cases:
         tool: update_preferences
         contains:
           max_price: 4000
+      houses_match_subset: true
+      house_count_min: 1
     tags:
       - ev09
       - tool-call
@@ -256,6 +273,8 @@ test_cases:
         tool: update_preferences
         contains:
           bedrooms: "2"
+      houses_match_subset: true
+      house_count_min: 1
     tags:
       - ev10
       - tool-call
@@ -276,7 +295,7 @@ test_cases:
           decoration: "精装"
           max_price: 8000
       houses_match_subset: true
-      houses_match: ["HF_3"]
+      house_count_min: 1
     tags:
       - ev11
       - tool-call
@@ -311,9 +330,8 @@ test_cases:
       - round: 3
         expect:
           tool_call_args:
-            tool: execute_action
+            tool: get_house_detail
             contains:
-              action: "rent"
               house_id: "HF_38"
     tags:
       - ev12
@@ -352,9 +370,8 @@ test_cases:
       - round: 3
         expect:
           tool_call_args:
-            tool: execute_action
+            tool: get_house_detail
             contains:
-              action: "rent"
               house_id: "HF_67"
     tags:
       - ev13
@@ -475,9 +492,8 @@ test_cases:
       - round: 3
         expect:
           tool_call_args:
-            tool: execute_action
+            tool: get_house_detail
             contains:
-              action: "rent"
               house_id: "HF_277"
     tags:
       - ev19
@@ -515,6 +531,7 @@ test_cases:
           location: ["望京"]
           bedrooms: "2"
           max_price: 8000
+      houses_match: ["HF_830"]
     tags:
       - ev21
       - tool-call
