@@ -4,6 +4,7 @@
 
 .DESCRIPTION
     执行顺序：
+      0. 强制清理 <repo_root>/logs 目录，确保日志会重新生成
       1. 后台启动 test-simulator (Model Proxy :8888 + Mock Rental :8080 + Dashboard :8877)
       2. 后台启动主 Agent (:8191)，并将 RENTAL_API_BASE 指向 Mock Rental
       3. 轮询健康探测，等待三个服务全部就绪
@@ -64,6 +65,12 @@ $ErrorActionPreference = "Stop"
 $repoRoot     = Split-Path -Parent $PSScriptRoot
 $simulatorDir = Join-Path $repoRoot "test-simulator"
 $logsDir      = Join-Path $repoRoot "logs"
+
+# 强制清理 logs 目录，确保日志会被重新生成
+if (Test-Path $logsDir) {
+    Remove-Item -Path $logsDir -Recurse -Force
+    Write-Host "[e2e] Cleaned logs directory (will be regenerated)"
+}
 New-Item -ItemType Directory -Path $logsDir -Force | Out-Null
 
 # ─── 进程 PID 记录表 ───────────────────────────────────────────────────────────
