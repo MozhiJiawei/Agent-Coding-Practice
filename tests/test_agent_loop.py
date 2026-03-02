@@ -256,17 +256,20 @@ class TestFormatGuard:
     async def test_house_search_path_response_is_json_string(self, mock_httpx_client):
         """AC5: 调用 update_preferences 后 response 可被 json.loads() 解析"""
         tool_call = make_tool_call("update_preferences", {"location": ["朝阳"]}, "c1")
+        mock_up_result = {
+            "total_matched": 2, "total_raw": 2,
+            "items": [{"house_id": "HF_011"}, {"house_id": "HF_015"}],
+            "preferences_summary": {"location": ["朝阳"]},
+        }
         responses = [
             make_mock_response("", tool_calls=[tool_call], finish_reason="tool_calls"),
-            make_mock_response("为您推荐：HF_1、HF_2", tool_calls=None, finish_reason="stop"),
+            make_mock_response("为您推荐：HF_011、HF_015", tool_calls=None, finish_reason="stop"),
         ]
         mock_create = AsyncMock(side_effect=responses)
 
         with patch("agent.AsyncOpenAI") as mock_cls:
             mock_cls.return_value.chat.completions.create = mock_create
-            with patch("agent.TOOL_DISPATCH", {
-                "update_preferences": AsyncMock(return_value={"preferences": {}, "status": "updated"})
-            }):
+            with patch("agent.update_preferences", AsyncMock(return_value=mock_up_result)):
                 result = await run_agent(
                     [{"role": "user", "content": "找朝阳区房源"}], "10.0.0.1", mock_httpx_client
                 )
@@ -278,18 +281,25 @@ class TestFormatGuard:
 
     @pytest.mark.anyio
     async def test_house_search_houses_field_contains_valid_ids(self, mock_httpx_client):
-        """AC5 FR22: houses 列表只含有效 HF_xxx ID，最多 5 个"""
+        """AC5 FR22: houses 列表来自工具结果 items，只含有效 HF_xxx ID，最多 5 个"""
         tool_call = make_tool_call("update_preferences", {}, "c1")
-        content = "推荐：HF_1、HF_2、HF_3、HF_4、HF_5、HF_6"  # 6个，Format Guard 截至5个
+        mock_up_result = {
+            "total_matched": 6, "total_raw": 6,
+            "items": [
+                {"house_id": "HF_001"}, {"house_id": "HF_002"}, {"house_id": "HF_003"},
+                {"house_id": "HF_004"}, {"house_id": "HF_005"}, {"house_id": "HF_006"},
+            ],
+            "preferences_summary": {},
+        }
         responses = [
             make_mock_response("", tool_calls=[tool_call], finish_reason="tool_calls"),
-            make_mock_response(content, tool_calls=None, finish_reason="stop"),
+            make_mock_response("为您推荐以上房源", tool_calls=None, finish_reason="stop"),
         ]
         mock_create = AsyncMock(side_effect=responses)
 
         with patch("agent.AsyncOpenAI") as mock_cls:
             mock_cls.return_value.chat.completions.create = mock_create
-            with patch("agent.TOOL_DISPATCH", {"update_preferences": AsyncMock(return_value={})}):
+            with patch("agent.update_preferences", AsyncMock(return_value=mock_up_result)):
                 result = await run_agent(
                     [{"role": "user", "content": "找房"}], "10.0.0.1", mock_httpx_client
                 )
@@ -298,21 +308,29 @@ class TestFormatGuard:
         assert len(parsed["houses"]) <= 5
         for hid in parsed["houses"]:
             assert re.match(r'^HF_\d+$', hid), f"无效 house ID: {hid}"
+        # 应从 items 的前5条提取
+        assert parsed["houses"] == ["HF_001", "HF_002", "HF_003", "HF_004", "HF_005"]
 
     @pytest.mark.anyio
     async def test_house_search_no_duplicate_ids(self, mock_httpx_client):
-        """AC5: houses 列表中无重复 ID"""
+        """AC5: houses 列表中无重复 ID（工具结果含重复时自动去重）"""
         tool_call = make_tool_call("update_preferences", {}, "c1")
-        content = "HF_1 HF_1 HF_2 HF_1"  # HF_1 重复
+        mock_up_result = {
+            "total_matched": 3, "total_raw": 3,
+            "items": [
+                {"house_id": "HF_001"}, {"house_id": "HF_001"}, {"house_id": "HF_002"},
+            ],
+            "preferences_summary": {},
+        }
         responses = [
             make_mock_response("", tool_calls=[tool_call], finish_reason="tool_calls"),
-            make_mock_response(content, tool_calls=None, finish_reason="stop"),
+            make_mock_response("推荐房源", tool_calls=None, finish_reason="stop"),
         ]
         mock_create = AsyncMock(side_effect=responses)
 
         with patch("agent.AsyncOpenAI") as mock_cls:
             mock_cls.return_value.chat.completions.create = mock_create
-            with patch("agent.TOOL_DISPATCH", {"update_preferences": AsyncMock(return_value={})}):
+            with patch("agent.update_preferences", AsyncMock(return_value=mock_up_result)):
                 result = await run_agent(
                     [{"role": "user", "content": "找房"}], "10.0.0.1", mock_httpx_client
                 )
@@ -360,17 +378,20 @@ class TestFormatGuard:
     async def test_nearby_landmark_also_triggers_json_format(self, mock_httpx_client):
         """AC5: update_preferences 属于 HOUSE_SEARCH_TOOLS，触发 JSON 格式"""
         tool_call = make_tool_call("update_preferences", {"location": ["望京SOHO附近"]}, "c1")
+        mock_up_result = {
+            "total_matched": 1, "total_raw": 1,
+            "items": [{"house_id": "HF_011"}],
+            "preferences_summary": {},
+        }
         responses = [
             make_mock_response("", tool_calls=[tool_call], finish_reason="tool_calls"),
-            make_mock_response("附近有：HF_10", tool_calls=None, finish_reason="stop"),
+            make_mock_response("附近有：HF_011", tool_calls=None, finish_reason="stop"),
         ]
         mock_create = AsyncMock(side_effect=responses)
 
         with patch("agent.AsyncOpenAI") as mock_cls:
             mock_cls.return_value.chat.completions.create = mock_create
-            with patch("agent.TOOL_DISPATCH", {
-                "update_preferences": AsyncMock(return_value={"preferences": {}, "status": "updated"})
-            }):
+            with patch("agent.update_preferences", AsyncMock(return_value=mock_up_result)):
                 result = await run_agent(
                     [{"role": "user", "content": "望京SOHO附近有房吗？"}],
                     "10.0.0.1",
@@ -379,25 +400,30 @@ class TestFormatGuard:
 
         parsed = json.loads(result["response"])
         assert "houses" in parsed
+        assert "HF_011" in parsed["houses"]
 
     @pytest.mark.anyio
     async def test_format_guard_json_is_parseable(self, mock_httpx_client):
         """AC5 NFR9: json.loads(response) 不抛出异常"""
         tool_call = make_tool_call("update_preferences", {}, "c1")
+        mock_up_result = {
+            "total_matched": 2, "total_raw": 2,
+            "items": [{"house_id": "HF_003"}, {"house_id": "HF_007"}],
+            "preferences_summary": {},
+        }
         responses = [
             make_mock_response("", tool_calls=[tool_call], finish_reason="tool_calls"),
-            make_mock_response("HF_3 HF_7", tool_calls=None, finish_reason="stop"),
+            make_mock_response("HF_003 HF_007", tool_calls=None, finish_reason="stop"),
         ]
         mock_create = AsyncMock(side_effect=responses)
 
         with patch("agent.AsyncOpenAI") as mock_cls:
             mock_cls.return_value.chat.completions.create = mock_create
-            with patch("agent.TOOL_DISPATCH", {"update_preferences": AsyncMock(return_value={})}):
+            with patch("agent.update_preferences", AsyncMock(return_value=mock_up_result)):
                 result = await run_agent(
                     [{"role": "user", "content": "找房"}], "10.0.0.1", mock_httpx_client
                 )
 
-        # 不应抛出异常
         parsed = json.loads(result["response"])
         assert isinstance(parsed, dict)
 

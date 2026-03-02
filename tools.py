@@ -99,15 +99,112 @@ def resolve_location(location: str) -> dict:
     return {"landmark_query": location}
 
 
+def build_search_params(prefs: UserPreferences) -> dict:
+    """将 UserPreferences 硬约束字段映射为 search_houses API 查询参数。"""
+    params: dict = {}
+    if prefs.districts:
+        params["district"] = ",".join(prefs.districts)
+    if prefs.areas:
+        params["area"] = ",".join(prefs.areas)
+    if prefs.min_price is not None:
+        params["min_price"] = prefs.min_price
+    if prefs.max_price is not None:
+        params["max_price"] = prefs.max_price
+    if prefs.bedrooms is not None:
+        params["bedrooms"] = prefs.bedrooms
+    if prefs.rental_type is not None:
+        params["rental_type"] = prefs.rental_type
+    if prefs.decoration is not None:
+        params["decoration"] = prefs.decoration
+    if prefs.elevator is not None:
+        params["elevator"] = "true" if prefs.elevator else "false"
+    if prefs.min_area is not None:
+        params["min_area"] = prefs.min_area
+    if prefs.max_area is not None:
+        params["max_area"] = prefs.max_area
+    if prefs.utilities_type is not None:
+        params["utilities_type"] = prefs.utilities_type
+    if prefs.subway_line is not None:
+        params["subway_line"] = prefs.subway_line
+    if prefs.near_subway:
+        params["max_subway_dist"] = 800
+    if prefs.available_before is not None:
+        params["available_from_before"] = prefs.available_before
+    if prefs.max_commute_minutes is not None:
+        params["commute_to_xierqi_max"] = prefs.max_commute_minutes
+    params["listing_platform"] = prefs.listing_platform or "安居客"
+    return params
+
+
+async def search_by_landmark(
+    client: httpx.AsyncClient, query: str, prefs: UserPreferences
+) -> dict:
+    """通过地标关键词搜索地标，再查询附近房源（链式调用）。
+
+    返回格式与 search_houses 一致：{"total": N, "items": [...]}
+    未找到地标时返回 {"total": 0, "items": [], "error": "..."}
+    """
+    landmark_result = await search_landmark(client, query=query)
+    items = landmark_result.get("data", {}).get("items", [])
+    if not items:
+        return {"total": 0, "items": [], "error": f"未找到'{query}'相关地标"}
+
+    landmark_id = items[0]["id"]
+    nearby_params: dict = {"landmark_id": landmark_id}
+    if prefs.listing_platform:
+        nearby_params["listing_platform"] = prefs.listing_platform
+
+    result = await search_nearby_landmark(client, **nearby_params)
+    data = result.get("data", result)
+    return {"total": data.get("total", 0), "items": data.get("items", [])}
+
+
+def post_filter_and_rank(items: list[dict], prefs: UserPreferences) -> list[dict]:
+    """对搜索结果进行软偏好过滤和评分排序。
+
+    硬过滤：noise_preference="安静" 时过滤 hidden_noise_level 为"吵闹"/"临街"的房源。
+    加分：orientation 匹配 +10，floor_pref 匹配 +5。
+    """
+    scored: list[tuple[int, dict]] = []
+    for item in items:
+        score = 0
+
+        # 硬过滤：噪音偏好
+        if prefs.noise_preference == "安静":
+            if item.get("hidden_noise_level") in ("吵闹", "临街"):
+                continue
+
+        # 朝向偏好（加分）
+        if prefs.orientation:
+            target = prefs.orientation.replace("朝", "")
+            if target in item.get("orientation", ""):
+                score += 10
+
+        # 楼层偏好（加分）
+        if prefs.floor_pref:
+            if prefs.floor_pref in item.get("floor", ""):
+                score += 5
+
+        scored.append((score, item))
+
+    scored.sort(key=lambda x: -x[0])
+    return [item for _, item in scored]
+
+
+_SLIM_FIELDS = frozenset({
+    "house_id", "community", "district", "price", "bedrooms",
+    "area_sqm", "decoration", "subway_station", "subway_distance",
+})
+
+
 async def update_preferences(
     client: httpx.AsyncClient,
     session_prefs: UserPreferences,
     **kwargs,
 ) -> dict:
-    """合并 LLM 提取的偏好参数到 session，调用 resolve_location 路由位置，返回当前偏好摘要。
+    """合并偏好、路由位置，自动触发搜索并返回 top 5 精简房源列表。
 
-    Story 8.1：本函数暂不触发自动搜索，仅返回偏好摘要。
-    自动搜索逻辑在 Story 8.2 实现。
+    Story 8.2：偏好 merge → 位置路由 → 搜索 → 软偏好后过滤 → 返回结果。
     """
     # 处理 clear_location：清除历史位置相关字段
     clear = kwargs.pop("clear_location", False)
@@ -162,9 +259,34 @@ async def update_preferences(
         if field in updatable_fields and value is not None:
             setattr(session_prefs, field, value)
 
-    # 构建并返回偏好摘要
-    summary = session_prefs.model_dump(exclude_none=True, exclude={"clear_location"})
-    return {"preferences": summary, "status": "updated"}
+    # ── 3. 选择搜索路径 ──────────────────────────────────────────────────────
+    if session_prefs.landmark_queries:
+        raw_result = await search_by_landmark(
+            client, session_prefs.landmark_queries[0], session_prefs
+        )
+    else:
+        params = build_search_params(session_prefs)
+        raw_result = await search_houses(client, **params)
+
+    raw_items: list[dict] = raw_result.get("items", [])
+
+    # ── 4. 软偏好后过滤 ──────────────────────────────────────────────────────
+    filtered = post_filter_and_rank(raw_items, session_prefs)
+
+    # ── 5. 截取 top 5，精简字段 ──────────────────────────────────────────────
+    top_items = [
+        {k: v for k, v in item.items() if k in _SLIM_FIELDS}
+        for item in filtered[:5]
+    ]
+
+    return {
+        "total_matched": len(filtered),
+        "total_raw": raw_result.get("total", len(raw_items)),
+        "items": top_items,
+        "preferences_summary": session_prefs.model_dump(
+            exclude_none=True, exclude={"clear_location"}
+        ),
+    }
 
 
 # ── Story 8.1: 4 工具体系 TOOLS 列表 ────────────────────────────────────────

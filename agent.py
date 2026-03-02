@@ -1,6 +1,5 @@
 import json
 import math
-import re
 import time
 from functools import partial
 from typing import Callable
@@ -28,9 +27,9 @@ SYSTEM_PROMPT = """你是智能租房助手，帮助用户在北京寻找和租�
 - 纯聊天或与房源无关的问题 → 直接自然语言回复，禁止调工具
 
 输出格式：
-- 调用 update_preferences 后，用自然语言描述偏好和推荐房源，系统自动处理 JSON 格式
+- 调用 update_preferences 后，根据返回的 items 用自然语言向用户描述这些房源，系统自动处理 JSON 格式
+- 使用 items 中的 house_id 引用房源，禁止编造或引用 items 以外的 house_id
 - 禁止自行生成 JSON 格式输出
-- 禁止编造房源 ID，系统会从工具结果中自动提取
 - 每次最多推荐 5 套房源"""
 
 MAX_ITERATIONS = 10
@@ -72,6 +71,7 @@ async def run_agent(
 
         tools_called: set[str] = set()
         tool_results_log: list[dict] = []
+        collected_house_ids: list[str] = []
         iterations = 0
         total_tokens = 0
         total_time_slices = 0
@@ -188,6 +188,12 @@ async def run_agent(
                         "result": json.dumps(result, ensure_ascii=False)[:500],
                     })
 
+                    if tool_name == "update_preferences":
+                        for item in result.get("items", []):
+                            hid = item.get("house_id")
+                            if hid:
+                                collected_house_ids.append(hid)
+
                     history.append({
                         "role": "tool",
                         "tool_call_id": call.id,
@@ -207,10 +213,9 @@ async def run_agent(
             "llm_call_time_ms": llm_call_time_ms,
         }
         if tools_called & HOUSE_SEARCH_TOOLS:
-            raw_ids = re.findall(r'HF_\d+', content)
             seen: set[str] = set()
             houses: list[str] = []
-            for hid in raw_ids:
+            for hid in collected_house_ids:
                 if hid not in seen and len(houses) < 5:
                     seen.add(hid)
                     houses.append(hid)

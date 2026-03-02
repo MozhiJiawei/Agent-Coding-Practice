@@ -4,19 +4,57 @@ pytest conftest：全局测试环境配置。
 - autouse fixture 在每个测试前清空 sessions / session_preferences，保证测试隔离
 - autouse mock init_houses / get_all_houses_for_debug / get_all_landmarks_for_debug 防止发起真实 HTTP 请求
 - anyio 后端限定为 asyncio（trio 未安装）
+- rental_client / require_mock_rental：对接 test-simulator Mock Rental (localhost:8080)
 """
 import os
 
 os.environ.setdefault("USER_ID", "test-user-placeholder")
 
+import httpx
 import pytest
 from unittest.mock import AsyncMock, patch
 import main as _main_module
+
+# ── Mock Rental 连接配置 ─────────────────────────────────────────────────────
+MOCK_RENTAL_URL = "http://localhost:8080"
 
 
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
+
+
+@pytest.fixture(scope="session")
+def _mock_rental_reachable():
+    """session 级探测：Mock Rental 是否可达（只探测一次）"""
+    try:
+        with httpx.Client(timeout=3.0, trust_env=False) as c:
+            r = c.get(f"{MOCK_RENTAL_URL}/api/landmarks")
+            return r.status_code < 500
+    except Exception:
+        return False
+
+
+@pytest.fixture
+def require_mock_rental(_mock_rental_reachable):
+    """不可达时自动 skip，附启动命令提示"""
+    if not _mock_rental_reachable:
+        pytest.skip(
+            "Mock Rental(8080) 未运行，跳过对接测试。"
+            "启动命令: cd test-simulator && python main.py"
+        )
+
+
+@pytest.fixture
+async def rental_client(require_mock_rental):
+    """真实 httpx.AsyncClient，base_url 指向 Mock Rental，供对接测试使用"""
+    async with httpx.AsyncClient(
+        base_url=MOCK_RENTAL_URL,
+        headers={"X-User-ID": os.environ.get("USER_ID", "test-user-placeholder")},
+        timeout=10.0,
+        trust_env=False,
+    ) as client:
+        yield client
 
 
 @pytest.fixture(autouse=True)

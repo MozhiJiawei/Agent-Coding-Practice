@@ -35,6 +35,7 @@ def anyio_backend():
 
 @pytest.fixture
 def mock_client():
+    """保留给非 update_preferences 的测试使用"""
     return MagicMock(spec=httpx.AsyncClient)
 
 
@@ -295,131 +296,134 @@ class TestBuildAreaDistrictMap:
 # ─────────────────────────────────────────────
 
 class TestUpdatePreferences:
-    """AC-2/AC-3: update_preferences 合并偏好、resolve_location 路由、clear_location 行为"""
+    """AC-2/AC-3: update_preferences 合并偏好、resolve_location 路由、clear_location 行为
+    所有测试对接 Mock Rental (rental_client)，Mock Rental 不可达时自动 skip。
+    """
 
     @pytest.mark.anyio
-    async def test_merge_price_fields(self, mock_client, fresh_prefs):
-        result = await update_preferences(mock_client, fresh_prefs, max_price=5000)
+    async def test_merge_price_fields(self, rental_client, fresh_prefs):
+        result = await update_preferences(rental_client, fresh_prefs, max_price=5000)
         assert fresh_prefs.max_price == 5000
         assert isinstance(result, dict)
 
     @pytest.mark.anyio
-    async def test_merge_multiple_fields(self, mock_client, fresh_prefs):
-        await update_preferences(mock_client, fresh_prefs, bedrooms="2", max_price=4000, decoration="精装")
+    async def test_merge_multiple_fields(self, rental_client, fresh_prefs):
+        await update_preferences(rental_client, fresh_prefs, bedrooms="2", max_price=4000, decoration="精装")
         assert fresh_prefs.bedrooms == "2"
         assert fresh_prefs.max_price == 4000
         assert fresh_prefs.decoration == "精装"
 
     @pytest.mark.anyio
-    async def test_incremental_merge_across_calls(self, mock_client, fresh_prefs):
+    async def test_incremental_merge_across_calls(self, rental_client, fresh_prefs):
         """多轮调用时新字段添加，已有字段不清除"""
-        await update_preferences(mock_client, fresh_prefs, bedrooms="2", max_price=4000)
-        await update_preferences(mock_client, fresh_prefs, decoration="精装")
+        await update_preferences(rental_client, fresh_prefs, bedrooms="2", max_price=4000)
+        await update_preferences(rental_client, fresh_prefs, decoration="精装")
         assert fresh_prefs.bedrooms == "2"
         assert fresh_prefs.max_price == 4000
         assert fresh_prefs.decoration == "精装"
 
     @pytest.mark.anyio
-    async def test_overwrite_existing_field(self, mock_client, fresh_prefs):
+    async def test_overwrite_existing_field(self, rental_client, fresh_prefs):
         """新值覆盖旧值"""
-        await update_preferences(mock_client, fresh_prefs, max_price=5000)
-        await update_preferences(mock_client, fresh_prefs, max_price=8000)
+        await update_preferences(rental_client, fresh_prefs, max_price=5000)
+        await update_preferences(rental_client, fresh_prefs, max_price=8000)
         assert fresh_prefs.max_price == 8000
 
     @pytest.mark.anyio
-    async def test_location_stored(self, mock_client, fresh_prefs):
-        await update_preferences(mock_client, fresh_prefs, location=["海淀"])
+    async def test_location_stored(self, rental_client, fresh_prefs):
+        await update_preferences(rental_client, fresh_prefs, location=["海淀"])
         assert fresh_prefs.location == ["海淀"]
 
     @pytest.mark.anyio
-    async def test_district_location_resolved(self, mock_client, fresh_prefs):
+    async def test_district_location_resolved(self, rental_client, fresh_prefs):
         """区名 location 路由写入 districts 字段"""
-        await update_preferences(mock_client, fresh_prefs, location=["海淀"])
+        await update_preferences(rental_client, fresh_prefs, location=["海淀"])
         assert fresh_prefs.districts is not None
         assert "海淀" in fresh_prefs.districts
 
     @pytest.mark.anyio
-    async def test_area_location_resolved(self, mock_client, fresh_prefs):
+    async def test_area_location_resolved(self, rental_client, fresh_prefs):
         """商圈 location 路由写入 areas 字段"""
-        await update_preferences(mock_client, fresh_prefs, location=["望京"])
+        await update_preferences(rental_client, fresh_prefs, location=["望京"])
         assert fresh_prefs.areas is not None
         assert "望京" in fresh_prefs.areas
 
     @pytest.mark.anyio
-    async def test_landmark_location_resolved(self, mock_client, fresh_prefs):
+    async def test_landmark_location_resolved(self, rental_client, fresh_prefs):
         """地标 location 路由写入 landmark_queries 字段"""
-        await update_preferences(mock_client, fresh_prefs, location=["国贸附近"])
+        await update_preferences(rental_client, fresh_prefs, location=["国贸附近"])
         assert fresh_prefs.landmark_queries is not None
         assert "国贸" in fresh_prefs.landmark_queries
 
     @pytest.mark.anyio
-    async def test_multiple_locations_mixed(self, mock_client, fresh_prefs):
+    async def test_multiple_locations_mixed(self, rental_client, fresh_prefs):
         """多个 location 可混合不同类型，路由结果分别写入 districts 和 areas"""
-        await update_preferences(mock_client, fresh_prefs, location=["海淀", "望京"])
+        await update_preferences(rental_client, fresh_prefs, location=["海淀", "望京"])
         assert fresh_prefs.location == ["海淀", "望京"]
         assert "海淀" in fresh_prefs.districts
         assert "朝阳" in fresh_prefs.districts
         assert "望京" in fresh_prefs.areas
 
     @pytest.mark.anyio
-    async def test_clear_location_clears_previous(self, mock_client, fresh_prefs):
+    async def test_clear_location_clears_previous(self, rental_client, fresh_prefs):
         """AC-3: clear_location=True 时清除历史位置"""
-        await update_preferences(mock_client, fresh_prefs, location=["海淀"])
-        await update_preferences(mock_client, fresh_prefs, location=["大兴"], clear_location=True)
+        await update_preferences(rental_client, fresh_prefs, location=["海淀"])
+        await update_preferences(rental_client, fresh_prefs, location=["大兴"], clear_location=True)
         assert fresh_prefs.location == ["大兴"]
         assert fresh_prefs.districts is not None
         assert "海淀" not in fresh_prefs.districts
         assert "大兴" in fresh_prefs.districts
 
     @pytest.mark.anyio
-    async def test_clear_location_clears_areas(self, mock_client, fresh_prefs):
+    async def test_clear_location_clears_areas(self, rental_client, fresh_prefs):
         """clear_location 同时清除 areas 和 landmark_queries"""
-        await update_preferences(mock_client, fresh_prefs, location=["望京"])
-        await update_preferences(mock_client, fresh_prefs, location=["大兴"], clear_location=True)
+        await update_preferences(rental_client, fresh_prefs, location=["望京"])
+        await update_preferences(rental_client, fresh_prefs, location=["大兴"], clear_location=True)
         assert fresh_prefs.areas is None or "望京" not in fresh_prefs.areas
 
     @pytest.mark.anyio
-    async def test_without_clear_location_accumulates(self, mock_client, fresh_prefs):
+    async def test_without_clear_location_accumulates(self, rental_client, fresh_prefs):
         """不设 clear_location 时，新 location 累加"""
-        await update_preferences(mock_client, fresh_prefs, location=["海淀"])
-        await update_preferences(mock_client, fresh_prefs, location=["朝阳"])
+        await update_preferences(rental_client, fresh_prefs, location=["海淀"])
+        await update_preferences(rental_client, fresh_prefs, location=["朝阳"])
         assert fresh_prefs.location is not None
         assert "海淀" in fresh_prefs.location
         assert "朝阳" in fresh_prefs.location
 
     @pytest.mark.anyio
-    async def test_returns_dict_summary(self, mock_client, fresh_prefs):
-        """返回值是 dict（偏好摘要）"""
-        result = await update_preferences(mock_client, fresh_prefs, max_price=5000)
+    async def test_returns_dict_with_new_format(self, rental_client, fresh_prefs):
+        """返回值是 dict，包含新格式的必要字段"""
+        result = await update_preferences(rental_client, fresh_prefs, max_price=5000)
         assert isinstance(result, dict)
+        assert "items" in result
+        assert "preferences_summary" in result
 
     @pytest.mark.anyio
-    async def test_returns_summary_with_current_prefs(self, mock_client, fresh_prefs):
-        """返回值包含 preferences 和 status 字段，且偏好值正确"""
-        result = await update_preferences(mock_client, fresh_prefs, max_price=5000, bedrooms="2")
-        assert result["status"] == "updated"
-        assert result["preferences"]["max_price"] == 5000
-        assert result["preferences"]["bedrooms"] == "2"
+    async def test_returns_preferences_summary_with_current_prefs(self, rental_client, fresh_prefs):
+        """返回值的 preferences_summary 包含当前偏好值"""
+        result = await update_preferences(rental_client, fresh_prefs, max_price=5000, bedrooms="2")
+        assert result["preferences_summary"]["max_price"] == 5000
+        assert result["preferences_summary"]["bedrooms"] == "2"
 
     @pytest.mark.anyio
-    async def test_near_subway_bool(self, mock_client, fresh_prefs):
-        await update_preferences(mock_client, fresh_prefs, near_subway=True)
+    async def test_near_subway_bool(self, rental_client, fresh_prefs):
+        await update_preferences(rental_client, fresh_prefs, near_subway=True)
         assert fresh_prefs.near_subway is True
 
     @pytest.mark.anyio
-    async def test_elevator_bool(self, mock_client, fresh_prefs):
-        await update_preferences(mock_client, fresh_prefs, elevator=True)
+    async def test_elevator_bool(self, rental_client, fresh_prefs):
+        await update_preferences(rental_client, fresh_prefs, elevator=True)
         assert fresh_prefs.elevator is True
 
     @pytest.mark.anyio
-    async def test_max_commute_minutes(self, mock_client, fresh_prefs):
-        await update_preferences(mock_client, fresh_prefs, max_commute_minutes=30)
+    async def test_max_commute_minutes(self, rental_client, fresh_prefs):
+        await update_preferences(rental_client, fresh_prefs, max_commute_minutes=30)
         assert fresh_prefs.max_commute_minutes == 30
 
     @pytest.mark.anyio
-    async def test_no_extra_args_no_error(self, mock_client, fresh_prefs):
+    async def test_no_extra_args_no_error(self, rental_client, fresh_prefs):
         """空调用不报错"""
-        result = await update_preferences(mock_client, fresh_prefs)
+        result = await update_preferences(rental_client, fresh_prefs)
         assert isinstance(result, dict)
 
 
