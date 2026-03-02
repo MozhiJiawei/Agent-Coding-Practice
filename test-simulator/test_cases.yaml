@@ -49,6 +49,7 @@ test_cases:
   #   Turn 5 → 执行租房动作，HF_830 状态变为 rented
   - id: ev06_wangjing_to_daxing_rental_flow
     type: Multi
+    fixture_file: mock_data/EV-06.yaml
     messages:
       - "我想在望京租一套两居室，预算8000以内，有电梯"
       - "这套离地铁多远？"
@@ -69,6 +70,36 @@ test_cases:
               bedrooms: "2"
               elevator: true
               max_price: 8000
+          houses_match: ["HF_830"]
+      - round: 2
+        expect:
+          tool_call_args:
+            tool: get_house_detail
+            contains:
+              house_id: "HF_830"
+      - round: 3
+        expect:
+          tool_call_args:
+            tool: update_preferences
+            contains:
+              location: ["大兴"]
+              bedrooms: "2"
+              max_price: 4000
+          houses_match_subset: true
+          houses_match: ["HF_277"]
+      - round: 4
+        expect:
+          tool_call_args:
+            tool: get_house_detail
+            contains:
+              house_id: "HF_830"
+      - round: 5
+        expect:
+          tool_call_args:
+            tool: execute_action
+            contains:
+              action: "rent"
+              house_id: "HF_830"
     tags:
       - ev06
       - multi-turn
@@ -115,6 +146,8 @@ test_cases:
           location: ["大兴区"]
           bedrooms: "2"
           max_price: 4000
+      houses_match_subset: true
+      houses_match: ["HF_4"]
     tags:
       - ev03
       - tool-call
@@ -189,6 +222,8 @@ test_cases:
         tool: update_preferences
         contains:
           location: ["朝阳区"]
+      houses_match_subset: true
+      houses_match: ["HF_2"]
     tags:
       - ev08
       - tool-call
@@ -240,6 +275,8 @@ test_cases:
           bedrooms: "2"
           decoration: "精装"
           max_price: 8000
+      houses_match_subset: true
+      houses_match: ["HF_3"]
     tags:
       - ev11
       - tool-call
@@ -263,6 +300,21 @@ test_cases:
               location: ["海淀"]
               bedrooms: "2"
               max_price: 8500
+          houses_match_subset: true
+          houses_match: ["HF_3", "HF_33", "HF_37", "HF_38", "HF_55"]
+      - round: 2
+        expect:
+          tool_call_args:
+            tool: get_house_detail
+            contains:
+              house_id: "HF_38"
+      - round: 3
+        expect:
+          tool_call_args:
+            tool: execute_action
+            contains:
+              action: "rent"
+              house_id: "HF_38"
     tags:
       - ev12
       - multi-turn
@@ -287,6 +339,23 @@ test_cases:
               location: ["朝阳区"]
               bedrooms: "2"
               max_price: 6000
+          houses_match_subset: true
+          houses_match: ["HF_49", "HF_67"]
+      - round: 2
+        expect:
+          tool_call_args:
+            tool: update_preferences
+            contains:
+              max_price: 8000
+          houses_match_subset: true
+          houses_match: ["HF_67"]
+      - round: 3
+        expect:
+          tool_call_args:
+            tool: execute_action
+            contains:
+              action: "rent"
+              house_id: "HF_67"
     tags:
       - ev13
       - multi-turn
@@ -395,6 +464,21 @@ test_cases:
               location: ["大兴区"]
               bedrooms: "2"
               max_price: 4000
+          houses_match_subset: true
+          houses_match: ["HF_4", "HF_6", "HF_277", "HF_805", "HF_1069"]
+      - round: 2
+        expect:
+          tool_call_args:
+            tool: get_house_detail
+            contains:
+              house_id: "HF_277"
+      - round: 3
+        expect:
+          tool_call_args:
+            tool: execute_action
+            contains:
+              action: "rent"
+              house_id: "HF_277"
     tags:
       - ev19
       - multi-turn
@@ -454,6 +538,21 @@ test_cases:
               location: ["大兴区"]
               bedrooms: "2"
               max_price: 4000
+          houses_match_subset: true
+          houses_match: ["HF_4", "HF_6", "HF_277", "HF_805", "HF_1069"]
+      - round: 2
+        expect:
+          tool_call_args:
+            tool: get_house_listings
+            contains:
+              house_id: "HF_4"
+      - round: 3
+        expect:
+          tool_call_args:
+            tool: execute_action
+            contains:
+              action: "rent"
+              house_id: "HF_4"
     tags:
       - ev22
       - multi-turn
