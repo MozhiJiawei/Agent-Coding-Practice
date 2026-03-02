@@ -60,6 +60,16 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+    round_expects:
+      - round: 1
+        expect:
+          tool_call_args:
+            tool: update_preferences
+            contains:
+              location: ["望京"]
+              bedrooms: "2"
+              elevator: true
+              max_price: 8000
     tags:
       - ev06
       - multi-turn
@@ -76,6 +86,7 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+      no_tool_call: true
     tags:
       - ev01
 
@@ -87,6 +98,7 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+      no_tool_call: true
     tags:
       - ev02
 
@@ -98,6 +110,12 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location: ["大兴区"]
+          bedrooms: "2"
+          max_price: 4000
     tags:
       - ev03
       - tool-call
@@ -110,6 +128,11 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          min_area: 80
+          max_price: 4000
     tags:
       - ev04
       - tool-call
@@ -122,6 +145,14 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location: ["海淀"]
+          bedrooms: "3"
+          max_price: 13000
+          decoration: "精装"
+          near_subway: true
     tags:
       - ev05
       - tool-call
@@ -138,6 +169,10 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+    round_expects:
+      - round: 1
+        expect:
+          no_tool_call: true
     tags:
       - ev07
       - multi-turn
@@ -151,6 +186,10 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location: ["朝阳区"]
     tags:
       - ev08
       - tool-call
@@ -163,6 +202,10 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          max_price: 4000
     tags:
       - ev09
       - tool-call
@@ -175,6 +218,10 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          bedrooms: "2"
     tags:
       - ev10
       - tool-call
@@ -187,6 +234,13 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location: ["海淀"]
+          bedrooms: "2"
+          decoration: "精装"
+          max_price: 8000
     tags:
       - ev11
       - tool-call
@@ -201,6 +255,15 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+    round_expects:
+      - round: 1
+        expect:
+          tool_call_args:
+            tool: update_preferences
+            contains:
+              location: ["海淀"]
+              bedrooms: "2"
+              max_price: 8500
     tags:
       - ev12
       - multi-turn
@@ -216,6 +279,15 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+    round_expects:
+      - round: 1
+        expect:
+          tool_call_args:
+            tool: update_preferences
+            contains:
+              location: ["朝阳区"]
+              bedrooms: "2"
+              max_price: 6000
     tags:
       - ev13
       - multi-turn
@@ -229,6 +301,12 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location: ["海淀"]
+          rental_type: "合租"
+          max_price: 3000
     tags:
       - ev14
       - tool-call
@@ -241,6 +319,11 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          subway_line: "13号线"
+          bedrooms: "2"
     tags:
       - ev15
       - tool-call
@@ -253,6 +336,10 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          max_price: 6000
     tags:
       - ev16
       - tool-call
@@ -265,6 +352,11 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location: ["海淀"]
+          listing_platform: "58同城"
     tags:
       - ev17
       - tool-call
@@ -277,6 +369,10 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+      tool_call_args:
+        tool: get_house_listings
+        contains:
+          house_id: "HF_4"
     tags:
       - ev18
       - tool-call
@@ -291,6 +387,15 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+    round_expects:
+      - round: 1
+        expect:
+          tool_call_args:
+            tool: update_preferences
+            contains:
+              location: ["大兴区"]
+              bedrooms: "2"
+              max_price: 4000
     tags:
       - ev19
       - multi-turn
@@ -304,6 +409,11 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          near_subway: true
+          max_price: 5000
     tags:
       - ev20
       - tool-call
@@ -316,6 +426,12 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location: ["望京"]
+          bedrooms: "2"
+          max_price: 8000
     tags:
       - ev21
       - tool-call
@@ -330,6 +446,15 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+    round_expects:
+      - round: 1
+        expect:
+          tool_call_args:
+            tool: update_preferences
+            contains:
+              location: ["大兴区"]
+              bedrooms: "2"
+              max_price: 4000
     tags:
       - ev22
       - multi-turn
@@ -343,6 +468,12 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location: ["海淀"]
+          bedrooms: "2"
+          noise_preference: "安静"
     tags:
       - ev23
       - tool-call
@@ -355,6 +486,12 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location: ["朝阳区"]
+          decoration: "精装"
+          max_price: 6000
     tags:
       - ev24
       - tool-call
@@ -367,6 +504,12 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location: ["海淀"]
+          elevator: true
+          max_price: 6000
     tags:
       - ev25
       - tool-call
@@ -379,6 +522,13 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location: ["海淀"]
+          rental_type: "合租"
+          utilities_type: "民水民电"
+          max_price: 3000
     tags:
       - ev26
       - tool-call
@@ -391,6 +541,11 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location: ["海淀"]
+          bedrooms: "2"
     tags:
       - ev27
       - tool-call
@@ -403,6 +558,10 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          max_commute_minutes: 30
     tags:
       - ev28
       - tool-call
@@ -415,6 +574,7 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+      no_tool_call: true
     tags:
       - ev29
 
@@ -428,6 +588,10 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+    round_expects:
+      - round: 1
+        expect:
+          no_tool_call: true
     tags:
       - ev30
       - multi-turn
@@ -441,6 +605,10 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location: ["海淀"]
     tags:
       - ev31
       - tool-call
@@ -453,6 +621,16 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location: ["海淀"]
+          bedrooms: "2"
+          decoration: "精装"
+          near_subway: true
+          min_area: 60
+          utilities_type: "民水民电"
+          max_price: 10000
     tags:
       - ev32
       - tool-call

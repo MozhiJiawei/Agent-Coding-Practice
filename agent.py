@@ -184,6 +184,7 @@ async def run_agent(
                     tools_called.add(tool_name)
                     tool_results_log.append({
                         "tool_name": tool_name,
+                        "args": args,
                         "result": json.dumps(result, ensure_ascii=False)[:500],
                     })
 

@@ -26,6 +26,11 @@ class SimulatorConfig(BaseModel):
     report_dir: str = "_bmad-output/test-reports"
 
 
+class ToolCallArgsExpect(BaseModel):
+    tool: str       # 工具名，如 "update_preferences"
+    contains: dict  # 预期参数子集（精确匹配每个 key 的 value）
+
+
 class ExpectRules(BaseModel):
     has_response: bool | None = None
     response_not_empty: bool | None = None
@@ -35,6 +40,13 @@ class ExpectRules(BaseModel):
     house_count_min: int | None = None              # 数量下限模式
     status_success: bool | None = None
     round_count: int | None = None
+    tool_call_args: ToolCallArgsExpect | None = None  # 验证工具提参
+    no_tool_call: bool | None = None                  # 验证未调用任何工具
+
+
+class RoundExpect(BaseModel):
+    round: int          # 1-based：第几轮用户消息
+    expect: ExpectRules
 
 
 class TestCase(BaseModel):
@@ -44,6 +56,7 @@ class TestCase(BaseModel):
     expect: ExpectRules | None = None
     tags: list[str] = []
     fixture_file: str | None = None   # 可选：为本用例加载指定 mock_data fixture
+    round_expects: list[RoundExpect] = []  # 每轮独立断言
 
 
 TestCase.__test__ = False  # prevent pytest collection warning

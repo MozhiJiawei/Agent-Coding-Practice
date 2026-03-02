@@ -18,6 +18,7 @@ from config import (
     TestCase,
     TokenCounter,
     TokenUsage,
+    RoundExpect,
 )
 
 # ── 辅助函数 ──────────────────────────────────────────────────────────────────
@@ -108,6 +109,44 @@ def _status_success(response: dict, expected: Any) -> tuple[bool, str]:
     return (False, f"status_success: expected 'success', got {status!r}")
 
 
+def _tool_call_args(response: dict, expected: Any) -> tuple[bool, str]:
+    """验证指定工具被调用，且参数包含预期子集（精确匹配每个 key）。
+
+    expected 为 ToolCallArgsExpect.model_dump()，含 tool 和 contains 两个字段。
+    """
+    if not isinstance(expected, dict):
+        return (False, "tool_call_args: invalid expected config")
+    tool_name = expected.get("tool", "")
+    contains = expected.get("contains", {}) or {}
+
+    tool_results = response.get("tool_results", [])
+    matching = [r for r in tool_results if r.get("tool_name") == tool_name]
+
+    if not matching:
+        called = [r.get("tool_name") for r in tool_results]
+        return (False, f"tool_call_args: 工具 '{tool_name}' 未被调用（实际调用：{called}）")
+
+    actual_args = matching[0].get("args") or {}
+    mismatches: list[str] = []
+    for key, expected_val in contains.items():
+        actual_val = actual_args.get(key)
+        if actual_val != expected_val:
+            mismatches.append(f"{key}: 期望 {expected_val!r}, 实际 {actual_val!r}")
+
+    if mismatches:
+        return (False, f"tool_call_args({tool_name}): " + "; ".join(mismatches))
+    return (True, "")
+
+
+def _no_tool_call(response: dict, expected: Any) -> tuple[bool, str]:
+    """验证本轮响应中未调用任何工具。"""
+    tool_results = response.get("tool_results", [])
+    if not tool_results:
+        return (True, "")
+    called = [r.get("tool_name") for r in tool_results]
+    return (False, f"no_tool_call: 期望无工具调用，实际调用了 {called}")
+
+
 # ── ASSERTION_RULES ────────────────────────────────────────────────────────────
 
 ASSERTION_RULES: dict[str, Any] = {
@@ -118,6 +157,8 @@ ASSERTION_RULES: dict[str, Any] = {
     "houses_match_subset": _houses_match_subset,
     "house_count_min": _house_count_min,
     "status_success": _status_success,
+    "tool_call_args": _tool_call_args,
+    "no_tool_call": _no_tool_call,
 }
 
 # ── check_assertions ──────────────────────────────────────────────────────────
@@ -147,6 +188,10 @@ def check_assertions(
         checks.append(("house_count_min", expect.house_count_min))
     if expect.status_success is not None:
         checks.append(("status_success", expect.status_success))
+    if expect.tool_call_args is not None:
+        checks.append(("tool_call_args", expect.tool_call_args.model_dump()))
+    if expect.no_tool_call is not None:
+        checks.append(("no_tool_call", expect.no_tool_call))
 
     for rule_name, expected_val in checks:
         fn = ASSERTION_RULES.get(rule_name)
@@ -276,6 +321,25 @@ async def _execute_case(
             )
         rounds += 1
         last_body = body
+
+        # 每轮独立断言（round_expects）
+        round_expect: RoundExpect | None = next(
+            (rexp for rexp in case.round_expects if rexp.round == rounds), None
+        )
+        if round_expect is not None and body is not None:
+            r_passed, r_reason = check_assertions(body, round_expect.expect, case)
+            if not r_passed:
+                elapsed_ms = int((time.perf_counter() - t_start) * 1000)
+                return CaseResult(
+                    case_id=case.id,
+                    case_type=case.type,
+                    status="FAIL",
+                    duration_ms=elapsed_ms,
+                    rounds=rounds,
+                    failure_reason=f"[Round {rounds}] {r_reason}",
+                    actual_response=body.get("response"),
+                    token_usage=token_counter.to_token_usage(),
+                )
 
     elapsed_ms = int((time.perf_counter() - t_start) * 1000)
 

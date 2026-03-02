@@ -7,7 +7,8 @@
       1. 后台启动 test-simulator (Model Proxy :8888 + Mock Rental :8080)
       2. 后台启动主 Agent (:8191)，并将 RENTAL_API_BASE 指向 Mock Rental
       3. 轮询健康探测，等待三个服务全部就绪
-      4. 执行 pytest e2e 测试套件
+      4a. 若指定 -SimCase 或 -SimAll：运行 test-simulator 用例（test_cases.yaml）
+      4b. 否则：执行 pytest e2e 测试套件
       5. 无论测试结果如何，在 finally 块中强制终止所有已启动的进程（含子进程）
 
     日志输出写入 <repo_root>/logs/ 目录（自动创建，建议加入 .gitignore）。
@@ -19,12 +20,25 @@
     可选。传给 pytest 的参数字符串，默认 "tests/e2e/ -v"。
     示例：-PytestArgs "tests/e2e/ -v -m smoke"
 
+.PARAMETER SimCase
+    可选。运行 test_cases.yaml 中指定 ID 的单个用例，跳过 pytest。
+    示例：-SimCase "ev06_wangjing_to_daxing_rental_flow"
+
+.PARAMETER SimTag
+    可选。运行 test_cases.yaml 中匹配 tag 的所有用例，跳过 pytest。
+    示例：-SimTag "ev03"
+
+.PARAMETER SimAll
+    可选。运行 test_cases.yaml 中全部用例，跳过 pytest。
+
 .PARAMETER ReadyTimeoutSec
     可选。等待所有服务健康就绪的最大秒数，默认 30。
 
 .EXAMPLE
     .\tests\run_e2e.ps1 -UserId "EMP001"
     .\tests\run_e2e.ps1 -UserId "EMP001" -PytestArgs "tests/e2e/ -v -m smoke"
+    .\tests\run_e2e.ps1 -UserId "EMP001" -SimCase "ev06_wangjing_to_daxing_rental_flow"
+    .\tests\run_e2e.ps1 -UserId "EMP001" -SimAll
     .\tests\run_e2e.ps1 -UserId "EMP001" -ReadyTimeoutSec 60
 #>
 [CmdletBinding()]
@@ -33,6 +47,12 @@ param(
     [string]$UserId,
 
     [string]$PytestArgs = "tests/e2e/ -v",
+
+    [string]$SimCase = "",
+
+    [string]$SimTag = "",
+
+    [switch]$SimAll,
 
     [int]$ReadyTimeoutSec = 30
 )
@@ -165,8 +185,29 @@ try {
     if (-not $ready) {
         Write-Host "[e2e] Startup failed. Check logs\ for details."
         $exitCode = 2
+    } elseif ($SimCase -ne "" -or $SimTag -ne "" -or $SimAll) {
+        # ── 4a. 运行 test-simulator 用例（test_cases.yaml，复用已启动服务）──────
+        Write-Host ""
+        if ($SimAll) {
+            Write-Host "[e2e] Running simulator cases: --all"
+            $simArgs = @("-u", "run_ev_tests.py", "--all")
+        } elseif ($SimCase -ne "") {
+            Write-Host "[e2e] Running simulator case: $SimCase"
+            $simArgs = @("-u", "run_ev_tests.py", "--case", $SimCase)
+        } else {
+            Write-Host "[e2e] Running simulator cases by tag: $SimTag"
+            $simArgs = @("-u", "run_ev_tests.py", "--tag", $SimTag)
+        }
+        Write-Host "[e2e] ──────────────────────────────────────────────"
+        Push-Location $simulatorDir
+        try {
+            & python @simArgs
+            $exitCode = if ($LASTEXITCODE -eq 0) { 0 } else { $LASTEXITCODE }
+        } finally {
+            Pop-Location
+        }
     } else {
-        # ── 4. 运行 pytest ──────────────────────────────────────────────────────
+        # ── 4b. 运行 pytest ─────────────────────────────────────────────────────
         Write-Host ""
         Write-Host "[e2e] Running: python -m pytest $PytestArgs"
         Write-Host "[e2e] ──────────────────────────────────────────────"

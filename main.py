@@ -18,6 +18,7 @@ RENTAL_API_BASE = os.environ.get("RENTAL_API_BASE", "http://7.225.29.223:8080")
 # Pydantic 模型（PascalCase 命名，snake_case 字段）
 class ToolResult(BaseModel):
     tool_name: str
+    args: dict | None = None
     result: str
 
 
