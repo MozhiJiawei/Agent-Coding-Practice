@@ -8,29 +8,21 @@
       1. 后台启动 test-simulator (Model Proxy :8888 + Mock Rental :8080 + Dashboard :8877)
       2. 后台启动主 Agent (:8191)，并将 RENTAL_API_BASE 指向 Mock Rental
       3. 轮询健康探测，等待三个服务全部就绪
-      4a. 若指定 -SimCase 或 -SimAll：运行 test-simulator 用例（test_cases.yaml）
-      4b. 否则：执行 pytest e2e 测试套件
+      4. 运行 test-simulator 用例（test_cases.yaml）：默认 SimAll 全部用例；或通过 -SimCase/-SimTag 指定
       5. 无论测试结果如何，在 finally 块中强制终止所有已启动的进程（含子进程）
 
     日志输出写入 <repo_root>/logs/ 目录（自动创建，建议加入 .gitignore）。
 
 .PARAMETER UserId
-    必填。竞赛注册员工 ID，通过 USER_ID 环境变量传给主 Agent。
-
-.PARAMETER PytestArgs
-    可选。传给 pytest 的参数字符串，默认 "tests/e2e/ -v"。
-    示例：-PytestArgs "tests/e2e/ -v -m smoke"
+    可选。竞赛注册员工 ID，通过 USER_ID 环境变量传给主 Agent。默认 "EMP001"。
 
 .PARAMETER SimCase
-    可选。运行 test_cases.yaml 中指定 ID 的单个用例，跳过 pytest。
+    可选。运行 test_cases.yaml 中指定 ID 的单个用例。
     示例：-SimCase "ev06_wangjing_to_daxing_rental_flow"
 
 .PARAMETER SimTag
-    可选。运行 test_cases.yaml 中匹配 tag 的所有用例，跳过 pytest。
+    可选。运行 test_cases.yaml 中匹配 tag 的所有用例。
     示例：-SimTag "ev03"
-
-.PARAMETER SimAll
-    可选。运行 test_cases.yaml 中全部用例，跳过 pytest。
 
 .PARAMETER ReadyTimeoutSec
     可选。等待所有服务健康就绪的最大秒数，默认 30。
@@ -48,25 +40,21 @@
     可选。主 Agent 监听端口，默认 8191。
 
 .EXAMPLE
+    .\tests\run_e2e.ps1
     .\tests\run_e2e.ps1 -UserId "EMP001"
-    .\tests\run_e2e.ps1 -UserId "EMP001" -PytestArgs "tests/e2e/ -v -m smoke"
     .\tests\run_e2e.ps1 -UserId "EMP001" -SimCase "ev06_wangjing_to_daxing_rental_flow"
-    .\tests\run_e2e.ps1 -UserId "EMP001" -SimAll
-    .\tests\run_e2e.ps1 -UserId "EMP001" -ReadyTimeoutSec 60
-    .\tests\run_e2e.ps1 -UserId "EMP002" -SimAll -ModelProxyPort 8988 -MockRentalPort 8180 -DashboardPort 8977 -AgentPort 8291
+    .\tests\run_e2e.ps1 -UserId "EMP001" -SimTag "ev03"
+    .\tests\run_e2e.ps1 -UserId "EMP002" -ReadyTimeoutSec 60
+    .\tests\run_e2e.ps1 -UserId "EMP002" -ModelProxyPort 8988 -MockRentalPort 8180 -DashboardPort 8977 -AgentPort 8291
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)]
-    [string]$UserId,
-
-    [string]$PytestArgs = "tests/e2e/ -v",
+    [Parameter(Mandatory = $false)]
+    [string]$UserId = "EMP001",
 
     [string]$SimCase = "",
 
     [string]$SimTag = "",
-
-    [switch]$SimAll,
 
     [int]$ReadyTimeoutSec = 30,
 
@@ -170,9 +158,8 @@ $exitCode = 1
 
 try {
     Write-Host "[e2e] ════════════════════════════════════════════"
-    Write-Host "[e2e]  E2E Test Runner"
+    Write-Host "[e2e]  E2E Test Runner (default: SimAll)"
     Write-Host "[e2e]  USER_ID         : $UserId"
-    Write-Host "[e2e]  pytest args     : $PytestArgs"
     Write-Host "[e2e]  service timeout : ${ReadyTimeoutSec}s"
     Write-Host "[e2e]  ports           : ModelProxy=$ModelProxyPort MockRental=$MockRentalPort Dashboard=$DashboardPort Agent=$AgentPort"
     Write-Host "[e2e] ════════════════════════════════════════════"
@@ -221,18 +208,18 @@ try {
     if (-not $ready) {
         Write-Host "[e2e] Startup failed. Check logs\ for details."
         $exitCode = 2
-    } elseif ($SimCase -ne "" -or $SimTag -ne "" -or $SimAll) {
-        # ── 4a. 运行 test-simulator 用例（test_cases.yaml，复用已启动服务）──────
+    } else {
+        # ── 4. 运行 test-simulator 用例（默认 SimAll 全部用例）───────────────────
         Write-Host ""
-        if ($SimAll) {
-            Write-Host "[e2e] Running simulator cases: --all"
-            $simArgs = @("-u", "run_ev_tests.py", "--all")
-        } elseif ($SimCase -ne "") {
+        if ($SimCase -ne "") {
             Write-Host "[e2e] Running simulator case: $SimCase"
             $simArgs = @("-u", "run_ev_tests.py", "--case", $SimCase)
-        } else {
+        } elseif ($SimTag -ne "") {
             Write-Host "[e2e] Running simulator cases by tag: $SimTag"
             $simArgs = @("-u", "run_ev_tests.py", "--tag", $SimTag)
+        } else {
+            Write-Host "[e2e] Running simulator cases: --all (default)"
+            $simArgs = @("-u", "run_ev_tests.py", "--all")
         }
         Write-Host "[e2e] ──────────────────────────────────────────────"
         Push-Location $simulatorDir
@@ -242,17 +229,6 @@ try {
         } finally {
             Pop-Location
         }
-    } else {
-        # ── 4b. 运行 pytest ─────────────────────────────────────────────────────
-        $env:PYTEST_AGENT_URL        = "http://localhost:$AgentPort"
-        $env:PYTEST_MODEL_PROXY_URL  = "http://localhost:$ModelProxyPort"
-        $env:PYTEST_MOCK_RENTAL_URL  = "http://localhost:$MockRentalPort"
-        Write-Host ""
-        Write-Host "[e2e] Running: python -m pytest $PytestArgs"
-        Write-Host "[e2e] ──────────────────────────────────────────────"
-        $pytestArgArray = $PytestArgs -split '\s+' | Where-Object { $_ -ne '' }
-        & python -m pytest @pytestArgArray
-        $exitCode = $LASTEXITCODE
     }
 
 } finally {
