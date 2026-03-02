@@ -121,10 +121,22 @@ def extract_mock_data(jsonl_path: Path, output_path: Path) -> None:
                 session_id = event.get("session_id", "unknown")
 
             if event.get("event") == "DEBUG_ALL_HOUSES":
-                items = event.get("details", {}).get("raw_response", {}).get("items", [])
-                if items:
-                    all_houses = items
-                    print(f"  [DEBUG_ALL_HOUSES] 找到 {len(all_houses)} 套房源")
+                raw = event.get("details", {}).get("raw_response", {})
+                # 新结构：三平台分 key；旧结构：顶层 items
+                if "链家" in raw or "安居客" in raw or "58同城" in raw:
+                    items = []
+                    for platform in ("链家", "安居客", "58同城"):
+                        plat_data = raw.get(platform, {})
+                        plat_items = plat_data.get("items", []) if isinstance(plat_data, dict) else []
+                        items.extend(plat_items)
+                    if items:
+                        all_houses = items
+                        print(f"  [DEBUG_ALL_HOUSES] 找到 {len(all_houses)} 套房源（三平台合并）")
+                else:
+                    items = raw.get("items", [])
+                    if items:
+                        all_houses = items
+                        print(f"  [DEBUG_ALL_HOUSES] 找到 {len(all_houses)} 套房源")
             elif event.get("event") == "DEBUG_ALL_LANDMARKS":
                 items = event.get("details", {}).get("raw_response", {}).get("items", [])
                 if items:

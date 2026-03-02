@@ -1,3 +1,4 @@
+import asyncio
 import os
 import httpx
 
@@ -342,8 +343,13 @@ async def get_house_listings(client: httpx.AsyncClient, **kwargs) -> dict:
 
 
 # ── get_all_houses_for_debug：session 初始化时获取全量房屋用于调试 ───────
-async def get_all_houses_for_debug(client: httpx.AsyncClient) -> dict:
-    """不受 MAX_PAGES 限制地翻页，获取全量房源用于调试日志。"""
+PLATFORMS = ["链家", "安居客", "58同城"]
+
+
+async def _fetch_all_houses_for_platform(
+    client: httpx.AsyncClient, platform: str
+) -> dict:
+    """不受 MAX_PAGES 限制地翻页，获取单个平台的全量房源。"""
     all_items: list = []
     page = 1
     page_size = 200
@@ -352,11 +358,15 @@ async def get_all_houses_for_debug(client: httpx.AsyncClient) -> dict:
         try:
             resp = await client.get(
                 "/api/houses/by_platform",
-                params={"page": page, "page_size": page_size},
+                params={
+                    "page": page,
+                    "page_size": page_size,
+                    "listing_platform": platform,
+                },
                 headers=_get_headers(),
             )
             resp.raise_for_status()
-        except Exception as e:
+        except Exception:
             break
         inner = resp.json().get("data", resp.json())
         items = inner.get("items", [])
@@ -367,6 +377,15 @@ async def get_all_houses_for_debug(client: httpx.AsyncClient) -> dict:
             break
         page += 1
     return {"total": total or len(all_items), "items": all_items}
+
+
+async def get_all_houses_for_debug(client: httpx.AsyncClient) -> dict:
+    """获取链家、安居客、58同城三个平台的全量房源，用于调试日志。"""
+    tasks = [
+        _fetch_all_houses_for_platform(client, platform) for platform in PLATFORMS
+    ]
+    results = await asyncio.gather(*tasks)
+    return {platform: result for platform, result in zip(PLATFORMS, results)}
 
 
 # ── get_all_landmarks_for_debug：session 初始化时获取全量地标用于调试 ──────

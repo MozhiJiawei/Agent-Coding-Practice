@@ -64,6 +64,10 @@ async def chat_endpoint(request: ChatRequest, req: Request):
             await init_houses(client)
             all_houses = await get_all_houses_for_debug(client)
             log_event("DEBUG_ALL_HOUSES", request.session_id, {"raw_response": all_houses})
+            for platform, data in all_houses.items():
+                total = data.get("total", 0)
+                items = data.get("items", [])
+                print(f"[{request.session_id}] {platform}: total={total}, items={len(items)}")
             all_landmarks = await get_all_landmarks_for_debug(client)
             log_event("DEBUG_ALL_LANDMARKS", request.session_id, {"raw_response": all_landmarks})
             sessions[request.session_id] = []

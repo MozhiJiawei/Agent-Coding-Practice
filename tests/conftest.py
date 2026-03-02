@@ -32,7 +32,16 @@ def _mock_init_houses():
     需要显式测试 init_houses 行为的测试类可用自己的 patch 覆盖此 fixture。
     """
     with patch("main.init_houses", new=AsyncMock(return_value={"status": "ok"})):
-        with patch("main.get_all_houses_for_debug", new=AsyncMock(return_value={"total": 0, "items": []})):
+        with patch(
+            "main.get_all_houses_for_debug",
+            new=AsyncMock(
+                return_value={
+                    "链家": {"total": 0, "items": []},
+                    "安居客": {"total": 0, "items": []},
+                    "58同城": {"total": 0, "items": []},
+                }
+            ),
+        ):
             yield
 
 
