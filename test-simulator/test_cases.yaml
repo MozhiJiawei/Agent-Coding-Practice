@@ -49,7 +49,6 @@ test_cases:
   #   Turn 5 → 执行租房动作，HF_830 状态变为 rented
   - id: ev06_wangjing_to_daxing_rental_flow
     type: Multi
-    fixture_file: "mock_data/EV-06.yaml"
     messages:
       - "我想在望京租一套两居室，预算8000以内，有电梯"
       - "这套离地铁多远？"

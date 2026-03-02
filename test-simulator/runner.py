@@ -7,7 +7,7 @@ import os
 import time
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, Callable
 
 import httpx
 
@@ -397,10 +397,13 @@ async def run_single_case(
 
 
 def print_case_result(idx: int, total: int, result: CaseResult) -> None:
-    """Print formatted case result to stdout (AC9, AC10)."""
+    """Print formatted case result to stdout (AC9, AC10).
+
+    idx 语义：并行模式下表示"已完成第 idx 个"，串行模式下表示"第 idx 个用例"。
+    """
     duration_s = result.duration_ms / 1000
     label = "PASS" if result.status == "PASS" else "FAIL"
-    print(f"[{idx}/{total}] {result.case_id} ...... {label}  ({duration_s:.1f}s)")
+    print(f"[done {idx}/{total}] {result.case_id} ...... {label}  ({duration_s:.1f}s)")
     if result.status != "PASS" and result.failure_reason:
         print(f"       \u2717 {result.failure_reason}")
 
@@ -421,6 +424,80 @@ async def run_all_cases(
             result = await run_single_case(case, config, client, token_counter)
             results.append(result)
     return results
+
+
+# ── run_cases_parallel ────────────────────────────────────────────────────────
+
+
+async def _reload_global_fixture(
+    config: SimulatorConfig,
+    client: httpx.AsyncClient,
+) -> str | None:
+    """向 Mock Rental 加载全局 fixture，返回 None 成功，否则返回错误信息。"""
+    from config import load_fixtures  # noqa: PLC0415
+
+    try:
+        fixtures = load_fixtures(config.fixture_file)
+    except Exception as exc:  # noqa: BLE001
+        return f"全局 fixture 加载失败 ({config.fixture_file}): {exc}"
+
+    reload_url = f"http://localhost:{config.mock_rental_port}/api/houses/_reload_fixture"
+    try:
+        resp = await client.post(reload_url, json=fixtures)
+        if resp.status_code != 200:
+            return f"_reload_fixture 返回非 200: {resp.status_code}"
+    except httpx.ConnectError as exc:
+        return f"_reload_fixture 连接失败: {exc}"
+    except httpx.HTTPError as exc:
+        return f"_reload_fixture HTTP 错误: {exc}"
+
+    return None
+
+
+async def run_cases_parallel(
+    cases: list[TestCase],
+    config: SimulatorConfig,
+    max_concurrency: int | None = None,
+    on_result: Callable[[int, int, CaseResult], None] | None = None,
+) -> list[CaseResult]:
+    """Run all test cases in parallel with a concurrency semaphore.
+
+    - max_concurrency: 并发上限，默认取 config.max_concurrency，最大不超过 15。
+    - on_result: 每个用例完成时调用的回调，参数为 (done_count, total, result)。
+    - 返回结果列表与输入 cases 顺序一致。
+    """
+    concurrency = min(max_concurrency or config.max_concurrency, 15)
+    total = len(cases)
+    results: list[CaseResult | None] = [None] * total
+    completed_count = 0
+    sem = asyncio.Semaphore(concurrency)
+    print_lock = asyncio.Lock()
+
+    async def _run_one(idx: int, case: TestCase, client: httpx.AsyncClient) -> None:
+        nonlocal completed_count
+        token_counter = TokenCounter()
+        async with sem:
+            result = await run_single_case(case, config, client, token_counter)
+        results[idx] = result
+        completed_count += 1
+        done = completed_count
+        if on_result is not None:
+            async with print_lock:
+                on_result(done, total, result)
+
+    async with httpx.AsyncClient(timeout=config.timeout_per_case + 10.0) as client:
+        # 统一加载一次全局 fixture
+        err = await _reload_global_fixture(config, client)
+        if err:
+            print(f"[sim] WARNING: {err}，跳过 fixture 预加载，继续执行", flush=True)
+
+        tasks = [
+            asyncio.create_task(_run_one(i, case, client))
+            for i, case in enumerate(cases)
+        ]
+        await asyncio.gather(*tasks)
+
+    return [r for r in results if r is not None]
 
 
 # ── generate_reports ──────────────────────────────────────────────────────────

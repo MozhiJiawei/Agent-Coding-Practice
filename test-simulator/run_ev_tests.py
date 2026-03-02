@@ -6,6 +6,7 @@ test-simulator 用例运行脚本（无服务启动）
 
 用法：
     python -u run_ev_tests.py --all
+    python -u run_ev_tests.py --all --concurrency 10
     python -u run_ev_tests.py --case ev06_wangjing_to_daxing_rental_flow
     python -u run_ev_tests.py --tag ev03
 """
@@ -20,10 +21,8 @@ import time
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-import httpx
-
-from config import load_config, load_test_cases, TokenCounter
-from runner import generate_reports, print_case_result, run_single_case
+from config import load_config, load_test_cases
+from runner import generate_reports, print_case_result, run_cases_parallel
 
 
 def parse_args() -> argparse.Namespace:
@@ -32,6 +31,13 @@ def parse_args() -> argparse.Namespace:
     group.add_argument("--all", action="store_true", help="运行全部用例")
     group.add_argument("--case", type=str, metavar="CASE_ID", help="运行指定 ID 的单个用例")
     group.add_argument("--tag", type=str, metavar="TAG", help="运行匹配 tag 的所有用例")
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=None,
+        metavar="N",
+        help="最大并发数（默认取 config.yaml 中的 max_concurrency，上限 15）",
+    )
     return parser.parse_args()
 
 
@@ -52,19 +58,22 @@ async def run(args: argparse.Namespace) -> int:
             print(f"[sim] ERROR: 未找到 tag='{args.tag}' 的用例", flush=True)
             return 1
 
-    print(f"[sim] 共 {len(cases)} 个用例待运行", flush=True)
+    concurrency = args.concurrency if args.concurrency is not None else config.max_concurrency
+    concurrency = min(concurrency, 15)
 
-    token_counter = TokenCounter()
-    results = []
+    print(f"[sim] 共 {len(cases)} 个用例待运行，并发度={concurrency}", flush=True)
+
     t0 = time.perf_counter()
 
-    async with httpx.AsyncClient(timeout=config.timeout_per_case + 10.0) as client:
-        for i, case in enumerate(cases, 1):
-            token_counter.reset()
-            result = await run_single_case(case, config, client, token_counter)
-            results.append(result)
-            print_case_result(i, len(cases), result)
-            sys.stdout.flush()
+    results = await run_cases_parallel(
+        cases,
+        config,
+        max_concurrency=concurrency,
+        on_result=lambda done, total, result: (
+            print_case_result(done, total, result),
+            sys.stdout.flush(),
+        ),
+    )
 
     elapsed_ms = int((time.perf_counter() - t0) * 1000)
 

@@ -11,13 +11,12 @@ import time
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-import httpx
 import uvicorn
 
-from config import CaseResult, TokenCounter, load_config, load_fixtures, load_test_cases
+from config import TokenCounter, load_config, load_fixtures, load_test_cases
 from mock_rental import create_mock_rental_app
 from model_proxy import create_model_proxy_app
-from runner import generate_reports, print_case_result, run_single_case
+from runner import generate_reports, print_case_result, run_cases_parallel
 
 
 async def start_server(app, host: str, port: int) -> None:
@@ -73,15 +72,19 @@ async def main_async(args: argparse.Namespace) -> None:
                 pass
             return
 
-        results: list[CaseResult] = []
+        total_cases = len(filtered)
+        concurrency = min(config.max_concurrency, 15)
+        print(f"[sim] 共 {total_cases} 个用例待运行，并发度={concurrency}", flush=True)
+
         t0 = time.perf_counter()
+        results = []
         try:
-            async with httpx.AsyncClient(timeout=config.timeout_per_case + 10.0) as client:
-                for i, case in enumerate(filtered, 1):
-                    token_counter.reset()
-                    result = await run_single_case(case, config, client, token_counter)
-                    results.append(result)
-                    print_case_result(i, len(filtered), result)
+            results = await run_cases_parallel(
+                filtered,
+                config,
+                max_concurrency=concurrency,
+                on_result=lambda done, total, result: print_case_result(done, total, result),
+            )
         finally:
             elapsed_ms = int((time.perf_counter() - t0) * 1000)
             if results:

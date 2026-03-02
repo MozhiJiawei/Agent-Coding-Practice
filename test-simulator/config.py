@@ -24,6 +24,7 @@ class SimulatorConfig(BaseModel):
     test_cases_file: str = "test_cases.yaml"
     timeout_per_case: int = 60
     report_dir: str = "_bmad-output/test-reports"
+    max_concurrency: int = 15
 
 
 class ToolCallArgsExpect(BaseModel):
