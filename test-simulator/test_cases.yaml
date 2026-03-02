@@ -65,3 +65,394 @@ test_cases:
       - multi-turn
       - rental-flow
       - tool-call
+
+  # ── 以下为从 logs 解析的 EV-XX 评估用例 ─────────────────────────────────────────
+
+  - id: ev01
+    type: Chat
+    messages:
+      - "你好"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev01
+
+  - id: ev02
+    type: Chat
+    messages:
+      - "你好，你可以做什么"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev02
+
+  - id: ev03
+    type: Single
+    messages:
+      - "找大兴区的两居室，租金4000元以下。"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev03
+      - tool-call
+
+  - id: ev04
+    type: Single
+    messages:
+      - "想要80平以上的，两居或三居，租金别超过4000"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev04
+      - tool-call
+
+  - id: ev05
+    type: Single
+    messages:
+      - "找海淀区三居室，预算13000以里，精装修，近地铁"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev05
+      - tool-call
+
+  - id: ev07
+    type: Multi
+    messages:
+      - "唉，我现在的房子住得不太舒服，采光不好，房间也小"
+      - "而且通勤时间也太长了，每天都要早起"
+      - "想换个房子了，你能帮我找找吗？"
+      - "想要两居室，预算4000以内，最好是精装修的"
+      - "这套不错，我可以租吗？"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev07
+      - multi-turn
+      - tool-call
+
+  - id: ev08
+    type: Single
+    messages:
+      - "帮我看看朝阳区有哪些房子"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev08
+      - tool-call
+
+  - id: ev09
+    type: Single
+    messages:
+      - "我想找4000元以内的房子，有哪些"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev09
+      - tool-call
+
+  - id: ev10
+    type: Single
+    messages:
+      - "帮我找两居室的房子"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev10
+      - tool-call
+
+  - id: ev11
+    type: Single
+    messages:
+      - "找海淀区两居室，精装修，预算8000以内的房子"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev11
+      - tool-call
+
+  - id: ev12
+    type: Multi
+    messages:
+      - "帮我找一套海淀区两居室，预算8500以内的房子"
+      - "HF_38这套房子有电梯吗？朝向怎么样？"
+      - "这套可以租吗？我想租这套房子"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev12
+      - multi-turn
+      - tool-call
+
+  - id: ev13
+    type: Multi
+    messages:
+      - "帮我找朝阳区两居室，预算6000以内"
+      - "预算放宽到8000看看"
+      - "HF_67这套可以租吗？"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev13
+      - multi-turn
+      - tool-call
+
+  - id: ev14
+    type: Single
+    messages:
+      - "我想找合租的房子，海淀区，预算3000以内"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev14
+      - tool-call
+
+  - id: ev15
+    type: Single
+    messages:
+      - "帮我找13号线沿线的两居室房子"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev15
+      - tool-call
+
+  - id: ev16
+    type: Single
+    messages:
+      - "我想在国贸附近找房子，预算6000以内"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev16
+      - tool-call
+
+  - id: ev17
+    type: Single
+    messages:
+      - "帮我找58同城上，海淀区的房子"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev17
+      - tool-call
+
+  - id: ev18
+    type: Single
+    messages:
+      - "HF_4这套房子在各个平台的价格分别是多少？"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev18
+      - tool-call
+
+  - id: ev19
+    type: Multi
+    messages:
+      - "帮我找大兴区两居室，预算4000以内的房子"
+      - "便宜那套离地铁多远？"
+      - "那套可以租吗？"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev19
+      - multi-turn
+      - tool-call
+
+  - id: ev20
+    type: Single
+    messages:
+      - "帮我找近地铁的房子，预算5000以内"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev20
+      - tool-call
+
+  - id: ev21
+    type: Single
+    messages:
+      - "帮我找望京商圈的房子，两居室，预算8000以内"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev21
+      - tool-call
+
+  - id: ev22
+    type: Multi
+    messages:
+      - "帮我找大兴区两居室，预算4000以内的房子"
+      - "HF_4这套在安居客、链家、58同城上分别多少钱？"
+      - "这套可以租，帮我办理租房"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev22
+      - multi-turn
+      - tool-call
+
+  - id: ev23
+    type: Single
+    messages:
+      - "帮我找安静一点的房子，不要临街的，海淀区两居室"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev23
+      - tool-call
+
+  - id: ev24
+    type: Single
+    messages:
+      - "帮我找精装修的房子，朝阳区，预算6000以内"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev24
+      - tool-call
+
+  - id: ev25
+    type: Single
+    messages:
+      - "帮我找有电梯的房子，海淀区，预算6000以内"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev25
+      - tool-call
+
+  - id: ev26
+    type: Single
+    messages:
+      - "我要民水民电的房子，海淀区合租，预算3000以内"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev26
+      - tool-call
+
+  - id: ev27
+    type: Single
+    messages:
+      - "帮我找3月份可以入住的房子，海淀区两居室"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev27
+      - tool-call
+
+  - id: ev28
+    type: Single
+    messages:
+      - "我在西二旗上班，想找通勤30分钟以内的房子"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev28
+      - tool-call
+
+  - id: ev29
+    type: Chat
+    messages:
+      - "你好呀，我最近想换个房子住"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev29
+
+  - id: ev30
+    type: Multi
+    messages:
+      - "我现在租的房子太吵了，睡眠质量很差"
+      - "想换个安静一点的房子，帮我找找"
+      - "HF_37这套可以租吗？"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev30
+      - multi-turn
+      - tool-call
+
+  - id: ev31
+    type: Single
+    messages:
+      - "我想在海淀这边租房子，有什么推荐吗？"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev31
+      - tool-call
+
+  - id: ev32
+    type: Single
+    messages:
+      - "帮我找海淀区两居室，精装修，近地铁（有电梯更好），民水民电，预算10000以内，60平米以上的房子"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - ev32
+      - tool-call
