@@ -244,9 +244,9 @@ async def update_preferences(
     session_prefs: UserPreferences,
     **kwargs,
 ) -> dict:
-    """合并偏好、路由位置，自动触发搜索并返回 top 5 精简房源列表。
+    """提取并合并用户租房偏好到 session，不执行搜索。
 
-    Story 8.2：偏好 merge → 位置路由 → 搜索 → 软偏好后过滤 → 返回结果。
+    调用后需再调用 search_by_preferences 获取匹配房源。
     """
     # 处理 clear_location：清除历史位置相关字段
     clear = kwargs.pop("clear_location", False)
@@ -301,7 +301,21 @@ async def update_preferences(
         if field in updatable_fields and value is not None:
             setattr(session_prefs, field, value)
 
-    # ── 3. 选择搜索路径 ──────────────────────────────────────────────────────
+    return {
+        "preferences_summary": session_prefs.model_dump(
+            exclude_none=True, exclude={"clear_location"}
+        ),
+    }
+
+
+async def search_by_preferences(
+    client: httpx.AsyncClient,
+    session_prefs: UserPreferences,
+) -> dict:
+    """按当前 session 偏好搜索并返回 top 5 精简房源列表。
+
+    需在 update_preferences 之后调用，使用已合并的偏好进行搜索。
+    """
     if session_prefs.landmark_queries:
         raw_result = await search_by_landmark(
             client, session_prefs.landmark_queries[0], session_prefs
@@ -312,10 +326,8 @@ async def update_preferences(
 
     raw_items: list[dict] = raw_result.get("items", [])
 
-    # ── 4. 软偏好后过滤 ──────────────────────────────────────────────────────
     filtered = post_filter_and_rank(raw_items, session_prefs)
 
-    # ── 5. 截取 top 5，精简字段 ──────────────────────────────────────────────
     top_items = [
         {k: v for k, v in item.items() if k in _SLIM_FIELDS}
         for item in filtered[:5]
@@ -337,7 +349,7 @@ TOOLS: list[dict] = [
         "type": "function",
         "function": {
             "name": "update_preferences",
-            "description": "提取或更新用户的租房偏好。调用后系统自动搜索并返回匹配房源。每轮只需提取本轮新增/变更的偏好，系统自动与历史偏好合并。",
+            "description": "提取或更新用户的租房偏好。仅合并偏好，不搜索房源。调用后需再调用 search_by_preferences 获取匹配房源。每轮只需提取本轮新增/变更的偏好，系统自动与历史偏好合并。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -365,6 +377,18 @@ TOOLS: list[dict] = [
                     "noise_preference": {"type": "string", "description": "噪音偏好，如 安静"},
                     "orientation": {"type": "string", "description": "朝向偏好，如 朝南"}
                 },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_by_preferences",
+            "description": "按当前已合并的偏好搜索房源，返回匹配的 top 5 精简列表。必须在 update_preferences 之后调用，用于获取房源列表。",
+            "parameters": {
+                "type": "object",
+                "properties": {},
                 "required": []
             }
         }

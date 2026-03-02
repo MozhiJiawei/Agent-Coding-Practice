@@ -28,6 +28,7 @@ from tools import (
     build_search_params,
     post_filter_and_rank,
     search_by_landmark,
+    search_by_preferences,
     search_houses,
     update_preferences,
     AREA_TO_DISTRICT,
@@ -342,7 +343,7 @@ class TestSearchByLandmark:
 # ═════════════════════════════════════════════════════════════════════════════
 
 class TestUpdatePreferencesPipeline:
-    """完整搜索流水线：update_preferences 触发自动搜索并返回 top 5 精简房源"""
+    """完整搜索流水线：update_preferences 合并偏好，search_by_preferences 搜索并返回 top 5 精简房源"""
 
     _SLIM_FIELDS = frozenset({
         "house_id", "community", "district", "price", "bedrooms",
@@ -351,9 +352,9 @@ class TestUpdatePreferencesPipeline:
 
     @pytest.mark.anyio
     async def test_return_structure_has_required_keys(self, rental_client):
-        """返回 dict 包含 total_matched / total_raw / items / preferences_summary"""
+        """search_by_preferences 返回 dict 包含 total_matched / total_raw / items / preferences_summary"""
         prefs = UserPreferences()
-        result = await update_preferences(rental_client, prefs)
+        result = await search_by_preferences(rental_client, prefs)
         for key in ("total_matched", "total_raw", "items", "preferences_summary"):
             assert key in result, f"返回 dict 缺少 key: {key}"
 
@@ -361,10 +362,11 @@ class TestUpdatePreferencesPipeline:
     async def test_district_search_returns_matching_items(self, rental_client):
         """大兴两居 4000 以内 → items 非空，每条均满足约束"""
         prefs = UserPreferences()
-        result = await update_preferences(
+        await update_preferences(
             rental_client, prefs,
             location=["大兴"], bedrooms="2", max_price=4000,
         )
+        result = await search_by_preferences(rental_client, prefs)
         assert result["total_matched"] > 0, "大兴两居4000以内应有结果"
         for item in result["items"]:
             assert item["district"] == "大兴", f"非大兴房源: {item}"
@@ -375,10 +377,11 @@ class TestUpdatePreferencesPipeline:
     async def test_landmark_search_path_used(self, rental_client):
         """location 含地标附近 → 走 landmark 路径，items 非空"""
         prefs = UserPreferences()
-        result = await update_preferences(
+        await update_preferences(
             rental_client, prefs,
             location=["国贸附近"],
         )
+        result = await search_by_preferences(rental_client, prefs)
         assert result["total_matched"] > 0, "国贸附近应有可用房源"
         assert len(result["items"]) > 0
 
@@ -386,16 +389,15 @@ class TestUpdatePreferencesPipeline:
     async def test_max_5_items_returned(self, rental_client):
         """无论多少结果，返回 items 最多 5 条"""
         prefs = UserPreferences()
-        result = await update_preferences(rental_client, prefs)
+        result = await search_by_preferences(rental_client, prefs)
         assert len(result["items"]) <= 5, f"超过 5 条: {len(result['items'])}"
 
     @pytest.mark.anyio
     async def test_slim_fields_only_in_items(self, rental_client):
         """每条 item 只含预定义的 slim 字段"""
         prefs = UserPreferences()
-        result = await update_preferences(
-            rental_client, prefs, location=["海淀"],
-        )
+        await update_preferences(rental_client, prefs, location=["海淀"])
+        result = await search_by_preferences(rental_client, prefs)
         for item in result["items"]:
             extra = set(item.keys()) - self._SLIM_FIELDS
             assert not extra, f"item 含非 slim 字段: {extra}"
@@ -404,10 +406,11 @@ class TestUpdatePreferencesPipeline:
     async def test_haidian_3br_near_subway_under_13k(self, rental_client):
         """EV-05 场景：海淀三居近地铁13000以内 → items 非空"""
         prefs = UserPreferences()
-        result = await update_preferences(
+        await update_preferences(
             rental_client, prefs,
             location=["海淀"], bedrooms="3", max_price=13000, near_subway=True,
         )
+        result = await search_by_preferences(rental_client, prefs)
         assert result["total_matched"] > 0, (
             "海淀三居近地铁13000以内应有结果（fixture 有 HF_003, HF_007）"
         )
@@ -416,9 +419,8 @@ class TestUpdatePreferencesPipeline:
     async def test_preferences_summary_reflects_prefs(self, rental_client):
         """preferences_summary 包含当前偏好值"""
         prefs = UserPreferences()
-        result = await update_preferences(
-            rental_client, prefs, max_price=5000, bedrooms="2",
-        )
+        await update_preferences(rental_client, prefs, max_price=5000, bedrooms="2")
+        result = await search_by_preferences(rental_client, prefs)
         summary = result["preferences_summary"]
         assert summary.get("max_price") == 5000
         assert summary.get("bedrooms") == "2"
@@ -428,7 +430,8 @@ class TestUpdatePreferencesPipeline:
         """多轮偏好累积：第1轮设区名+户型，第2轮叠加价格，结果为三者交集"""
         prefs = UserPreferences()
         await update_preferences(rental_client, prefs, location=["海淀"], bedrooms="2")
-        result = await update_preferences(rental_client, prefs, max_price=8000)
+        await update_preferences(rental_client, prefs, max_price=8000)
+        result = await search_by_preferences(rental_client, prefs)
         for item in result["items"]:
             assert item["district"] == "海淀"
             assert item["bedrooms"] == 2
@@ -439,9 +442,10 @@ class TestUpdatePreferencesPipeline:
         """clear_location=True 后位置切换，第2轮结果全为新区"""
         prefs = UserPreferences()
         await update_preferences(rental_client, prefs, location=["海淀"])
-        result = await update_preferences(
+        await update_preferences(
             rental_client, prefs, location=["大兴"], clear_location=True,
         )
+        result = await search_by_preferences(rental_client, prefs)
         for item in result["items"]:
             assert item["district"] == "大兴", f"位置切换后应全为大兴: {item}"
 
@@ -472,17 +476,19 @@ def _make_tool_call(name: str, arguments: dict, call_id: str = "call_001"):
 
 
 class TestAgentHouseIdExtraction:
-    """agent.py 应从 update_preferences 的 result['items'] 提取 house_id，
+    """agent.py 应从 search_by_preferences 的 result['items'] 提取 house_id，
     而不是从 LLM 响应文本中 regex 提取。"""
 
     @pytest.mark.anyio
     async def test_houses_extracted_from_tool_result_items(self, rental_client):
-        """update_preferences 返回 items → houses 字段包含这些 house_id"""
+        """序列调用：update_preferences → search_by_preferences 返回 items → houses 字段包含 house_id"""
         from agent import run_agent
 
-        tool_call = _make_tool_call("update_preferences", {"location": ["海淀"]}, "c1")
+        call1 = _make_tool_call("update_preferences", {"location": ["海淀"]}, "c1")
+        call2 = _make_tool_call("search_by_preferences", {}, "c2")
         responses = [
-            _make_mock_llm_response("", tool_calls=[tool_call], finish_reason="tool_calls"),
+            _make_mock_llm_response("", tool_calls=[call1], finish_reason="tool_calls"),
+            _make_mock_llm_response("", tool_calls=[call2], finish_reason="tool_calls"),
             _make_mock_llm_response("为您推荐以下房源", finish_reason="stop"),
         ]
         mock_create = AsyncMock(side_effect=responses)
@@ -499,7 +505,7 @@ class TestAgentHouseIdExtraction:
         assert result["status"] == "success"
         parsed = json.loads(result["response"])
         houses = parsed.get("houses", [])
-        assert len(houses) > 0, "从工具结果提取的 houses 不应为空"
+        assert len(houses) > 0, "从 search_by_preferences 结果提取的 houses 不应为空"
         assert len(houses) <= 5
         for hid in houses:
             assert re.match(r"^HF_\d+$", hid), f"无效 house_id: {hid}"
@@ -509,9 +515,11 @@ class TestAgentHouseIdExtraction:
         """LLM 文本中伪造的 HF_999 不应出现在 houses 字段"""
         from agent import run_agent
 
-        tool_call = _make_tool_call("update_preferences", {"location": ["海淀"]}, "c2")
+        call1 = _make_tool_call("update_preferences", {"location": ["海淀"]}, "c1")
+        call2 = _make_tool_call("search_by_preferences", {}, "c2")
         responses = [
-            _make_mock_llm_response("", tool_calls=[tool_call], finish_reason="tool_calls"),
+            _make_mock_llm_response("", tool_calls=[call1], finish_reason="tool_calls"),
+            _make_mock_llm_response("", tool_calls=[call2], finish_reason="tool_calls"),
             # LLM 文本中含伪造 ID HF_999，新代码不应从文本提取
             _make_mock_llm_response("推荐：HF_999 是个好房子", finish_reason="stop"),
         ]

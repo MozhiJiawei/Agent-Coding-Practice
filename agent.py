@@ -8,7 +8,7 @@ import httpx
 from openai import AsyncOpenAI
 from tools import (
     TOOLS, get_house_detail, execute_action, get_house_listings,
-    update_preferences, UserPreferences,
+    update_preferences, search_by_preferences, UserPreferences,
 )
 from logger import log_event
 
@@ -16,28 +16,34 @@ from logger import log_event
 SYSTEM_PROMPT = """你是智能租房助手，帮助用户在北京寻找和租赁房源。
 
 核心工作流：
-1. 用户表达租房需求时 → 调用 update_preferences 提取偏好，系统自动搜索匹配房源
+1. 用户表达租房需求时 → 先调用 update_preferences 提取/更新偏好，再调用 search_by_preferences 获取匹配房源
 2. 用户想看某套房源详情 → 调用 get_house_detail
 3. 用户想跨平台比价 → 调用 get_house_listings
 4. 用户确认要租房/退租 → 调用 execute_action
 
-使用 update_preferences 的规则：
-- 每轮对话只提取本轮新增或变更的偏好字段
+工具调用边界：
+- 只有用户明确表达「找房」「帮我找」「推荐」「想换房」等 actionable 意图时才调用 update_preferences / search_by_preferences
+- 单纯抱怨、吐槽当前住房（如采光不好、房间小、太吵）且未表达找房意图时 → 只做共情回复，不调用任何工具
+
+使用 update_preferences 与 search_by_preferences 的规则：
+- 用户明确表达租房/找房需求时，必须按顺序调用：先 update_preferences，再 search_by_preferences；二者成对调用，不可只调 update 不调 search
+- 未调用 search_by_preferences 时，禁止虚构或引用任何 house_id，必须基于 search 返回的 items 引用房源
+- 每轮 update_preferences 只提取本轮新增或变更的偏好字段
 - 位置统一放在 location 字段，支持区名/商圈/地标
 - "换XX看看" 场景需设置 clear_location=true
 - 纯聊天或与房源无关的问题 → 直接自然语言回复，禁止调工具
 
 输出格式：
-- 调用 update_preferences 后，根据返回的 items 用自然语言向用户描述这些房源，系统自动处理 JSON 格式
+- 调用 search_by_preferences 后，根据返回的 items 用自然语言向用户描述这些房源，系统自动处理 JSON 格式
 - 使用 items 中的 house_id 引用房源，禁止编造或引用 items 以外的 house_id
 - 禁止自行生成 JSON 格式输出
 - 每次最多推荐 5 套房源"""
 
 MAX_ITERATIONS = 10
-HOUSE_SEARCH_TOOLS = {"update_preferences"}
+HOUSE_SEARCH_TOOLS = {"update_preferences", "search_by_preferences"}
 MODEL_PROXY_PORT = int(os.environ.get("MODEL_PROXY_PORT", "8888"))
 
-# 静态工具分发表（不含 update_preferences，因其需在运行时绑定 session_prefs）
+# 静态工具分发表（不含 update_preferences、search_by_preferences，因其需在运行时绑定 session_prefs）
 TOOL_DISPATCH: dict[str, Callable] = {
     "get_house_detail": get_house_detail,
     "get_house_listings": get_house_listings,
@@ -57,10 +63,11 @@ async def run_agent(
     if session_prefs is None:
         session_prefs = UserPreferences()
 
-    # 构建本地分发表：将 update_preferences 绑定到当前 session 的偏好对象
+    # 构建本地分发表：将 update_preferences、search_by_preferences 绑定到当前 session 的偏好对象
     local_dispatch: dict[str, Callable] = {
         **TOOL_DISPATCH,
         "update_preferences": partial(update_preferences, session_prefs=session_prefs),
+        "search_by_preferences": partial(search_by_preferences, session_prefs=session_prefs),
     }
 
     async with httpx.AsyncClient(trust_env=False, timeout=60.0) as llm_http_client:
@@ -190,7 +197,7 @@ async def run_agent(
                         "result": json.dumps(result, ensure_ascii=False)[:500],
                     })
 
-                    if tool_name == "update_preferences":
+                    if tool_name in ("update_preferences", "search_by_preferences"):
                         for item in result.get("items", []):
                             hid = item.get("house_id")
                             if hid:

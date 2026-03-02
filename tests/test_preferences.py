@@ -496,10 +496,9 @@ class TestUpdatePreferences:
 
     @pytest.mark.anyio
     async def test_returns_dict_with_new_format(self, rental_client, fresh_prefs):
-        """返回值是 dict，包含新格式的必要字段"""
+        """返回值是 dict，包含 preferences_summary（拆分后 update_preferences 不再返回 items）"""
         result = await update_preferences(rental_client, fresh_prefs, max_price=5000)
         assert isinstance(result, dict)
-        assert "items" in result
         assert "preferences_summary" in result
 
     @pytest.mark.anyio

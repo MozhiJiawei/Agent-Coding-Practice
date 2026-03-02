@@ -67,8 +67,9 @@ class TestSystemPrompt:
         assert has_chat or has_tool
 
     def test_system_prompt_contains_update_preferences_instruction(self):
-        """Story 8.1: SYSTEM_PROMPT 应包含 update_preferences 工具指引"""
+        """Story 8.1: SYSTEM_PROMPT 应包含 update_preferences、search_by_preferences 工具指引"""
         assert "update_preferences" in SYSTEM_PROMPT
+        assert "search_by_preferences" in SYSTEM_PROMPT
 
     def test_system_prompt_contains_format_instruction(self):
         """禁止自行生成 JSON 的指令，或有格式控制说明"""
@@ -87,8 +88,9 @@ class TestSystemPrompt:
         assert MAX_ITERATIONS == 10
 
     def test_house_search_tools_constant(self):
-        """Story 8.1: HOUSE_SEARCH_TOOLS 包含 update_preferences"""
+        """Story 8.1: HOUSE_SEARCH_TOOLS 包含 update_preferences、search_by_preferences"""
         assert "update_preferences" in HOUSE_SEARCH_TOOLS
+        assert "search_by_preferences" in HOUSE_SEARCH_TOOLS
 
 
 # ─────────────────────────────────────────────────────────────
@@ -254,25 +256,28 @@ class TestToolDispatchAndMessage:
 class TestFormatGuard:
     @pytest.mark.anyio
     async def test_house_search_path_response_is_json_string(self, mock_httpx_client):
-        """AC5: 调用 update_preferences 后 response 可被 json.loads() 解析"""
-        tool_call = make_tool_call("update_preferences", {"location": ["朝阳"]}, "c1")
-        mock_up_result = {
+        """AC5: 调用 update_preferences + search_by_preferences 后 response 可被 json.loads() 解析"""
+        call1 = make_tool_call("update_preferences", {"location": ["朝阳"]}, "c1")
+        call2 = make_tool_call("search_by_preferences", {}, "c2")
+        mock_search_result = {
             "total_matched": 2, "total_raw": 2,
             "items": [{"house_id": "HF_011"}, {"house_id": "HF_015"}],
             "preferences_summary": {"location": ["朝阳"]},
         }
         responses = [
-            make_mock_response("", tool_calls=[tool_call], finish_reason="tool_calls"),
+            make_mock_response("", tool_calls=[call1], finish_reason="tool_calls"),
+            make_mock_response("", tool_calls=[call2], finish_reason="tool_calls"),
             make_mock_response("为您推荐：HF_011、HF_015", tool_calls=None, finish_reason="stop"),
         ]
         mock_create = AsyncMock(side_effect=responses)
 
         with patch("agent.AsyncOpenAI") as mock_cls:
             mock_cls.return_value.chat.completions.create = mock_create
-            with patch("agent.update_preferences", AsyncMock(return_value=mock_up_result)):
-                result = await run_agent(
-                    [{"role": "user", "content": "找朝阳区房源"}], "10.0.0.1", mock_httpx_client
-                )
+            with patch("agent.update_preferences", AsyncMock(return_value={"preferences_summary": {}})):
+                with patch("agent.search_by_preferences", AsyncMock(return_value=mock_search_result)):
+                    result = await run_agent(
+                        [{"role": "user", "content": "找朝阳区房源"}], "10.0.0.1", mock_httpx_client
+                    )
 
         assert result["status"] == "success"
         parsed = json.loads(result["response"])
@@ -281,9 +286,10 @@ class TestFormatGuard:
 
     @pytest.mark.anyio
     async def test_house_search_houses_field_contains_valid_ids(self, mock_httpx_client):
-        """AC5 FR22: houses 列表来自工具结果 items，只含有效 HF_xxx ID，最多 5 个"""
-        tool_call = make_tool_call("update_preferences", {}, "c1")
-        mock_up_result = {
+        """AC5 FR22: houses 列表来自 search_by_preferences 结果 items，只含有效 HF_xxx ID，最多 5 个"""
+        call1 = make_tool_call("update_preferences", {}, "c1")
+        call2 = make_tool_call("search_by_preferences", {}, "c2")
+        mock_search_result = {
             "total_matched": 6, "total_raw": 6,
             "items": [
                 {"house_id": "HF_001"}, {"house_id": "HF_002"}, {"house_id": "HF_003"},
@@ -292,17 +298,19 @@ class TestFormatGuard:
             "preferences_summary": {},
         }
         responses = [
-            make_mock_response("", tool_calls=[tool_call], finish_reason="tool_calls"),
+            make_mock_response("", tool_calls=[call1], finish_reason="tool_calls"),
+            make_mock_response("", tool_calls=[call2], finish_reason="tool_calls"),
             make_mock_response("为您推荐以上房源", tool_calls=None, finish_reason="stop"),
         ]
         mock_create = AsyncMock(side_effect=responses)
 
         with patch("agent.AsyncOpenAI") as mock_cls:
             mock_cls.return_value.chat.completions.create = mock_create
-            with patch("agent.update_preferences", AsyncMock(return_value=mock_up_result)):
-                result = await run_agent(
-                    [{"role": "user", "content": "找房"}], "10.0.0.1", mock_httpx_client
-                )
+            with patch("agent.update_preferences", AsyncMock(return_value={"preferences_summary": {}})):
+                with patch("agent.search_by_preferences", AsyncMock(return_value=mock_search_result)):
+                    result = await run_agent(
+                        [{"role": "user", "content": "找房"}], "10.0.0.1", mock_httpx_client
+                    )
 
         parsed = json.loads(result["response"])
         assert len(parsed["houses"]) <= 5
@@ -314,8 +322,9 @@ class TestFormatGuard:
     @pytest.mark.anyio
     async def test_house_search_no_duplicate_ids(self, mock_httpx_client):
         """AC5: houses 列表中无重复 ID（工具结果含重复时自动去重）"""
-        tool_call = make_tool_call("update_preferences", {}, "c1")
-        mock_up_result = {
+        call1 = make_tool_call("update_preferences", {}, "c1")
+        call2 = make_tool_call("search_by_preferences", {}, "c2")
+        mock_search_result = {
             "total_matched": 3, "total_raw": 3,
             "items": [
                 {"house_id": "HF_001"}, {"house_id": "HF_001"}, {"house_id": "HF_002"},
@@ -323,17 +332,19 @@ class TestFormatGuard:
             "preferences_summary": {},
         }
         responses = [
-            make_mock_response("", tool_calls=[tool_call], finish_reason="tool_calls"),
+            make_mock_response("", tool_calls=[call1], finish_reason="tool_calls"),
+            make_mock_response("", tool_calls=[call2], finish_reason="tool_calls"),
             make_mock_response("推荐房源", tool_calls=None, finish_reason="stop"),
         ]
         mock_create = AsyncMock(side_effect=responses)
 
         with patch("agent.AsyncOpenAI") as mock_cls:
             mock_cls.return_value.chat.completions.create = mock_create
-            with patch("agent.update_preferences", AsyncMock(return_value=mock_up_result)):
-                result = await run_agent(
-                    [{"role": "user", "content": "找房"}], "10.0.0.1", mock_httpx_client
-                )
+            with patch("agent.update_preferences", AsyncMock(return_value={"preferences_summary": {}})):
+                with patch("agent.search_by_preferences", AsyncMock(return_value=mock_search_result)):
+                    result = await run_agent(
+                        [{"role": "user", "content": "找房"}], "10.0.0.1", mock_httpx_client
+                    )
 
         parsed = json.loads(result["response"])
         assert len(parsed["houses"]) == len(set(parsed["houses"]))
@@ -376,27 +387,30 @@ class TestFormatGuard:
 
     @pytest.mark.anyio
     async def test_nearby_landmark_also_triggers_json_format(self, mock_httpx_client):
-        """AC5: update_preferences 属于 HOUSE_SEARCH_TOOLS，触发 JSON 格式"""
-        tool_call = make_tool_call("update_preferences", {"location": ["望京SOHO附近"]}, "c1")
-        mock_up_result = {
+        """AC5: search_by_preferences 属于 HOUSE_SEARCH_TOOLS，触发 JSON 格式"""
+        call1 = make_tool_call("update_preferences", {"location": ["望京SOHO附近"]}, "c1")
+        call2 = make_tool_call("search_by_preferences", {}, "c2")
+        mock_search_result = {
             "total_matched": 1, "total_raw": 1,
             "items": [{"house_id": "HF_011"}],
             "preferences_summary": {},
         }
         responses = [
-            make_mock_response("", tool_calls=[tool_call], finish_reason="tool_calls"),
+            make_mock_response("", tool_calls=[call1], finish_reason="tool_calls"),
+            make_mock_response("", tool_calls=[call2], finish_reason="tool_calls"),
             make_mock_response("附近有：HF_011", tool_calls=None, finish_reason="stop"),
         ]
         mock_create = AsyncMock(side_effect=responses)
 
         with patch("agent.AsyncOpenAI") as mock_cls:
             mock_cls.return_value.chat.completions.create = mock_create
-            with patch("agent.update_preferences", AsyncMock(return_value=mock_up_result)):
-                result = await run_agent(
-                    [{"role": "user", "content": "望京SOHO附近有房吗？"}],
-                    "10.0.0.1",
-                    mock_httpx_client
-                )
+            with patch("agent.update_preferences", AsyncMock(return_value={"preferences_summary": {}})):
+                with patch("agent.search_by_preferences", AsyncMock(return_value=mock_search_result)):
+                    result = await run_agent(
+                        [{"role": "user", "content": "望京SOHO附近有房吗？"}],
+                        "10.0.0.1",
+                        mock_httpx_client
+                    )
 
         parsed = json.loads(result["response"])
         assert "houses" in parsed
@@ -405,24 +419,27 @@ class TestFormatGuard:
     @pytest.mark.anyio
     async def test_format_guard_json_is_parseable(self, mock_httpx_client):
         """AC5 NFR9: json.loads(response) 不抛出异常"""
-        tool_call = make_tool_call("update_preferences", {}, "c1")
-        mock_up_result = {
+        call1 = make_tool_call("update_preferences", {}, "c1")
+        call2 = make_tool_call("search_by_preferences", {}, "c2")
+        mock_search_result = {
             "total_matched": 2, "total_raw": 2,
             "items": [{"house_id": "HF_003"}, {"house_id": "HF_007"}],
             "preferences_summary": {},
         }
         responses = [
-            make_mock_response("", tool_calls=[tool_call], finish_reason="tool_calls"),
+            make_mock_response("", tool_calls=[call1], finish_reason="tool_calls"),
+            make_mock_response("", tool_calls=[call2], finish_reason="tool_calls"),
             make_mock_response("HF_003 HF_007", tool_calls=None, finish_reason="stop"),
         ]
         mock_create = AsyncMock(side_effect=responses)
 
         with patch("agent.AsyncOpenAI") as mock_cls:
             mock_cls.return_value.chat.completions.create = mock_create
-            with patch("agent.update_preferences", AsyncMock(return_value=mock_up_result)):
-                result = await run_agent(
-                    [{"role": "user", "content": "找房"}], "10.0.0.1", mock_httpx_client
-                )
+            with patch("agent.update_preferences", AsyncMock(return_value={"preferences_summary": {}})):
+                with patch("agent.search_by_preferences", AsyncMock(return_value=mock_search_result)):
+                    result = await run_agent(
+                        [{"role": "user", "content": "找房"}], "10.0.0.1", mock_httpx_client
+                    )
 
         parsed = json.loads(result["response"])
         assert isinstance(parsed, dict)

@@ -229,10 +229,11 @@ test_cases:
     round_expects:
       - round: 1
         expect:
-          # 允许 Agent 从抱怨中推断偏好并调用工具，或仅回复安抚（不强制 no_tool_call）
-          has_response: true
-          response_not_empty: true
-          status_success: true
+          tool_call_args:
+            tool: update_preferences
+            contains:
+              orientation: "朝南"
+              min_area: 80
     tags:
       - ev07
       - multi-turn
@@ -477,6 +478,7 @@ test_cases:
       - ev18
       - tool-call
 
+  # ev19: Round 2「便宜那套离地铁多远？」允许多套歧义时 Agent 先澄清再查详情，不强制 get_house_detail
   - id: ev19
     type: Multi
     messages:
@@ -498,13 +500,6 @@ test_cases:
               max_price: 4000
           houses_match_subset: true
           houses_match: ["HF_4", "HF_6", "HF_277", "HF_805", "HF_1069"]
-      - round: 2
-        expect:
-          # 「便宜那套」可能指最便宜(HF_277/805)或最具性价比(HF_6)，接受 get_house_detail 任一
-          tool_call_args:
-            tool: get_house_detail
-            contains:
-              house_id: "HF_6"
       - round: 3
         expect:
           tool_call_args:
@@ -722,7 +717,10 @@ test_cases:
     round_expects:
       - round: 1
         expect:
-          no_tool_call: true
+          tool_call_args:
+            tool: update_preferences
+            contains:
+              noise_preference: "安静"
     tags:
       - ev30
       - multi-turn

@@ -101,11 +101,20 @@ def _houses_match_subset(response: dict, expected: Any) -> tuple[bool, str]:
 
     expected 为 houses_match 中的 ID 列表（子集预期 IDs）；
     若为空列表，仅检查 actual 非空。
+    当期望有房源但 actual 为空时，若未调用 search_by_preferences 则给出链式调用提示。
     """
     actual = extract_house_ids(response.get("response", ""))
+    tool_results = response.get("tool_results", [])
+    called_tools = {r.get("tool_name") for r in tool_results if r.get("tool_name")}
+
     if isinstance(expected, list) and expected:
         missing = set(expected) - set(actual)
         if missing:
+            if not actual and "search_by_preferences" not in called_tools:
+                return (
+                    False,
+                    "houses_match_subset: search_by_preferences 未被调用（找房需先 update_preferences 再 search_by_preferences），houses 为空",
+                )
             return (False, f"houses_match_subset: missing IDs {sorted(missing)} in {actual}")
         return (True, "")
     # expected 为空 → 只检查 actual 非空
