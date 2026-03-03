@@ -457,6 +457,9 @@ async def _execute_case(
             r_passed, r_reason = check_assertions(body, round_expect.expect, case)
             if not r_passed:
                 failure_items.append(f"[Round {rounds}] {r_reason}")
+                # 记录到本轮 RoundDetail，便于 HTML 与报告按轮展示
+                if rounds_detail:
+                    rounds_detail[-1].expect_failure = r_reason
 
     elapsed_ms = int((time.perf_counter() - t_start) * 1000)
 

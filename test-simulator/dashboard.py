@@ -165,6 +165,9 @@ HTML_PAGE = """
           html += '</div>';
         }
       }
+      if (rd.expect_failure) {
+        html += '<div class="failure expect-failure"><b>Expect 失败</b>: ' + escapeHtml(rd.expect_failure) + '</div>';
+      }
       html += '</div></div>';
       return html;
     }
@@ -343,6 +346,9 @@ EXPORT_HTML_TEMPLATE = """<!DOCTYPE html>
           });
           html += '</div>';
         }
+      }
+      if (rd.expect_failure) {
+        html += '<div class="failure expect-failure"><b>Expect 失败</b>: ' + escapeHtml(rd.expect_failure) + '</div>';
       }
       return html + '</div></div>';
     }

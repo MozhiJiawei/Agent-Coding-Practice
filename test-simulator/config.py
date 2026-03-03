@@ -73,6 +73,7 @@ class RoundDetail(BaseModel):
     user_message: str
     agent_response_raw: dict[str, Any] | None = None  # full Agent response body
     error: str | None = None
+    expect_failure: str | None = None  # 本轮 round_expect 断言失败时的原因，便于在 HTML/终端完整呈现
 
 
 class TokenUsage(BaseModel):
