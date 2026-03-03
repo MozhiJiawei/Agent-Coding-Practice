@@ -348,6 +348,21 @@ class TestToolCallArgs:
         assert ok is False
         assert "location" in msg
 
+    def test_fail_extra_params_strict(self):
+        """实际 args 比 contains 多出键时 → 失败，且错误信息含未声明/额外参数"""
+        expect = {"tool": "update_preferences", "contains": {"location": ["海淀"]}}
+        resp = self._make_response("update_preferences", {"location": ["海淀"], "extra_key": 1})
+        ok, msg = ASSERTION_RULES["tool_call_args"](resp, expect)
+        assert ok is False, msg
+        assert "未声明" in msg or "额外" in msg or "extra_key" in msg
+
+    def test_pass_exact_keys_and_fuzzy_values(self):
+        """实际 args 与 contains 键完全一致且值匹配（含 location 模糊）→ 通过"""
+        expect = {"tool": "update_preferences", "contains": {"location": ["海淀"], "bedrooms": "2"}}
+        resp = self._make_response("update_preferences", {"location": ["海淀区"], "bedrooms": "2"})
+        ok, msg = ASSERTION_RULES["tool_call_args"](resp, expect)
+        assert ok is True, msg
+
 
 class TestToolCallChain:
     """tool_call_chain: 验证链式调用顺序"""
