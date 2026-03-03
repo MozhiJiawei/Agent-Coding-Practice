@@ -323,7 +323,9 @@ test_cases:
     expect:
       has_response: true
       response_not_empty: true
+      response_json_valid: true
       status_success: true
+      tool_call_chain: ["update_preferences", "search_by_preferences"]
       tool_call_args:
         tool: update_preferences
         contains:
@@ -332,6 +334,7 @@ test_cases:
           decoration: "精装"
           max_price: 8000
       houses_match_subset: true
+      houses_match: ["HF_85", "HF_115", "HF_164", "HF_265", "HF_290"]
       house_count_min: 1
     tags:
       - ev11
@@ -350,6 +353,7 @@ test_cases:
     round_expects:
       - round: 1
         expect:
+          tool_call_chain: ["update_preferences", "search_by_preferences"]
           tool_call_args:
             tool: update_preferences
             contains:
@@ -364,6 +368,9 @@ test_cases:
             tool: get_house_detail
             contains:
               house_id: "HF_38"
+          message_content:
+            - "电梯"
+            - "朝向"
       - round: 3
         expect:
           # 用户「这套可以租吗？我想租这套」可触发 get_house_detail 或直接 execute_action
@@ -390,6 +397,7 @@ test_cases:
     round_expects:
       - round: 1
         expect:
+          tool_call_chain: ["update_preferences", "search_by_preferences"]
           tool_call_args:
             tool: update_preferences
             contains:
@@ -397,15 +405,19 @@ test_cases:
               bedrooms: "2"
               max_price: 6000
           houses_match_subset: true
-          houses_match: ["HF_49", "HF_67"]
+          houses_match: ["HF_49", "HF_67", "HF_97", "HF_133", "HF_139"]
       - round: 2
         expect:
+          tool_call_chain: ["update_preferences", "search_by_preferences"]
           tool_call_args:
             tool: update_preferences
             contains:
+              location: ["朝阳区"]
+              bedrooms: "2"
               max_price: 8000
           houses_match_subset: true
-          houses_match: ["HF_67"]
+          houses_match: ["HF_20", "HF_49", "HF_56", "HF_67", "HF_92"]
+      # Round 3: 「HF_67这套可以租吗？」可先 get_house_detail 或直接 execute_action，不强制单一工具
       - round: 3
         expect:
           tool_call_args:
@@ -424,13 +436,18 @@ test_cases:
     expect:
       has_response: true
       response_not_empty: true
+      response_json_valid: true
       status_success: true
+      tool_call_chain: ["update_preferences", "search_by_preferences"]
       tool_call_args:
         tool: update_preferences
         contains:
           location: ["海淀"]
           rental_type: "合租"
           max_price: 3000
+      houses_match_subset: true
+      houses_match: ["HF_55", "HF_77", "HF_127", "HF_173", "HF_175"]
+      house_count_min: 1
     tags:
       - ev14
       - tool-call
@@ -442,12 +459,17 @@ test_cases:
     expect:
       has_response: true
       response_not_empty: true
+      response_json_valid: true
       status_success: true
+      tool_call_chain: ["update_preferences", "search_by_preferences"]
       tool_call_args:
         tool: update_preferences
         contains:
           subway_line: "13号线"
           bedrooms: "2"
+      houses_match_subset: true
+      houses_match: ["HF_76", "HF_132", "HF_164", "HF_175", "HF_204"]
+      house_count_min: 1
     tags:
       - ev15
       - tool-call
@@ -459,11 +481,17 @@ test_cases:
     expect:
       has_response: true
       response_not_empty: true
+      response_json_valid: true
       status_success: true
+      tool_call_chain: ["update_preferences", "search_by_preferences"]
       tool_call_args:
         tool: update_preferences
         contains:
+          location: ["国贸附近"]
           max_price: 6000
+      houses_match_subset: true
+      houses_match: ["HF_93", "HF_269", "HF_357", "HF_445", "HF_533"]
+      house_count_min: 1
     tags:
       - ev16
       - tool-call
@@ -475,12 +503,17 @@ test_cases:
     expect:
       has_response: true
       response_not_empty: true
+      response_json_valid: true
       status_success: true
+      tool_call_chain: ["update_preferences", "search_by_preferences"]
       tool_call_args:
         tool: update_preferences
         contains:
           location: ["海淀"]
           listing_platform: "58同城"
+      houses_match_subset: true
+      houses_match: ["HF_3", "HF_33", "HF_36", "HF_37", "HF_38"]
+      house_count_min: 1
     tags:
       - ev17
       - tool-call
@@ -501,7 +534,7 @@ test_cases:
       - ev18
       - tool-call
 
-  # ev19: Round 2「便宜那套离地铁多远？」允许多套歧义时 Agent 先澄清再查详情，不强制 get_house_detail
+  # ev19: Round 2「便宜那套离地铁多远？」Agent 解析为 HF_277 并 get_house_detail；Round 3「那套可以租吗？」可直接 execute_action
   - id: ev19
     type: Multi
     messages:
@@ -515,6 +548,7 @@ test_cases:
     round_expects:
       - round: 1
         expect:
+          tool_call_chain: ["update_preferences", "search_by_preferences"]
           tool_call_args:
             tool: update_preferences
             contains:
@@ -523,12 +557,18 @@ test_cases:
               max_price: 4000
           houses_match_subset: true
           houses_match: ["HF_4", "HF_6", "HF_277", "HF_805", "HF_1069"]
+      - round: 2
+        expect:
+          tool_call_args:
+            tool: get_house_detail
+            contains:
+              house_id: "HF_277"
       - round: 3
         expect:
           tool_call_args:
             tool: get_house_detail
             contains:
-              house_id: "HF_6"
+              house_id: "HF_277"
     tags:
       - ev19
       - multi-turn
@@ -541,12 +581,17 @@ test_cases:
     expect:
       has_response: true
       response_not_empty: true
+      response_json_valid: true
       status_success: true
+      tool_call_chain: ["update_preferences", "search_by_preferences"]
       tool_call_args:
         tool: update_preferences
         contains:
           near_subway: true
           max_price: 5000
+      houses_match_subset: true
+      houses_match: ["HF_1", "HF_12", "HF_14", "HF_23", "HF_30"]
+      house_count_min: 1
     tags:
       - ev20
       - tool-call
