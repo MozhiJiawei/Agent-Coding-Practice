@@ -42,7 +42,7 @@
     可选。主 Agent 监听端口，默认 8191。
 
 .PARAMETER AutoFindPorts
-    可选。若指定，则自动寻找未占用端口，避免与已有服务冲突。
+    可选。默认开启：自动寻找未占用端口，避免与已有服务冲突。传 -AutoFindPorts $false 可禁用。
 
 .EXAMPLE
     .\tests\e2e\run_e2e.ps1
@@ -52,7 +52,8 @@
     .\tests\e2e\run_e2e.ps1 -UserId "EMP001" -SimTag "ev03"
     .\tests\e2e\run_e2e.ps1 -UserId "EMP002" -ReadyTimeoutSec 60
     .\tests\e2e\run_e2e.ps1 -UserId "EMP002" -ModelProxyPort 8988 -MockRentalPort 8180 -DashboardPort 8977 -AgentPort 8291
-    .\tests\e2e\run_e2e.ps1 -AutoFindPorts -SimCase "ev06_wangjing_to_daxing_rental_flow"
+    .\tests\e2e\run_e2e.ps1 -AutoFindPorts $false
+    .\tests\e2e\run_e2e.ps1 -SimCase "ev06_wangjing_to_daxing_rental_flow"
 #>
 [CmdletBinding()]
 param(
@@ -70,7 +71,7 @@ param(
     [int]$DashboardPort = 8877,
     [int]$AgentPort = 8191,
 
-    [switch]$AutoFindPorts = $false
+    [bool]$AutoFindPorts = $true
 )
 
 Set-StrictMode -Version Latest
