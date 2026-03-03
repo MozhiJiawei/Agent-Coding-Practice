@@ -217,6 +217,22 @@ def _no_tool_call(response: dict, expected: Any) -> tuple[bool, str]:
     return (False, f"no_tool_call: 期望无工具调用，实际调用了 {called}")
 
 
+def _message_content(response: dict, expected: Any) -> tuple[bool, str]:
+    """校验 agent 给用户回复的消息是否包含预期子字符串列表（全部包含才通过）。"""
+    if not isinstance(expected, list) or not expected:
+        return (True, "")  # 空列表或非列表视为不校验
+    text = response.get("response", "") or ""
+    missing: list[str] = []
+    for sub in expected:
+        if not isinstance(sub, str):
+            continue
+        if sub not in text:
+            missing.append(sub)
+    if missing:
+        return (False, f"message_content: 回复中缺少预期子串 {missing!r}")
+    return (True, "")
+
+
 # ── ASSERTION_RULES ────────────────────────────────────────────────────────────
 
 ASSERTION_RULES: dict[str, Any] = {
@@ -230,6 +246,7 @@ ASSERTION_RULES: dict[str, Any] = {
     "tool_call_args": _tool_call_args,
     "tool_call_chain": _tool_call_chain,
     "no_tool_call": _no_tool_call,
+    "message_content": _message_content,
 }
 
 # ── check_assertions ──────────────────────────────────────────────────────────
@@ -265,6 +282,8 @@ def check_assertions(
         checks.append(("tool_call_chain", expect.tool_call_chain))
     if expect.no_tool_call is not None:
         checks.append(("no_tool_call", expect.no_tool_call))
+    if expect.message_content is not None and expect.message_content:
+        checks.append(("message_content", expect.message_content))
 
     for rule_name, expected_val in checks:
         fn = ASSERTION_RULES.get(rule_name)

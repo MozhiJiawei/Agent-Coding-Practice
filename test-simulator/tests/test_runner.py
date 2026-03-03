@@ -466,6 +466,26 @@ def test_check_assertions_tool_call_args_location_fuzzy():
     assert passed is True, reason
 
 
+def test_check_assertions_message_content_pass():
+    """message_content: 回复包含全部预期子串 → 通过"""
+    case = make_case()
+    expect = ExpectRules(message_content=["您好", "租房"])
+    response = {"response": "您好，我是租房助手，请问需要什么帮助？", "status": "success"}
+    passed, reason = check_assertions(response, expect, case)
+    assert passed is True, reason
+
+
+def test_check_assertions_message_content_fail():
+    """message_content: 回复缺少某一子串 → 失败"""
+    case = make_case()
+    expect = ExpectRules(message_content=["您好", "机票"])
+    response = {"response": "您好，我是租房助手。", "status": "success"}
+    passed, reason = check_assertions(response, expect, case)
+    assert passed is False
+    assert "message_content" in reason
+    assert "机票" in reason
+
+
 # ── send_message — AC2 ────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio

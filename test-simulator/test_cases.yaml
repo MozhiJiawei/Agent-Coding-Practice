@@ -61,8 +61,12 @@ test_cases:
             contains:
               location: ["海淀"]
               bedrooms: "2"
-          houses_match_subset: true
-          house_count_min: 1
+          message_content: 
+            - "HF_3"
+            - "HF_33"
+            - "HF_36"
+            - "HF_37"
+            - "HF_38"
     tags:
       - multi-turn
 
@@ -103,10 +107,8 @@ test_cases:
           houses_match: ["HF_830"]
       - round: 2
         expect:
-          tool_call_args:
-            tool: get_house_detail
-            contains:
-              house_id: "HF_830"
+          message_content: 
+          - "3786"
       - round: 3
         expect:
           tool_call_chain: ["update_preferences", "search_by_preferences"]

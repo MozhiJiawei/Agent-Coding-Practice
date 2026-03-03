@@ -46,6 +46,7 @@ class ExpectRules(BaseModel):
     tool_call_args: ToolCallArgsExpect | None = None  # 验证工具提参
     tool_call_chain: list[str] | None = None          # 链式调用顺序，如 ["update_preferences", "search_by_preferences"]
     no_tool_call: bool | None = None                  # 验证未调用任何工具
+    message_content: list[str] | None = None          # 校验 agent 回复文本是否包含这些子字符串（全部包含才通过）
 
 
 class RoundExpect(BaseModel):
