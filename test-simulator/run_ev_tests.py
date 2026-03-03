@@ -125,7 +125,10 @@ async def run(args: argparse.Namespace) -> int:
         print("\nFailed cases:", flush=True)
         for r in results:
             if r.status != "PASS":
-                print(f"  [{r.status}] {r.case_id}: {r.failure_reason}", flush=True)
+                print(f"  [{r.status}] {r.case_id}:", flush=True)
+                if r.failure_reason:
+                    for line in r.failure_reason.split("\n"):
+                        print(f"    \u2717 {line}", flush=True)
 
     if results:
         report_path = generate_reports(results, config, elapsed_ms)

@@ -193,7 +193,9 @@ HTML_PAGE = """
       rounds.forEach(rd => html += renderRound(rd));
 
       if (c.failure_reason) {
-        html += '<div class="failure"><b>Failure</b>: ' + escapeHtml(c.failure_reason) + '</div>';
+        html += '<div class="failure"><b>Failure</b>:';
+        c.failure_reason.split('\\n').forEach(function(line) { html += '<div class="failure-line">' + escapeHtml(line) + '</div>'; });
+        html += '</div>';
       }
 
       html += renderLlmInteractions(c.llm_interactions || []);
@@ -361,7 +363,11 @@ EXPORT_HTML_TEMPLATE = """<!DOCTYPE html>
       html += '<span class="meta-item">duration: ' + (c.duration_ms || 0) + 'ms</span>';
       html += '<span class="meta-item">rounds: ' + (c.rounds || 0) + '</span></div>';
       (c.rounds_detail || []).forEach(rd => html += renderRound(rd));
-      if (c.failure_reason) html += '<div class="failure"><b>Failure</b>: ' + escapeHtml(c.failure_reason) + '</div>';
+      if (c.failure_reason) {
+        html += '<div class="failure"><b>Failure</b>:';
+        c.failure_reason.split('\\n').forEach(function(line) { html += '<div class="failure-line">' + escapeHtml(line) + '</div>'; });
+        html += '</div>';
+      }
       html += renderLlmInteractions(c.llm_interactions || []);
       return html;
     }

@@ -143,9 +143,10 @@ def _status_success(response: dict, expected: Any) -> tuple[bool, str]:
 
 
 def _tool_call_args(response: dict, expected: Any) -> tuple[bool, str]:
-    """验证指定工具被调用，且参数包含预期子集（精确匹配每个 key）。
+    """验证指定工具被调用，且参数严格匹配：实际 args 的键必须与 contains 完全一致。
 
     expected 为 ToolCallArgsExpect.model_dump()，含 tool 和 contains 两个字段。
+    location/decoration 的值仍按现有规则做模糊等价，其余键严格相等。
     """
     if not isinstance(expected, dict):
         return (False, "tool_call_args: invalid expected config")
@@ -161,6 +162,15 @@ def _tool_call_args(response: dict, expected: Any) -> tuple[bool, str]:
 
     actual_args = matching[0].get("args") or {}
     mismatches: list[str] = []
+    expected_keys = set(contains.keys())
+    actual_keys = set(actual_args.keys())
+    if actual_keys != expected_keys:
+        extra = actual_keys - expected_keys
+        if extra:
+            mismatches.append(f"存在未在 contains 中声明的参数: {sorted(extra)!r}")
+        missing = expected_keys - actual_keys
+        if missing:
+            mismatches.append(f"缺少参数: {sorted(missing)!r}")
     for key, expected_val in contains.items():
         actual_val = actual_args.get(key)
         if key == "location" and isinstance(expected_val, list) and isinstance(actual_val, list):
@@ -396,6 +406,7 @@ async def _execute_case(
     rounds = 0
     last_body: dict | None = None
     rounds_detail: list[RoundDetail] = []
+    failure_items: list[str] = []
 
     def make_result(
         status: str,
@@ -438,25 +449,26 @@ async def _execute_case(
             )
         )
 
-        # 每轮独立断言（round_expects）
+        # 每轮独立断言（round_expects）：失败只记录，不终止，继续多轮
         round_expect: RoundExpect | None = next(
             (rexp for rexp in case.round_expects if rexp.round == rounds), None
         )
         if round_expect is not None and body is not None:
             r_passed, r_reason = check_assertions(body, round_expect.expect, case)
             if not r_passed:
-                elapsed_ms = int((time.perf_counter() - t_start) * 1000)
-                return make_result(
-                    "FAIL",
-                    elapsed_ms,
-                    rounds,
-                    failure_reason=f"[Round {rounds}] {r_reason}",
-                    actual_response=body.get("response"),
-                )
+                failure_items.append(f"[Round {rounds}] {r_reason}")
 
     elapsed_ms = int((time.perf_counter() - t_start) * 1000)
 
     if case.expect is None or last_body is None:
+        if failure_items:
+            return make_result(
+                "FAIL",
+                elapsed_ms,
+                rounds,
+                failure_reason="\n".join(failure_items),
+                actual_response=last_body.get("response") if last_body else None,
+            )
         status = "PASS" if last_body is not None else "FAIL"
         return make_result(
             status,
@@ -467,11 +479,15 @@ async def _execute_case(
         )
 
     passed, reason = check_assertions(last_body, case.expect, case)
+    if not passed:
+        failure_items.append(f"[Final] {reason}")
+    status = "FAIL" if failure_items else ("PASS" if passed else "FAIL")
+    final_failure_reason = "\n".join(failure_items) if failure_items else (reason if not passed else None)
     return make_result(
-        "PASS" if passed else "FAIL",
+        status,
         elapsed_ms,
         rounds,
-        failure_reason=reason if not passed else None,
+        failure_reason=final_failure_reason,
         actual_response=last_body.get("response"),
     )
 
@@ -512,7 +528,8 @@ def print_case_result(idx: int, total: int, result: CaseResult) -> None:
     label = "PASS" if result.status == "PASS" else "FAIL"
     print(f"[done {idx}/{total}] {result.case_id} ...... {label}  ({duration_s:.1f}s)")
     if result.status != "PASS" and result.failure_reason:
-        print(f"       \u2717 {result.failure_reason}")
+        for line in result.failure_reason.split("\n"):
+            print(f"       \u2717 {line}")
 
 
 # ── run_all_cases ─────────────────────────────────────────────────────────────
