@@ -988,3 +988,275 @@ test_cases:
     tags:
       - ev45
       - tool-call
+
+  # ── final-test 场景：c1~c20（mock_data/final-test.yaml，无检查仅跑通）────
+  - id: c1
+    type: Chat
+    fixture_file: mock_data/final-test.yaml
+    messages:
+      - "你好"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - final-test
+
+  - id: c2
+    type: Multi
+    fixture_file: mock_data/final-test.yaml
+    messages:
+      - "我在朝阳区上班，想找一套两居室的房子，预算3000以内，近地铁交通方便，最好精装修"
+      - "我养了一只金毛，必须要能养狗的房子，另外希望附近有公园可以遛狗"
+      - "平时工作太忙，希望能线上VR看房，不用跑现场"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - final-test
+
+  - id: c3
+    type: Multi
+    fixture_file: mock_data/final-test.yaml
+    messages:
+      - "想按自己喜欢的风格布置，所以打算租个空房，自己带家具。在朝阳区找两居室，预算三千左右。"
+      - "想问下能不能月付？最好能是房东直租。"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - final-test
+
+  - id: c4
+    type: Single
+    fixture_file: mock_data/final-test.yaml
+    messages:
+      - "我想在朝阳双合站附近租一个精装两居室，我想自己住，按便宜到贵排一下。我最多租三个月"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - final-test
+
+  - id: c5
+    type: Single
+    fixture_file: mock_data/final-test.yaml
+    messages:
+      - "想找朝阳区的两居室，预算3千以下，最好是精装修。因为我在家办公，所以希望房子可以安静一些，网费能直接包含在房租里。"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - final-test
+
+  - id: c6
+    type: Multi
+    fixture_file: mock_data/final-test.yaml
+    messages:
+      - "您好，我想在链家上查一下朝阳区的两居室，预算三千以内，最好离地铁800米以内，想看看具体信息。"
+      - "想找房东直租、能月付的房子，不想交中介费。"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - final-test
+
+  - id: c7
+    type: Single
+    fixture_file: mock_data/final-test.yaml
+    messages:
+      - "我在朝阳区上班，经常加班到很晚，希望离地铁站近，太晚没有公交车，希望小区周边24小时有吃的，不然饿着肚子回家难受。"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - final-test
+
+  - id: c8
+    type: Multi
+    fixture_file: mock_data/final-test.yaml
+    messages:
+      - "我是留学生，学校在望京南那边，所以想就近租个单间，预算四千以内，最好离地铁近点。"
+      - "想问下付款方式，最好能押一付一。"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - final-test
+
+  - id: c9
+    type: Multi
+    fixture_file: mock_data/final-test.yaml
+    messages:
+      - "我是一名自由插画师，想找个安静有阳光的房子做工作室兼住所。朝阳区附近，预算5000左右。"
+      - "我一般白天在家工作，希望工作日白天和下午能看房。附近最好有个公园，可以出去写生。"
+      - "我平时自己做饭，附近最好有个菜市场，买菜方便，也能找找素材。"
+      - "我偶尔会开车去郊区采风，希望小区有车位，最好免费。"
+      - "希望物业费能包在房租里，省得每月多一笔账单。"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - final-test
+
+  - id: c10
+    type: Single
+    fixture_file: mock_data/final-test.yaml
+    messages:
+      - "我在大兴做项目，可能提前结束，需要可以协商退租的房子，两居室，预算5000以内。"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - final-test
+
+  - id: c11
+    type: Single
+    fixture_file: mock_data/final-test.yaml
+    messages:
+      - "我们刚领证，想在西二旗这边安个小家。看了几套房子，有的进去就觉得压抑，墙皮发黄、地板咯吱响，实在不想把新婚生活过成那样。想找个明亮点、装修新点的，哪怕小一点，每天回家心情也好。毕竟是婚房，想有点仪式感。"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - final-test
+
+  - id: c12
+    type: Multi
+    fixture_file: mock_data/final-test.yaml
+    messages:
+      - "刚做完手术，需要静养，想在丰台租个两居室，预算四千以内，简装"
+      - "睡眠不好，需要环境安静的房子。"
+      - "复查方便，离医院近点好。"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - final-test
+
+  - id: c13
+    type: Multi
+    fixture_file: mock_data/final-test.yaml
+    messages:
+      - "找个性价比高的房子，月租5000以内。海淀附近。"
+      - "最好没有中介费，或者中介费很少。我夜间班次多，只能工作日14-18点看房。"
+      - "水电费最好是民水民电，而且希望是包在房租里的。"
+      - "押金也希望只押一个月。"
+      - "我养了只仓鼠，很小，希望房东允许。"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - final-test
+
+  - id: c14
+    type: Multi
+    fixture_file: mock_data/final-test.yaml
+    messages:
+      - "孩子今年要上小学了，想换到朝阳区租个三居室。家里老人腿脚不太方便，所以需要电梯。预算希望在三千以内，最好离地铁也近一点。"
+      - "希望能找附近有公园的，这样老人平时遛弯方便。小区环境最好也能安静一点。"
+      - "这几个房子是民水民电吗？家里人多，水电费这方面也得考虑一下。"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - final-test
+
+  - id: c15
+    type: Single
+    fixture_file: mock_data/final-test.yaml
+    messages:
+      - "我想在西城自己住一套简装两居，我睡眠浅，需要安静一点的，最好能月付，我想3月10号前入住"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - final-test
+
+  - id: c16
+    type: Multi
+    fixture_file: mock_data/final-test.yaml
+    messages:
+      - "给父母找养老的房子，他们年纪大了，想在房山房山城关附近找个两居室，预算一千二以内，老人爬楼费劲最好有电梯"
+      - "附近要有医院和菜市场，方便看病买菜。"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - final-test
+
+  - id: c17
+    type: Multi
+    fixture_file: mock_data/final-test.yaml
+    messages:
+      - "想在通州租个四居室，预算一万八千以内。我每天都有跑步锻炼的习惯，所以希望小区环境适合跑步，或者附近有公园就更好了。"
+      - "平时会做一些力量训练，所以最好是附近有可以健身的地方"
+      - "锻炼完已经不想爬楼梯了，找找有电梯的房子"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - final-test
+
+  - id: c18
+    type: Multi
+    fixture_file: mock_data/final-test.yaml
+    messages:
+      - "我是医药代表，经常跑各大医院，想在丰台或朝阳，近三甲医院的地方租个房子。预算6000左右。"
+      - "最好是两居室，偶尔同事过来培训可以住。我平时都在跑医院，只有周末能看房。"
+      - "忙起来没空做饭，附近最好有餐馆解决吃饭问题。"
+      - "我经常出差跑业务，有辆车，希望小区有车位，最好包在房租里。"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - final-test
+
+  - id: c19
+    type: Multi
+    fixture_file: mock_data/final-test.yaml
+    messages:
+      - "刚做完手术，想找个安静一点的地方休养。希望在丰台这边租个两居室，预算两千八以内，最好能离地铁近一点，方便偶尔出门。"
+      - "身体还在恢复中，不能爬楼，所以希望是一楼或者有电梯的房子。"
+      - "最好离医院近一点，后面复查也方便。"
+      - "付款方式希望能灵活一点，最好能月付，这样手头也能宽裕些。"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - final-test
+
+  - id: c20
+    type: Multi
+    fixture_file: mock_data/final-test.yaml
+    messages:
+      - "刚开始创业，资金紧张，想找个能月付的房子。朝阳区附近，预算3000左右。"
+      - "希望是押一付一，压力小。我时间比较自由，随时可以看房。"
+      - "可以合租，我不介意有个室友。"
+      - "附近最好有餐馆，创业忙没空做饭。"
+      - "有健身房更好，偶尔锻炼放松。"
+      - "希望有宽带包在房租里，省得自己装。"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    tags:
+      - final-test

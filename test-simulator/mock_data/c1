@@ -1,0 +1,8 @@
+{"ts": 1772545463, "session_id": "eval_l00933108_EV-001_1772545457519616214", "event": "SESSION_START", "details": {}}
+{"ts": 1772545463, "session_id": "eval_l00933108_EV-001_1772545457519616214", "event": "SESSION_INIT", "details": {}}
+{"ts": 1772545465, "session_id": "eval_l00933108_EV-001_1772545457519616214", "event": "AREA_DISTRICT_MAP", "details": {"map_size": 109}}
+{"ts": 1772545465, "session_id": "eval_l00933108_EV-001_1772545457519616214", "event": "LANDMARK_NAMES", "details": {"count": 101}}
+{"ts": 1772545465, "session_id": "eval_l00933108_EV-001_1772545457519616214", "event": "USER_REQUEST", "details": {"model_ip": "7.225.29.223", "message": "你好"}}
+{"ts": 1772545466, "session_id": "eval_l00933108_EV-001_1772545457519616214", "event": "LLM_REQUEST", "details": {"iteration": 0, "new_message_count": 1, "new_messages": [{"role": "user", "content": "你好"}]}}
+{"ts": 1772545473, "session_id": "eval_l00933108_EV-001_1772545457519616214", "event": "MODEL_RESPONSE", "details": {"iteration": 0, "finish_reason": "stop", "has_tool_calls": false, "content_preview": "\n\n您好！我是您的智能租房助手，可以帮助您在北京寻找合适的房源。您有任何租房需求或问题吗？比如找房、比价、查看房源详情等，都可以告诉我哦！"}}
+{"ts": 1772545474, "session_id": "eval_l00933108_EV-001_1772545457519616214", "event": "USER_RESPONSE", "details": {"status": "success", "duration_ms": 10397, "response": "\n\n您好！我是您的智能租房助手，可以帮助您在北京寻找合适的房源。您有任何租房需求或问题吗？比如找房、比价、查看房源详情等，都可以告诉我哦！"}}
