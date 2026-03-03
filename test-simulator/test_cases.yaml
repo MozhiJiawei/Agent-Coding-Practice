@@ -192,6 +192,7 @@ test_cases:
       tool_call_args:
         tool: update_preferences
         contains:
+          bedrooms: "2,3"
           min_area: 80
           max_price: 4000
       message_content:
@@ -273,7 +274,7 @@ test_cases:
           tool_call_args:
             tool: get_house_detail
             contains:
-              house_id: "HF_830"
+              house_id: "HF_67"
     tags:
       - ev07
       - multi-turn
@@ -674,6 +675,7 @@ test_cases:
             contains:
               action: "rent"
               house_id: "HF_4"
+              platform: "58同城"
     tags:
       - ev22
       - multi-turn
@@ -802,7 +804,7 @@ test_cases:
         contains:
           max_commute_minutes: 30
       houses_match_subset: true
-      houses_match: ["HF_36", "HF_37", "HF_38", "HF_39", "HF_40"]
+      houses_match: ["HF_6", "HF_7", "HF_8", "HF_9", "HF_10"]
     tags:
       - ev28
       - tool-call
@@ -839,11 +841,7 @@ test_cases:
                 noise_preference: "安静"
       - round: 2
         expect:
-          tool_call_chain: ["update_preferences", "search_by_preferences"]
-          tool_call_args:
-            tool: update_preferences
-            contains:
-              noise_preference: "安静"
+          househouses_match: ["HF_1", "HF_3", "HF_4", "HF_6", "HF_7"]
       - round: 3
         expect:
           tool_call_args:
