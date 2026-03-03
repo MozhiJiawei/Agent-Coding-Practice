@@ -247,7 +247,7 @@ test_cases:
           tool_call_args:
             tool: update_preferences
             contains:
-              orientation: "朝南"
+              soft_preferences: {"orientation":"朝南"}
               sort_by: "area"
               sort_order: "desc"
       - round: 2
@@ -406,6 +406,7 @@ test_cases:
             contains:
               action: "rent"
               house_id: "HF_38"
+              "listing_platform": "安居客"
     tags:
       - ev12
       - multi-turn
@@ -495,7 +496,7 @@ test_cases:
           subway_line: "13号线"
           bedrooms: "2"
       houses_match_subset: true
-      houses_match: ["HF_76", "HF_132", "HF_164", "HF_175", "HF_204"]
+      houses_match: ['HF_706', 'HF_1586', 'HF_76', 'HF_416', 'HF_956']
       house_count_min: 1
     tags:
       - ev15
@@ -882,6 +883,9 @@ test_cases:
       response_not_empty: true
       status_success: true
       tool_call_chain: ["update_preferences", "search_by_preferences"]
+      # near_subway 现在是排序参数而非过滤参数，HF_1084（地铁3079m）满足其他所有硬约束被返回
+      # 本用例重点验证：「有电梯更好」→ soft_preferences，near_subway → 仅排序不过滤
+      houses_match: ["HF_1084"]
       tool_call_args:
         tool: update_preferences
         contains:
@@ -892,6 +896,7 @@ test_cases:
           min_area: 60
           utilities_type: "民水民电"
           max_price: 10000
+          soft_preferences: {elevator: true}
     tags:
       - ev32
       - tool-call

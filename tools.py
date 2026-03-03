@@ -61,6 +61,9 @@ class UserPreferences(BaseModel):
     no_agent_fee: Optional[bool] = None
     payment_method: Optional[str] = None
 
+    # ── 模糊软偏好（「更好」「尽量」「最好」等表达，不作为 API 硬过滤，仅用于加分排序） ──
+    soft_preferences: Optional[dict] = None
+
     # ── 上下文记忆 ──
     mentioned_house_ids: list[str] = []
     current_focus_house_id: Optional[str] = None
@@ -83,6 +86,17 @@ def build_landmark_names(landmarks: list[dict]) -> set[str]:
 
 
 _LOCATION_FUZZY_SUFFIXES = ("商圈", "商业区", "片区", "附近")
+
+# ── 装修等级常量（用于软偏好加分） ─────────────────────────────────────────────
+# 归一化映射：LLM 可能输出 "精装修" 等变体
+_DEC_NORM: dict[str, str] = {
+    "精装修": "精装", "精修": "精装", "精": "精装",
+    "简装修": "简装", "简修": "简装", "简": "简装",
+    "豪华装修": "豪华", "豪装": "豪华",
+    "毛坯房": "毛坯",
+}
+# 等级排序：值越大越高档
+_DEC_LEVEL: dict[str, int] = {"毛坯": 1, "简装": 2, "精装": 3, "豪华": 4}
 
 
 def resolve_location(location: str) -> dict:
@@ -160,8 +174,8 @@ def build_search_params(prefs: UserPreferences) -> dict:
         params["rental_type"] = prefs.rental_type
     if prefs.decoration is not None:
         params["decoration"] = prefs.decoration
-    if prefs.elevator is not None:
-        params["elevator"] = "true" if prefs.elevator else "false"
+    if prefs.elevator is True:
+        params["elevator"] = "true"
     if prefs.min_area is not None:
         params["min_area"] = prefs.min_area
     if prefs.max_area is not None:
@@ -170,8 +184,8 @@ def build_search_params(prefs: UserPreferences) -> dict:
         params["utilities_type"] = prefs.utilities_type
     if prefs.subway_line is not None:
         params["subway_line"] = prefs.subway_line
-    if prefs.near_subway:
-        params["max_subway_dist"] = 800
+    # near_subway 不再作为 API 过滤参数（max_subway_dist）
+    # 改为在 post_filter_and_rank 中按 subway_distance 分段加分排序
     if prefs.available_before is not None:
         params["available_from_before"] = prefs.available_before
     if prefs.max_commute_minutes is not None:
@@ -210,8 +224,19 @@ async def search_by_landmark(
 def post_filter_and_rank(items: list[dict], prefs: UserPreferences) -> list[dict]:
     """对搜索结果进行软偏好过滤和评分排序。
 
-    硬过滤：noise_preference="安静" 时过滤 hidden_noise_level 为"吵闹"/"临街"的房源。
-    加分：orientation 匹配 +10，floor_pref 匹配 +5。
+    硬过滤：
+      - noise_preference="安静" → 过滤 hidden_noise_level 为"吵闹"/"临街"的房源。
+
+    加分项（来自 prefs 直接字段）：
+      - orientation 匹配 +10；floor_pref 匹配 +5
+
+    加分项（来自 soft_preferences，用户说「更好/最好/尽量/优先」等非强制表达）：
+      - elevator     +5   （有电梯加分）
+      - near_subway  分段  （subway_distance ≤300m +15 / ≤500m +10 / ≤800m +5）
+      - decoration   分档  （达到或超过偏好等级 +10；低一档 +3；低两档及以下 0）
+      - rental_type  +8   （匹配偏好的租赁方式）
+      - orientation  +10  （朝向偏好，与直接字段合并）
+      - floor_pref   +5   （楼层偏好，与直接字段合并）
     """
     scored: list[tuple[int, dict]] = []
     for item in items:
@@ -231,6 +256,56 @@ def post_filter_and_rank(items: list[dict], prefs: UserPreferences) -> list[dict
         # 楼层偏好（加分）
         if prefs.floor_pref:
             if prefs.floor_pref in item.get("floor", ""):
+                score += 5
+
+        # 近地铁排序：near_subway=true 时按 subway_distance 分段加分（统一排序处理，不做 API 过滤）
+        if prefs.near_subway:
+            dist = item.get("subway_distance") or 9999
+            if dist <= 300:
+                score += 15
+            elif dist <= 500:
+                score += 10
+            elif dist <= 800:
+                score += 5
+
+        # ── soft_preferences 加分 ─────────────────────────────────────────────
+        if prefs.soft_preferences:
+            sp = prefs.soft_preferences
+
+            # 电梯软偏好：有电梯 +5
+            if sp.get("elevator") and item.get("elevator"):
+                score += 5
+
+            # 装修等级软偏好：达到或超过偏好等级 +10，低一档 +3，低两档及以下 0
+            soft_dec_raw = sp.get("decoration")
+            if soft_dec_raw:
+                soft_dec = _DEC_NORM.get(str(soft_dec_raw), str(soft_dec_raw))
+                pref_level = _DEC_LEVEL.get(soft_dec, 0)
+                item_dec_raw = item.get("decoration", "")
+                item_dec = _DEC_NORM.get(str(item_dec_raw), str(item_dec_raw))
+                act_level = _DEC_LEVEL.get(item_dec, 0)
+                if pref_level > 0:
+                    gap = pref_level - act_level
+                    if gap <= 0:
+                        score += 10
+                    elif gap == 1:
+                        score += 3
+
+            # 租赁方式软偏好：匹配偏好方式（整租/合租）+8
+            soft_rental = sp.get("rental_type")
+            if soft_rental and item.get("rental_type") == soft_rental:
+                score += 8
+
+            # 朝向软偏好（与直接字段合并）
+            soft_ori = sp.get("orientation")
+            if soft_ori:
+                target = str(soft_ori).replace("朝", "")
+                if target in item.get("orientation", ""):
+                    score += 10
+
+            # 楼层软偏好（与直接字段合并）
+            soft_floor = sp.get("floor_pref")
+            if soft_floor and soft_floor in item.get("floor", ""):
                 score += 5
 
         scored.append((score, item))
@@ -254,6 +329,15 @@ async def update_preferences(
 
     调用后需再调用 search_by_preferences 获取匹配房源。
     """
+    # 处理 soft_preferences：合并到 session（不作为 API 硬过滤，仅用于加分排序）
+    new_soft = kwargs.pop("soft_preferences", None)
+    if new_soft and isinstance(new_soft, dict):
+        if session_prefs.soft_preferences is None:
+            session_prefs.soft_preferences = {}
+        session_prefs.soft_preferences.update(
+            {k: v for k, v in new_soft.items() if v is not None}
+        )
+
     # 处理 clear_location：清除历史位置相关字段
     clear = kwargs.pop("clear_location", False)
 
@@ -390,11 +474,11 @@ TOOLS: list[dict] = [
                     "min_price": {"type": "integer", "description": "最低月租金（元）"},
                     "max_price": {"type": "integer", "description": "最高月租金（元）"},
                     "bedrooms": {"type": "string", "description": "卧室数，如 '2' 或 '2,3'"},
-                    "rental_type": {"type": "string", "description": "整租 或 合租"},
-                    "decoration": {"type": "string", "description": "精装/简装/豪华/毛坯"},
-                    "elevator": {"type": "boolean", "description": "是否需要电梯"},
+                    "rental_type": {"type": "string", "description": "整租 或 合租（硬约束：用户明确说「只要整租」「必须整租」时使用；若用户说「最好整租/整租优先/合租也行」等模糊表达，请改用 soft_preferences={\"rental_type\": \"整租\"}）"},
+                    "decoration": {"type": "string", "description": "装修类型：精装/简装/豪华/毛坯（硬约束：用户明确说「只要精装」「必须精装」时使用；若用户说「精装最好/最好精装/简装也行」等模糊表达，请改用 soft_preferences={\"decoration\": \"精装\"}）"},
+                    "elevator": {"type": "boolean", "description": "是否必须有电梯（硬约束：「必须有电梯」「要求电梯」时使用；若用户说「有电梯更好」等模糊表达，请改用 soft_preferences={\"elevator\": true}）"},
                     "min_area": {"type": "integer", "description": "最小面积（平米）"},
-                    "near_subway": {"type": "boolean", "description": "是否要求近地铁"},
+                    "near_subway": {"type": "boolean", "description": "用户提到近地铁（无论强弱表达）时设为 true，系统按 subway_distance 对结果排序（越近越靠前），不做距离硬过滤。适用于「近地铁」「靠近地铁更好」「最好有地铁」等所有表达"},
                     "subway_line": {"type": "string", "description": "地铁线路，如 13号线"},
                     "utilities_type": {"type": "string", "description": "水电类型，如 民水民电"},
                     "listing_platform": {"type": "string", "description": "挂牌平台：链家/安居客/58同城"},
@@ -403,7 +487,18 @@ TOOLS: list[dict] = [
                     "noise_preference": {"type": "string", "description": "噪音偏好，如 安静"},
                     "orientation": {"type": "string", "description": "朝向偏好，如 朝南"},
                     "sort_by": {"type": "string", "description": "排序字段：price/area/subway"},
-                    "sort_order": {"type": "string", "description": "排序方向：asc/desc"}
+                    "sort_order": {"type": "string", "description": "排序方向：asc/desc"},
+                    "soft_preferences": {
+                        "type": "object",
+                        "description": "软偏好：用户说「XX更好」「最好XX」「尽量XX」「如果有XX就好了」「XX优先/XX也行」等模糊表达时使用，不作为搜索硬过滤条件，仅对结果加分排序，避免因非核心条件导致结果为零。出现在此字段的属性禁止同时出现在硬约束字段中。示例：「有电梯更好」→ {\"elevator\": true}；「精装最好，简装也行」→ {\"decoration\": \"精装\"}；「最好整租」→ {\"rental_type\": \"整租\"}；「最好朝南」→ {\"orientation\": \"朝南\"}。注意：near_subway 直接用硬约束字段，不放入此处",
+                        "properties": {
+                            "elevator": {"type": "boolean", "description": "有电梯加分 +5"},
+                            "decoration": {"type": "string", "description": "装修偏好等级（精装/简装/豪华/毛坯）：达到或超过偏好等级 +10，低一档 +3"},
+                            "rental_type": {"type": "string", "description": "整租/合租 偏好，匹配加分 +8"},
+                            "orientation": {"type": "string", "description": "朝向偏好，如 朝南，匹配 +10"},
+                            "floor_pref": {"type": "string", "description": "楼层偏好，如 低层/高层，匹配 +5"}
+                        }
+                    }
                 },
                 "required": []
             }
