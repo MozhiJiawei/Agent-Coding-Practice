@@ -221,18 +221,26 @@ async def search_by_landmark(
     return {"total": data.get("total", 0), "items": data.get("items", [])}
 
 
+def _subway_dist(item: dict) -> int:
+    """返回房源地铁距离（米），缺失时返回 9999。"""
+    return item.get("subway_distance") or 9999
+
+
 def post_filter_and_rank(items: list[dict], prefs: UserPreferences) -> list[dict]:
     """对搜索结果进行软偏好过滤和评分排序。
 
     硬过滤：
       - noise_preference="安静" → 过滤 hidden_noise_level 为"吵闹"/"临街"的房源。
 
+    near_subway 返回逻辑（仅影响给模型的结果，不参与加分）：
+      - 若存在 subway_distance < 800m 的房源：只返回这部分，并按地铁距离升序排序。
+      - 若全部 ≥ 800m：返回全部，按地铁距离升序排序。
+
     加分项（来自 prefs 直接字段）：
       - orientation 匹配 +10；floor_pref 匹配 +5
 
     加分项（来自 soft_preferences，用户说「更好/最好/尽量/优先」等非强制表达）：
       - elevator     +5   （有电梯加分）
-      - near_subway  分段  （subway_distance ≤300m +15 / ≤500m +10 / ≤800m +5）
       - decoration   分档  （达到或超过偏好等级 +10；低一档 +3；低两档及以下 0）
       - rental_type  +8   （匹配偏好的租赁方式）
       - orientation  +10  （朝向偏好，与直接字段合并）
@@ -258,15 +266,7 @@ def post_filter_and_rank(items: list[dict], prefs: UserPreferences) -> list[dict
             if prefs.floor_pref in item.get("floor", ""):
                 score += 5
 
-        # 近地铁排序：near_subway=true 时按 subway_distance 分段加分（统一排序处理，不做 API 过滤）
-        if prefs.near_subway:
-            dist = item.get("subway_distance") or 9999
-            if dist <= 300:
-                score += 15
-            elif dist <= 500:
-                score += 10
-            elif dist <= 800:
-                score += 5
+        # near_subway 不再在此处加分，改为在最后做「只返回 <800m / 按距离排序」
 
         # ── soft_preferences 加分 ─────────────────────────────────────────────
         if prefs.soft_preferences:
@@ -311,7 +311,16 @@ def post_filter_and_rank(items: list[dict], prefs: UserPreferences) -> list[dict
         scored.append((score, item))
 
     scored.sort(key=lambda x: -x[0])
-    return [item for _, item in scored]
+    result = [item for _, item in scored]
+
+    # near_subway：若有 <800m 则只返回 <800m，否则全部；均按地铁距离升序
+    if prefs.near_subway:
+        under_800 = [item for item in result if _subway_dist(item) < 800]
+        if under_800:
+            result = under_800
+        result = sorted(result, key=_subway_dist)
+
+    return result
 
 
 _SLIM_FIELDS = frozenset({
