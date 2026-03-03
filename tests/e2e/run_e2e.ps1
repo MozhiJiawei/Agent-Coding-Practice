@@ -18,8 +18,9 @@
     可选。竞赛注册员工 ID，通过 USER_ID 环境变量传给主 Agent。默认 "EMP001"。
 
 .PARAMETER SimCase
-    可选。运行 test_cases.yaml 中指定 ID 的单个用例。
+    可选。运行 test_cases.yaml 中指定 ID 的用例，支持单个或列表。
     示例：-SimCase "ev06_wangjing_to_daxing_rental_flow"
+    示例：-SimCase "ev01","ev02","ev03"
 
 .PARAMETER SimTag
     可选。运行 test_cases.yaml 中匹配 tag 的所有用例。
@@ -47,6 +48,7 @@
     .\tests\e2e\run_e2e.ps1
     .\tests\e2e\run_e2e.ps1 -UserId "EMP001"
     .\tests\e2e\run_e2e.ps1 -UserId "EMP001" -SimCase "ev06_wangjing_to_daxing_rental_flow"
+    .\tests\e2e\run_e2e.ps1 -SimCase "ev01","ev02","ev03"
     .\tests\e2e\run_e2e.ps1 -UserId "EMP001" -SimTag "ev03"
     .\tests\e2e\run_e2e.ps1 -UserId "EMP002" -ReadyTimeoutSec 60
     .\tests\e2e\run_e2e.ps1 -UserId "EMP002" -ModelProxyPort 8988 -MockRentalPort 8180 -DashboardPort 8977 -AgentPort 8291
@@ -57,7 +59,7 @@ param(
     [Parameter(Mandatory = $false)]
     [string]$UserId = "EMP001",
 
-    [string]$SimCase = "",
+    [string[]]$SimCase = @(),
 
     [string]$SimTag = "",
 
@@ -290,9 +292,9 @@ try {
 
         # ── 4. 运行 test-simulator 用例（默认 SimAll 全部用例）───────────────────
         Write-Host ""
-        if ($SimCase -ne "") {
-            Write-Host "[e2e] Running simulator case: $SimCase"
-            $simArgs = @("-u", "run_ev_tests.py", "--case", $SimCase)
+        if ($SimCase -and $SimCase.Count -gt 0) {
+            Write-Host "[e2e] Running simulator case(s): $($SimCase -join ', ')"
+            $simArgs = @("-u", "run_ev_tests.py") + ($SimCase | ForEach-Object { "--case"; $_ })
         } elseif ($SimTag -ne "") {
             Write-Host "[e2e] Running simulator cases by tag: $SimTag"
             $simArgs = @("-u", "run_ev_tests.py", "--tag", $SimTag)

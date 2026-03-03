@@ -8,6 +8,7 @@ test-simulator 用例运行脚本（无服务启动）
     python -u run_ev_tests.py --all
     python -u run_ev_tests.py --all --concurrency 10
     python -u run_ev_tests.py --case ev06_wangjing_to_daxing_rental_flow
+    python -u run_ev_tests.py --case ev01 ev02 ev03
     python -u run_ev_tests.py --tag ev03
 """
 from __future__ import annotations
@@ -62,7 +63,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="运行 test_cases.yaml 用例（复用已启动服务）")
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--all", action="store_true", help="运行全部用例")
-    group.add_argument("--case", type=str, metavar="CASE_ID", help="运行指定 ID 的单个用例")
+    group.add_argument("--case", type=str, action="append", metavar="CASE_ID", help="运行指定 ID 的用例（可多次传入多个）")
     group.add_argument("--tag", type=str, metavar="TAG", help="运行匹配 tag 的所有用例")
     parser.add_argument(
         "--concurrency",
@@ -81,9 +82,11 @@ async def run(args: argparse.Namespace) -> int:
     if args.all:
         cases = all_cases
     elif args.case:
-        cases = [c for c in all_cases if c.id == args.case]
-        if not cases:
-            print(f"[sim] ERROR: 用例 '{args.case}' 不存在", flush=True)
+        requested = set(args.case)  # args.case 为 list（每次 --case xxx 追加一个）
+        cases = [c for c in all_cases if c.id in requested]
+        missing = requested - {c.id for c in cases}
+        if missing:
+            print(f"[sim] ERROR: 用例不存在: {', '.join(sorted(missing))}", flush=True)
             return 1
     else:
         cases = [c for c in all_cases if args.tag in c.tags]
