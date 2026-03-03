@@ -208,7 +208,7 @@ function Stop-ProcessTree {
 function Invoke-Cleanup {
     if ($managedPids.Count -eq 0) { return }
     Write-Host ""
-    Write-Host "[e2e] ── Cleanup: stopping $($managedPids.Count) process(es) ──"
+    Write-Host "[e2e] -- Cleanup: stopping $($managedPids.Count) process(es) --"
     foreach ($procId in $managedPids) {
         Write-Host "[e2e]   Stopping PID $procId (and children)..."
         Stop-ProcessTree -ProcessId $procId
@@ -233,12 +233,12 @@ try {
         Write-Host "[e2e] Using ports: ModelProxy=$ModelProxyPort MockRental=$MockRentalPort Dashboard=$DashboardPort Agent=$AgentPort"
     }
 
-    Write-Host "[e2e] ════════════════════════════════════════════"
+    Write-Host "[e2e] ==============================================="
     Write-Host "[e2e]  E2E Test Runner (default: SimAll)"
     Write-Host "[e2e]  USER_ID         : $UserId"
     Write-Host "[e2e]  service timeout : ${ReadyTimeoutSec}s"
     Write-Host "[e2e]  ports           : ModelProxy=$ModelProxyPort MockRental=$MockRentalPort Dashboard=$DashboardPort Agent=$AgentPort"
-    Write-Host "[e2e] ════════════════════════════════════════════"
+    Write-Host "[e2e] ==============================================="
 
     # 将环境变量注入当前进程（子进程自动继承）
     $env:USER_ID                = $UserId
@@ -260,7 +260,7 @@ try {
         -NoNewWindow `
         -PassThru
     $managedPids.Add($simProc.Id)
-    Write-Host "[e2e]   PID $($simProc.Id) → tests\e2e\logs\simulator.log"
+    Write-Host "[e2e]   PID $($simProc.Id) -> tests\e2e\logs\simulator.log"
 
     # ── 2. 启动主 Agent ────────────────────────────────────────────────────────
     Write-Host "[e2e] Starting main agent..."
@@ -272,7 +272,7 @@ try {
         -NoNewWindow `
         -PassThru
     $managedPids.Add($agentProc.Id)
-    Write-Host "[e2e]   PID $($agentProc.Id) → tests\e2e\logs\agent.log"
+    Write-Host "[e2e]   PID $($agentProc.Id) -> tests\e2e\logs\agent.log"
 
     # ── 3. 等待四个服务健康就绪 ──────────────────────────────────────────────────
     $services = [ordered]@{
@@ -303,7 +303,7 @@ try {
             Write-Host "[e2e] Running simulator cases: --all (default)"
             $simArgs = @("-u", "run_ev_tests.py", "--all")
         }
-        Write-Host "[e2e] ──────────────────────────────────────────────"
+        Write-Host "[e2e] ----------------------------------------------"
         Push-Location $simulatorDir
         try {
             & python @simArgs
