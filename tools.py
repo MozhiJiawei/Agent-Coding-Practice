@@ -56,6 +56,8 @@ class UserPreferences(BaseModel):
     noise_preference: Optional[str] = None
     orientation: Optional[str] = None
     floor_pref: Optional[str] = None
+    sort_by: Optional[str] = None  # price / area / subway
+    sort_order: Optional[str] = None  # asc / desc
     no_agent_fee: Optional[bool] = None
     payment_method: Optional[str] = None
 
@@ -174,6 +176,10 @@ def build_search_params(prefs: UserPreferences) -> dict:
         params["available_from_before"] = prefs.available_before
     if prefs.max_commute_minutes is not None:
         params["commute_to_xierqi_max"] = prefs.max_commute_minutes
+    if prefs.sort_by is not None:
+        params["sort_by"] = prefs.sort_by
+    if prefs.sort_order is not None:
+        params["sort_order"] = prefs.sort_order
     params["listing_platform"] = prefs.listing_platform or "安居客"
     return params
 
@@ -250,15 +256,30 @@ async def update_preferences(
     """
     # 处理 clear_location：清除历史位置相关字段
     clear = kwargs.pop("clear_location", False)
-    if clear:
-        session_prefs.location = None
-        session_prefs.districts = None
-        session_prefs.areas = None
-        session_prefs.landmark_queries = None
 
-    # 处理 location 字段：累加并路由
+    # 处理 location 字段：累加或替换
     new_locations: list[str] = kwargs.pop("location", None) or []
     if new_locations:
+        # 解析新位置得到 district/area 集合，用于判断是否「换区」
+        new_districts_set: set[str] = set()
+        new_areas_set: set[str] = set()
+        for loc in new_locations:
+            routed = resolve_location(loc)
+            if "district" in routed:
+                new_districts_set.add(routed["district"])
+            if "area" in routed:
+                new_areas_set.add(routed["area"])
+        existing_districts = set(session_prefs.districts or [])
+        existing_areas = set(session_prefs.areas or [])
+        # 换区语义：新位置与现有位置无交集时，自动清空再设，无需调用方传 clear_location
+        if not clear and (existing_districts or existing_areas):
+            if not (new_districts_set & existing_districts or new_areas_set & existing_areas):
+                clear = True
+        if clear:
+            session_prefs.location = None
+            session_prefs.districts = None
+            session_prefs.areas = None
+            session_prefs.landmark_queries = None
         existing = session_prefs.location or []
         if clear:
             session_prefs.location = new_locations
@@ -276,12 +297,10 @@ async def update_preferences(
         for loc in (session_prefs.location or []):
             routed = resolve_location(loc)
             if "area" in routed:
-                # 商圈路由：写入 areas，并将对应 district 也写入 districts
                 new_areas.append(routed["area"])
                 if "district" in routed:
                     new_districts.append(routed["district"])
             elif "district" in routed:
-                # 纯区名路由
                 new_districts.append(routed["district"])
             if "landmark_query" in routed:
                 new_landmarks.append(routed["landmark_query"])
@@ -296,6 +315,7 @@ async def update_preferences(
         "elevator", "min_area", "max_area", "utilities_type", "subway_line",
         "near_subway", "listing_platform", "available_before", "max_commute_minutes",
         "noise_preference", "orientation", "floor_pref", "no_agent_fee", "payment_method",
+        "sort_by", "sort_order",
     }
     for field, value in kwargs.items():
         if field in updatable_fields and value is not None:
@@ -325,6 +345,12 @@ async def search_by_preferences(
         raw_result = await search_houses(client, **params)
 
     raw_items: list[dict] = raw_result.get("items", [])
+    # 当用户设置了通勤上限时，按通勤时间升序排序，优先展示最近的房源
+    if session_prefs.max_commute_minutes is not None and raw_items and "commute_to_xierqi" in raw_items[0]:
+        raw_items = sorted(
+            raw_items,
+            key=lambda h: int(h.get("commute_to_xierqi", 10**9)),
+        )
 
     filtered = post_filter_and_rank(raw_items, session_prefs)
 
@@ -349,7 +375,7 @@ TOOLS: list[dict] = [
         "type": "function",
         "function": {
             "name": "update_preferences",
-            "description": "提取或更新用户的租房偏好。仅合并偏好，不搜索房源。调用后需再调用 search_by_preferences 获取匹配房源。每轮只需提取本轮新增/变更的偏好，系统自动与历史偏好合并。",
+            "description": "提取或更新用户的租房偏好。仅合并偏好，不搜索房源。调用后需再调用 search_by_preferences 获取匹配房源。每轮只需提取本轮新增/变更的偏好，系统自动与历史偏好合并。当用户说「想换个安静一点的房子，帮我找找」等（偏好+找房意图）时，必须先调用本工具传入该偏好（如 noise_preference=\"安静\"）再调用 search_by_preferences。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -375,7 +401,9 @@ TOOLS: list[dict] = [
                     "available_before": {"type": "string", "description": "可入住日期上限，YYYY-MM-DD"},
                     "max_commute_minutes": {"type": "integer", "description": "到西二旗通勤上限（分钟）"},
                     "noise_preference": {"type": "string", "description": "噪音偏好，如 安静"},
-                    "orientation": {"type": "string", "description": "朝向偏好，如 朝南"}
+                    "orientation": {"type": "string", "description": "朝向偏好，如 朝南"},
+                    "sort_by": {"type": "string", "description": "排序字段：price/area/subway"},
+                    "sort_order": {"type": "string", "description": "排序方向：asc/desc"}
                 },
                 "required": []
             }
@@ -385,7 +413,7 @@ TOOLS: list[dict] = [
         "type": "function",
         "function": {
             "name": "search_by_preferences",
-            "description": "按当前已合并的偏好搜索房源，返回匹配的 top 5 精简列表。必须在 update_preferences 之后调用，用于获取房源列表。",
+            "description": "按当前已合并的偏好搜索房源，返回匹配的 top 5 精简列表。必须在 update_preferences 之后调用。当用户说「帮我找找」「找一下」等明确找房意图时，若本轮有新增偏好须先 update_preferences 再调用本工具；若偏好已在之前轮次设置且本轮仅表达找房意图，可直接调用本工具。",
             "parameters": {
                 "type": "object",
                 "properties": {},
