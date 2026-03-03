@@ -900,3 +900,74 @@ test_cases:
     tags:
       - ev32
       - tool-call
+
+  # ── EV-43: 东城精装两居 5000 以内 离地铁 500 米 → 无房 ─────────────────────────
+  - id: ev43_dongcheng_2br_5000_500m_no_result
+    type: Single
+    messages:
+      - "东城区精装两居，租金 5000 以内，离地铁 500 米以内的有吗？"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+      message_content:
+        - "没有"
+      houses_match: []
+    tags:
+      - ev43
+
+  # ── EV-46: 西城离地铁近一居室按距离排序 → 仅 HF_13，追问「还有其他的吗」 ─────
+  - id: ev46_xicheng_1br_subway_order_then_all
+    type: Multi
+    messages:
+      - "西城区离地铁近的一居室有吗？按离地铁从近到远排。"
+      - "还有其他的吗？把所有符合条件的都给出来"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    round_expects:
+      - round: 1
+        expect:
+          message_content:
+            - "西城"
+            - "1"
+            - "800"
+            - "subway_distance"
+            - "asc"
+          houses_match: ["HF_13"]
+      - round: 2
+        expect:
+          message_content:
+            - "没有其他的了，只有这一套"
+          houses_match: ["HF_13"]
+    tags:
+      - ev46
+
+  # ── EV-45: 海淀离地铁近两居按距离排序 → 五套，再租最近那套 HF_906 ─────────────
+  - id: ev45_haidian_2br_subway_order_then_rent
+    type: Multi
+    messages:
+      - "海淀区离地铁近的两居有吗？按离地铁从近到远排一下。"
+      - "就租最近的那套吧。"
+    expect:
+      has_response: true
+      response_not_empty: true
+      status_success: true
+    round_expects:
+      - round: 1
+        expect:
+          message_content:
+            - "海淀"
+            - "2"
+            - "800"
+            - "subway_distance"
+            - "asc"
+          houses_match: ["HF_906", "HF_1586", "HF_1876", "HF_706", "HF_33"]
+      - round: 2
+        expect:
+          message_content:
+            - "好的"
+          houses_match: ["HF_906"]
+    tags:
+      - ev45
