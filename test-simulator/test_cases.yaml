@@ -809,7 +809,11 @@ test_cases:
       status_success: true
     round_expects:
       - round: 1
-        expect: {}
+        expect:
+          tool_call_args:
+              tool: update_preferences
+              contains:
+                noise_preference: "安静"
       - round: 2
         expect:
           tool_call_chain: ["update_preferences", "search_by_preferences"]
