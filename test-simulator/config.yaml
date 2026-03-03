@@ -1,12 +1,19 @@
 # Test Simulator 全局配置文件
-# llm_api_key 从项目根目录 .api_key 文件自动读取，无需在此填写
+# 模型 API 可配置：通过 llm_proxy_url + api_key_file 切换不同厂商（如阿里云、SiliconFlow）
 
 agent_base_url: "http://localhost:8191"             # Agent 服务地址（默认 8191）
 model_proxy_port: 8888                              # Model Proxy 监听端口（默认 8888）
-llm_proxy_url: "https://api.siliconflow.cn/v1/chat/completions"  # SiliconFlow LLM 代理地址
-llm_model: "Qwen/Qwen3-32B"                         # 转发给 SiliconFlow 的模型名
+
+# 模型 API 配置（OpenAI 兼容格式）
+# 阿里云 DashScope（美国区）：
+llm_proxy_url: "https://dashscope-us.aliyuncs.com/compatible-mode/v1/chat/completions"
+llm_model: "Qwen/Qwen3-32B"                             # 阿里云模型名，如 qwen-turbo / qwen-plus
+api_key_file: "../.api_key_ali"                    # 阿里 API Key 文件（项目根目录 .api_key_ali）
+# SiliconFlow 示例（需同时改 api_key_file 为 "../.api_key"）：
+# llm_proxy_url: "https://api.siliconflow.cn/v1/chat/completions"
+# llm_model: "Qwen/Qwen3-32B"
+# api_key_file: "../.api_key"
 # llm_api_key: ""                                  # 可选：若不设置则从 api_key_file 读取
-api_key_file: "../.api_key"                         # API Key 文件路径（相对于 test-simulator/ 目录）
 mock_rental_port: 8080                              # Mock 租房 API 监听端口（默认 8080）
 fixture_file: "mock_data/EV-06.yaml"                # Fixture 数据集路径（供 MockState 加载）
 test_user_id: "your-employee-id"                    # 必填：X-User-ID 请求头值

@@ -39,5 +39,6 @@ tests/e2e/reports/
 .DS_Store
 Thumbs.db
 .api_key
+.api_key_ali
 
 test-reports/
