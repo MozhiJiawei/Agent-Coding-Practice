@@ -603,7 +603,9 @@ test_cases:
     expect:
       has_response: true
       response_not_empty: true
+      response_json_valid: true
       status_success: true
+      tool_call_chain: ["update_preferences", "search_by_preferences"]
       tool_call_args:
         tool: update_preferences
         contains:
@@ -628,6 +630,7 @@ test_cases:
     round_expects:
       - round: 1
         expect:
+          tool_call_chain: ["update_preferences", "search_by_preferences"]
           tool_call_args:
             tool: update_preferences
             contains:
@@ -661,13 +664,17 @@ test_cases:
     expect:
       has_response: true
       response_not_empty: true
+      response_json_valid: true
       status_success: true
+      tool_call_chain: ["update_preferences", "search_by_preferences"]
       tool_call_args:
         tool: update_preferences
         contains:
           location: ["海淀"]
           bedrooms: "2"
           noise_preference: "安静"
+      houses_match_subset: true
+      houses_match: ["HF_3", "HF_33", "HF_36", "HF_37", "HF_38"]
     tags:
       - ev23
       - tool-call
@@ -679,13 +686,17 @@ test_cases:
     expect:
       has_response: true
       response_not_empty: true
+      response_json_valid: true
       status_success: true
+      tool_call_chain: ["update_preferences", "search_by_preferences"]
       tool_call_args:
         tool: update_preferences
         contains:
           location: ["朝阳区"]
           decoration: "精装"
           max_price: 6000
+      houses_match_subset: true
+      houses_match: ["HF_14", "HF_59", "HF_63", "HF_65", "HF_67"]
     tags:
       - ev24
       - tool-call
@@ -697,13 +708,17 @@ test_cases:
     expect:
       has_response: true
       response_not_empty: true
+      response_json_valid: true
       status_success: true
+      tool_call_chain: ["update_preferences", "search_by_preferences"]
       tool_call_args:
         tool: update_preferences
         contains:
           location: ["海淀"]
           elevator: true
           max_price: 6000
+      houses_match_subset: true
+      houses_match: ["HF_33", "HF_69", "HF_77", "HF_85", "HF_87"]
     tags:
       - ev25
       - tool-call
@@ -715,7 +730,9 @@ test_cases:
     expect:
       has_response: true
       response_not_empty: true
+      response_json_valid: true
       status_success: true
+      tool_call_chain: ["update_preferences", "search_by_preferences"]
       tool_call_args:
         tool: update_preferences
         contains:
@@ -723,6 +740,8 @@ test_cases:
           rental_type: "合租"
           utilities_type: "民水民电"
           max_price: 3000
+      houses_match_subset: true
+      houses_match: ["HF_55", "HF_127", "HF_173", "HF_177", "HF_203"]
     tags:
       - ev26
       - tool-call
@@ -735,6 +754,7 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+      tool_call_chain: ["update_preferences", "search_by_preferences"]
       tool_call_args:
         tool: update_preferences
         contains:
@@ -751,11 +771,15 @@ test_cases:
     expect:
       has_response: true
       response_not_empty: true
+      response_json_valid: true
       status_success: true
+      tool_call_chain: ["update_preferences", "search_by_preferences"]
       tool_call_args:
         tool: update_preferences
         contains:
           max_commute_minutes: 30
+      houses_match_subset: true
+      houses_match: ["HF_36", "HF_37", "HF_38", "HF_39", "HF_40"]
     tags:
       - ev28
       - tool-call
@@ -772,6 +796,7 @@ test_cases:
     tags:
       - ev29
 
+  # 首轮可能仅共情回复、不调用工具（与 ev06 首轮注释一致）；第二轮才明确找安静房源
   - id: ev30
     type: Multi
     messages:
@@ -784,11 +809,16 @@ test_cases:
       status_success: true
     round_expects:
       - round: 1
+        expect: {}
+      - round: 2
         expect:
+          tool_call_chain: ["update_preferences", "search_by_preferences"]
           tool_call_args:
             tool: update_preferences
             contains:
               noise_preference: "安静"
+      - round: 3
+        expect: {}
     tags:
       - ev30
       - multi-turn
@@ -801,11 +831,15 @@ test_cases:
     expect:
       has_response: true
       response_not_empty: true
+      response_json_valid: true
       status_success: true
+      tool_call_chain: ["update_preferences", "search_by_preferences"]
       tool_call_args:
         tool: update_preferences
         contains:
           location: ["海淀"]
+      houses_match_subset: true
+      houses_match: ["HF_3", "HF_33", "HF_36", "HF_37", "HF_38"]
     tags:
       - ev31
       - tool-call
@@ -818,6 +852,7 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+      tool_call_chain: ["update_preferences", "search_by_preferences"]
       tool_call_args:
         tool: update_preferences
         contains:
