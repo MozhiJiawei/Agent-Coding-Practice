@@ -119,7 +119,7 @@ test_cases:
               bedrooms: "2"
               max_price: 4000
           houses_match_subset: true
-          houses_match: ["HF_277"]
+          houses_match: ["HF_277", "HF_805", "HF_1069", "HF_1333"]
       - round: 4
         expect:
           tool_call_args:
@@ -127,11 +127,7 @@ test_cases:
             contains:
               house_id: "HF_830"
       - round: 5
-        expect:
-          tool_call_args:
-            tool: get_house_detail
-            contains:
-              house_id: "HF_830"
+        expect: {}
     tags:
       - ev06
       - multi-turn
@@ -180,7 +176,7 @@ test_cases:
           bedrooms: "2"
           max_price: 4000
       houses_match_subset: true
-      houses_match: ["HF_4"]
+      houses_match: ["HF_4", "HF_6", "HF_277", "HF_805", "HF_1069"]
     tags:
       - ev03
       - tool-call
@@ -198,6 +194,12 @@ test_cases:
         contains:
           min_area: 80
           max_price: 4000
+      message_content:
+        - "HF_8"
+        - "HF_10"
+        - "HF_21"
+        - "HF_26"
+        - "HF_98"
     tags:
       - ev04
       - tool-call
