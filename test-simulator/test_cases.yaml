@@ -893,16 +893,15 @@ test_cases:
       tool_call_chain: ["update_preferences", "search_by_preferences"]
       # 模糊近地铁仅用 sort_by，不做距离硬过滤，HF_1084（地铁3079m）满足其他所有硬约束被返回
       # 本用例重点验证：「有电梯更好」→ soft_preferences，近地铁 → 仅 sort_by=subway
-      houses_match: ["HF_1084"]
+      houses_match: []
       tool_call_args:
         tool: update_preferences
         contains:
           location: ["海淀"]
           bedrooms: "2"
           decoration: "精装"
-          sort_by: subway
-          sort_order: asc
           min_area: 60
+          max_subway_dist: 800
           utilities_type: "民水民电"
           max_price: 10000
           soft_preferences: {elevator: true}

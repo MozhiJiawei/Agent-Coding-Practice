@@ -173,8 +173,6 @@ def build_search_params(prefs: UserPreferences) -> dict:
         params["rental_type"] = prefs.rental_type
     if prefs.decoration is not None:
         params["decoration"] = prefs.decoration
-    if prefs.orientation is not None:
-        params["orientation"] = prefs.orientation
     if prefs.elevator is True:
         params["elevator"] = "true"
     elif prefs.elevator is False:
@@ -272,6 +270,13 @@ def post_filter_and_rank(items: list[dict], prefs: UserPreferences, *, is_landma
             if item.get("hidden_noise_level") in ("吵闹", "临街"):
                 continue
 
+        # 硬过滤：朝向（所有路径统一处理，不走 API 精确匹配）
+        # "朝南"→"南"，子串匹配可同时命中"朝南"和"南北"（南北通透）
+        if prefs.orientation:
+            ori_target = prefs.orientation.replace("朝", "")
+            if ori_target not in (item.get("orientation") or ""):
+                continue
+
         # ── 地标搜索补充硬过滤（nearby API 不支持这些参数） ──────────────────
         if is_landmark_search:
             if prefs.min_price is not None and (item.get("price") or 0) < prefs.min_price:
@@ -308,6 +313,10 @@ def post_filter_and_rank(items: list[dict], prefs: UserPreferences, *, is_landma
             if prefs.max_commute_minutes is not None:
                 commute = item.get("commute_to_xierqi")
                 if commute is not None and int(commute) > prefs.max_commute_minutes:
+                    continue
+            if prefs.subway_line is not None:
+                subway_info = item.get("subway") or ""
+                if prefs.subway_line not in subway_info:
                     continue
 
         # 朝向偏好（加分）
@@ -411,9 +420,12 @@ async def update_preferences(
                 new_areas_set.add(routed["area"])
         existing_districts = set(session_prefs.districts or [])
         existing_areas = set(session_prefs.areas or [])
-        # 换区语义：新位置与现有位置无交集时，自动清空再设，无需调用方传 clear_location
+        # 换区语义：新位置含 district/area 且与现有位置无交集时，自动清空再设
+        # 纯地标追加（new_districts_set 和 new_areas_set 均为空）不触发清除
         if not clear and (existing_districts or existing_areas):
-            if not (new_districts_set & existing_districts or new_areas_set & existing_areas):
+            if (new_districts_set or new_areas_set) and not (
+                new_districts_set & existing_districts or new_areas_set & existing_areas
+            ):
                 clear = True
         if clear:
             session_prefs.location = None
@@ -475,19 +487,43 @@ async def search_by_preferences(
     """按当前 session 偏好搜索并返回 top 5 精简房源列表。
 
     需在 update_preferences 之后调用，使用已合并的偏好进行搜索。
+    支持多地标并行搜索，以及地标与区域路径并行执行。
     """
-    is_landmark = bool(session_prefs.landmark_queries)
-    if is_landmark:
-        raw_result = await search_by_landmark(
-            client, session_prefs.landmark_queries[0], session_prefs
-        )
-    else:
+    has_landmarks = bool(session_prefs.landmark_queries)
+    has_areas = bool(session_prefs.districts or session_prefs.areas)
+
+    coros: list = []
+    is_landmark_flags: list[bool] = []
+
+    if has_landmarks:
+        for lq in session_prefs.landmark_queries:
+            coros.append(search_by_landmark(client, lq, session_prefs))
+            is_landmark_flags.append(True)
+
+    if has_areas or not has_landmarks:
         params = build_search_params(session_prefs)
-        raw_result = await search_houses(client, **params)
+        coros.append(search_houses(client, **params))
+        is_landmark_flags.append(False)
 
-    raw_items: list[dict] = raw_result.get("items", [])
+    raw_results = await asyncio.gather(*coros)
 
-    filtered = post_filter_and_rank(raw_items, session_prefs, is_landmark_search=is_landmark)
+    seen_ids: set[str] = set()
+    all_filtered: list[dict] = []
+    total_raw = 0
+
+    for is_lm, raw_result in zip(is_landmark_flags, raw_results):
+        raw_items = raw_result.get("items", [])
+        total_raw += raw_result.get("total", len(raw_items))
+        filtered_part = post_filter_and_rank(
+            raw_items, session_prefs, is_landmark_search=is_lm
+        )
+        for item in filtered_part:
+            hid = item.get("house_id")
+            if hid and hid not in seen_ids:
+                seen_ids.add(hid)
+                all_filtered.append(item)
+
+    filtered = all_filtered
 
     # 用户指定 sort_by 时，在评分排序后按 sort_by 做稳定排序（评分同分时体现用户排序）
     sort_key_map = {
@@ -508,7 +544,7 @@ async def search_by_preferences(
 
     return {
         "total_matched": len(filtered),
-        "total_raw": raw_result.get("total", len(raw_items)),
+        "total_raw": total_raw,
         "items": top_items,
         "preferences_summary": session_prefs.model_dump(
             exclude_none=True, exclude={"clear_location"}
@@ -541,6 +577,7 @@ TOOLS: list[dict] = [
                     "decoration": {"type": "string", "description": "装修类型：精装/简装/豪华/毛坯。用户把装修作为明确条件时传此硬约束，例如「精装两居」「东城精装两居」「要精装」「精装的」「只要精装」「必须精装」→ decoration=\"精装\"。仅当用户说「精装最好/最好精装/简装也行」等软化表达时改用 soft_preferences={\"decoration\": \"精装\"}，不传本字段。"},
                     "elevator": {"type": "boolean", "description": "是否必须有电梯（硬约束：「必须有电梯」「要求电梯」时使用；若用户说「有电梯更好」等模糊表达，请改用 soft_preferences={\"elevator\": true}）"},
                     "min_area": {"type": "integer", "description": "最小面积（平米）"},
+                    "max_area": {"type": "integer", "description": "最大面积（平米）"},
                     "max_subway_dist": {"type": "integer", "description": "到最近地铁站的最大距离（米）。用户说「近地铁」「地铁方便」等未给具体数字时默认 800；用户说「离地铁 500 米以内」时传 500。"},
                     "subway_line": {"type": "string", "description": "地铁线路，如 13号线"},
                     "utilities_type": {"type": "string", "description": "水电类型，如 民水民电"},
