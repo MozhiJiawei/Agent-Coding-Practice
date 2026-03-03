@@ -346,8 +346,10 @@ class TestUpdatePreferencesPipeline:
     """完整搜索流水线：update_preferences 合并偏好，search_by_preferences 搜索并返回 top 5 精简房源"""
 
     _SLIM_FIELDS = frozenset({
-        "house_id", "community", "district", "price", "bedrooms",
+        "house_id", "community", "district", "area", "price", "bedrooms",
         "area_sqm", "decoration", "subway_station", "subway_distance",
+        "rental_type", "elevator", "orientation", "floor",
+        "available_from", "commute_to_xierqi",
     })
 
     @pytest.mark.anyio
