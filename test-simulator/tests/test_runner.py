@@ -93,6 +93,12 @@ def test_extract_house_ids_non_list_houses():
     assert extract_house_ids(text) == []
 
 
+def test_extract_house_ids_single_house_key():
+    """题目要求涉及房屋信息时按 {\"message\":\"\", \"house\":\"\"} 返回；支持单套 house 解析。"""
+    text = json.dumps({"message": "您选择的房源信息如下：...", "house": "HF_906"})
+    assert extract_house_ids(text) == ["HF_906"]
+
+
 # ── ASSERTION_RULES — AC3 确保所有键存在 ──────────────────────────────────────
 
 def test_assertion_rules_has_all_required_keys():

@@ -97,8 +97,10 @@ def extract_constraints_from_contains(contains: dict) -> dict:
         constraints["min_area"] = int(c["min_area"]) if c["min_area"] is not None else None
     if "decoration" in c:
         constraints["decoration"] = str(c["decoration"]).strip()
-    if "near_subway" in c:
-        constraints["near_subway"] = bool(c["near_subway"])
+    if "near_subway" in c and c["near_subway"]:
+        constraints["max_subway_dist"] = 800  # 向后兼容：原 near_subway true 视为 800m
+    if "max_subway_dist" in c:
+        constraints["max_subway_dist"] = int(c["max_subway_dist"])
     if "subway_line" in c:
         constraints["subway_line"] = str(c["subway_line"]).strip()
     return constraints
@@ -240,12 +242,13 @@ def check_house_against_constraints(house_id: str, house: dict | None, constrain
                 violations.append(f"decoration: 期望 精装, 实际 {act}")
             elif exp != act and not (exp in act or act in exp):
                 violations.append(f"decoration: 期望 {exp}, 实际 {act}")
-    if "near_subway" in constraints and constraints["near_subway"]:
+    if "max_subway_dist" in constraints:
+        max_d = constraints["max_subway_dist"]
         dist = house.get("subway_distance")
-        if dist is not None and isinstance(dist, (int, float)) and dist > 1000:
-            violations.append(f"near_subway: 期望近地铁, 实际 subway_distance={dist}")
-        if house.get("subway") is None or house.get("subway") == "":
-            violations.append("near_subway: 期望近地铁, 实际无地铁信息")
+        if dist is None or house.get("subway") is None or house.get("subway") == "":
+            violations.append("max_subway_dist: 期望有地铁距离约束, 实际无地铁信息")
+        elif not isinstance(dist, (int, float)) or dist > max_d:
+            violations.append(f"max_subway_dist: 期望 <={max_d}m, 实际 subway_distance={dist}")
     if "subway_line" in constraints:
         house_line = (house.get("subway") or "").strip()
         exp_line = constraints["subway_line"]

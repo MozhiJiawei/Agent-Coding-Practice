@@ -521,7 +521,7 @@ class TestExecuteActionErrorPath:
 # ─────────────────────────────────────────────
 
 class TestSearchHousesPagination:
-    """AC: 4 — 自动分页，最多 MAX_PAGES=5 页"""
+    """AC: 4 — 自动分页直到取满 total（全量）"""
 
     @pytest.mark.anyio
     async def test_two_page_pagination(self, mock_client):
@@ -540,18 +540,18 @@ class TestSearchHousesPagination:
         assert mock_client.get.call_count == 2
 
     @pytest.mark.anyio
-    async def test_max_pages_respected(self, mock_client):
-        """total 超过 MAX_PAGES*page_size 时，最多请求 5 页"""
+    async def test_full_pagination(self, mock_client):
+        """total 多页时，翻页直到取满全量（请求 10 页，共 100 条）"""
         def make_page(page_num):
             return make_mock_response({
                 "data": {"total": 100, "page_size": 10,
                          "items": [{"id": f"HF_{page_num}_{i}"} for i in range(10)]}
             })
-        pages = [make_page(p) for p in range(1, 10)]
+        pages = [make_page(p) for p in range(1, 11)]
         mock_client.get = AsyncMock(side_effect=pages)
         result = await search_houses(mock_client)
-        assert mock_client.get.call_count == 5  # MAX_PAGES = 5
-        assert len(result["items"]) == 50
+        assert mock_client.get.call_count == 10
+        assert len(result["items"]) == 100
 
     @pytest.mark.anyio
     async def test_single_page_no_extra_calls(self, mock_client):

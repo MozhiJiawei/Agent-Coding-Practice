@@ -8,7 +8,6 @@ from pydantic import BaseModel
 # 支持环境变量覆盖，与 debug_init_houses.py 一致；tools 不创建 client，client 由 main 传入且已设置 trust_env=False 不走代理
 RENTAL_API_BASE = os.environ.get("RENTAL_API_BASE", "http://7.225.29.223:8080")
 USER_ID = os.environ["USER_ID"]  # 模块加载时读取，不在函数内读取
-MAX_PAGES = 5
 
 
 def _get_headers() -> dict:
@@ -47,7 +46,7 @@ class UserPreferences(BaseModel):
     max_area: Optional[int] = None
     utilities_type: Optional[str] = None
     subway_line: Optional[str] = None
-    near_subway: Optional[bool] = None
+    max_subway_dist: Optional[int] = None  # 到最近地铁站最大距离（米），近地铁默认 800
     listing_platform: Optional[str] = None
     available_before: Optional[str] = None
     max_commute_minutes: Optional[int] = None
@@ -184,8 +183,8 @@ def build_search_params(prefs: UserPreferences) -> dict:
         params["utilities_type"] = prefs.utilities_type
     if prefs.subway_line is not None:
         params["subway_line"] = prefs.subway_line
-    # near_subway 不再作为 API 过滤参数（max_subway_dist）
-    # 改为在 post_filter_and_rank 中按 subway_distance 分段加分排序
+    if prefs.max_subway_dist is not None:
+        params["max_subway_dist"] = prefs.max_subway_dist
     if prefs.available_before is not None:
         params["available_from_before"] = prefs.available_before
     if prefs.max_commute_minutes is not None:
@@ -231,10 +230,7 @@ def post_filter_and_rank(items: list[dict], prefs: UserPreferences) -> list[dict
 
     硬过滤：
       - noise_preference="安静" → 过滤 hidden_noise_level 为"吵闹"/"临街"的房源。
-
-    near_subway 返回逻辑（仅影响给模型的结果，不参与加分）：
-      - 若存在 subway_distance < 800m 的房源：只返回这部分，并按地铁距离升序排序。
-      - 若全部 ≥ 800m：返回全部，按地铁距离升序排序。
+      - 地铁距离由 API 的 max_subway_dist 硬过滤，此处不再处理。
 
     加分项（来自 prefs 直接字段）：
       - orientation 匹配 +10；floor_pref 匹配 +5
@@ -265,8 +261,6 @@ def post_filter_and_rank(items: list[dict], prefs: UserPreferences) -> list[dict
         if prefs.floor_pref:
             if prefs.floor_pref in item.get("floor", ""):
                 score += 5
-
-        # near_subway 不再在此处加分，改为在最后做「只返回 <800m / 按距离排序」
 
         # ── soft_preferences 加分 ─────────────────────────────────────────────
         if prefs.soft_preferences:
@@ -312,14 +306,6 @@ def post_filter_and_rank(items: list[dict], prefs: UserPreferences) -> list[dict
 
     scored.sort(key=lambda x: -x[0])
     result = [item for _, item in scored]
-
-    # near_subway：若有 <800m 则只返回 <800m，否则全部；均按地铁距离升序
-    if prefs.near_subway:
-        under_800 = [item for item in result if _subway_dist(item) < 800]
-        if under_800:
-            result = under_800
-        result = sorted(result, key=_subway_dist)
-
     return result
 
 
@@ -406,7 +392,7 @@ async def update_preferences(
     updatable_fields = {
         "min_price", "max_price", "bedrooms", "rental_type", "decoration",
         "elevator", "min_area", "max_area", "utilities_type", "subway_line",
-        "near_subway", "listing_platform", "available_before", "max_commute_minutes",
+        "max_subway_dist", "listing_platform", "available_before", "max_commute_minutes",
         "noise_preference", "orientation", "floor_pref", "no_agent_fee", "payment_method",
         "sort_by", "sort_order",
     }
@@ -484,10 +470,10 @@ TOOLS: list[dict] = [
                     "max_price": {"type": "integer", "description": "最高月租金（元）"},
                     "bedrooms": {"type": "string", "description": "卧室数，如 '2' 或 '2,3'"},
                     "rental_type": {"type": "string", "description": "整租 或 合租（硬约束：用户明确说「只要整租」「必须整租」时使用；若用户说「最好整租/整租优先/合租也行」等模糊表达，请改用 soft_preferences={\"rental_type\": \"整租\"}）"},
-                    "decoration": {"type": "string", "description": "装修类型：精装/简装/豪华/毛坯（硬约束：用户明确说「只要精装」「必须精装」时使用；若用户说「精装最好/最好精装/简装也行」等模糊表达，请改用 soft_preferences={\"decoration\": \"精装\"}）"},
+                    "decoration": {"type": "string", "description": "装修类型：精装/简装/豪华/毛坯。用户把装修作为明确条件时传此硬约束，例如「精装两居」「东城精装两居」「要精装」「精装的」「只要精装」「必须精装」→ decoration=\"精装\"。仅当用户说「精装最好/最好精装/简装也行」等软化表达时改用 soft_preferences={\"decoration\": \"精装\"}，不传本字段。"},
                     "elevator": {"type": "boolean", "description": "是否必须有电梯（硬约束：「必须有电梯」「要求电梯」时使用；若用户说「有电梯更好」等模糊表达，请改用 soft_preferences={\"elevator\": true}）"},
                     "min_area": {"type": "integer", "description": "最小面积（平米）"},
-                    "near_subway": {"type": "boolean", "description": "用户提到近地铁（无论强弱表达）时设为 true，系统按 subway_distance 对结果排序（越近越靠前），不做距离硬过滤。适用于「近地铁」「靠近地铁更好」「最好有地铁」等所有表达"},
+                    "max_subway_dist": {"type": "integer", "description": "到最近地铁站的最大距离（米）。用户说「近地铁」「地铁方便」等未给具体数字时默认 800；用户说「离地铁 500 米以内」时传 500。"},
                     "subway_line": {"type": "string", "description": "地铁线路，如 13号线"},
                     "utilities_type": {"type": "string", "description": "水电类型，如 民水民电"},
                     "listing_platform": {"type": "string", "description": "挂牌平台：链家/安居客/58同城"},
@@ -499,7 +485,7 @@ TOOLS: list[dict] = [
                     "sort_order": {"type": "string", "description": "排序方向：asc/desc"},
                     "soft_preferences": {
                         "type": "object",
-                        "description": "软偏好：用户说「XX更好」「最好XX」「尽量XX」「如果有XX就好了」「XX优先/XX也行」等模糊表达时使用，不作为搜索硬过滤条件，仅对结果加分排序，避免因非核心条件导致结果为零。出现在此字段的属性禁止同时出现在硬约束字段中。示例：「有电梯更好」→ {\"elevator\": true}；「精装最好，简装也行」→ {\"decoration\": \"精装\"}；「最好整租」→ {\"rental_type\": \"整租\"}；「最好朝南」→ {\"orientation\": \"朝南\"}。注意：near_subway 直接用硬约束字段，不放入此处",
+                        "description": "软偏好：用户说「XX更好」「最好XX」「尽量XX」「如果有XX就好了」「XX优先/XX也行」等模糊表达时使用，不作为搜索硬过滤条件，仅对结果加分排序，避免因非核心条件导致结果为零。出现在此字段的属性禁止同时出现在硬约束字段中。示例：「有电梯更好」→ {\"elevator\": true}；「精装最好，简装也行」→ {\"decoration\": \"精装\"}；「最好整租」→ {\"rental_type\": \"整租\"}；「最好朝南」→ {\"orientation\": \"朝南\"}",
                         "properties": {
                             "elevator": {"type": "boolean", "description": "有电梯加分 +5"},
                             "decoration": {"type": "string", "description": "装修偏好等级（精装/简装/豪华/毛坯）：达到或超过偏好等级 +10，低一档 +3"},
@@ -599,7 +585,7 @@ async def search_houses(client: httpx.AsyncClient, **kwargs) -> dict:
         total: int = inner.get("total", len(all_items))
 
         page = 2
-        while len(all_items) < total and page <= MAX_PAGES:
+        while len(all_items) < total:
             next_params = {**base_params, "page": page}
             next_resp = await client.get(
                 "/api/houses/by_platform",

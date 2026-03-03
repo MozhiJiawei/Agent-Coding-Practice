@@ -51,14 +51,20 @@ def _locations_equivalent(expected: list, actual: list) -> bool:
 def extract_house_ids(resp_text: str) -> list[str]:
     """从 Agent response 文本中解析房源 ID 列表。
 
-    若非合法 JSON、无 houses 字段或元素非字符串，返回 []。
+    支持 "houses"（数组）与 "house"（单套，题目要求格式）；若非合法 JSON 返回 []。
     """
     try:
         data = json.loads(resp_text)
+        # 优先 "houses" 多套；其次 "house" 单套（题目要求 {"message":"", "house":""}）
         houses = data.get("houses", [])
-        if not isinstance(houses, list):
-            return []
-        return [h for h in houses if isinstance(h, str)]
+        if isinstance(houses, list) and houses:
+            return [h for h in houses if isinstance(h, str)]
+        single = data.get("house")
+        if isinstance(single, str) and single:
+            return [single]
+        if isinstance(single, list):
+            return [h for h in single if isinstance(h, str)]
+        return []
     except (json.JSONDecodeError, TypeError, AttributeError):
         return []
 

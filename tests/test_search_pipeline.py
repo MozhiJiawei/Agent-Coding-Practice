@@ -94,8 +94,8 @@ class TestBuildSearchParams:
             assert item.get("area") == "望京", f"非望京商圈: {item}"
 
     @pytest.mark.anyio
-    async def test_near_subway_maps_to_max_subway_dist_800(self, rental_client):
-        prefs = UserPreferences(near_subway=True)
+    async def test_max_subway_dist_800_in_params(self, rental_client):
+        prefs = UserPreferences(max_subway_dist=800)
         params = build_search_params(prefs)
         assert params["max_subway_dist"] == 800
         result = await search_houses(rental_client, **params)
@@ -105,8 +105,8 @@ class TestBuildSearchParams:
             )
 
     @pytest.mark.anyio
-    async def test_near_subway_false_not_in_params(self, rental_client):
-        prefs = UserPreferences(near_subway=False)
+    async def test_max_subway_dist_none_not_in_params(self, rental_client):
+        prefs = UserPreferences()
         params = build_search_params(prefs)
         assert "max_subway_dist" not in params
         result = await search_houses(rental_client, **params)
@@ -408,7 +408,7 @@ class TestUpdatePreferencesPipeline:
         prefs = UserPreferences()
         await update_preferences(
             rental_client, prefs,
-            location=["海淀"], bedrooms="3", max_price=13000, near_subway=True,
+            location=["海淀"], bedrooms="3", max_price=13000, max_subway_dist=800,
         )
         result = await search_by_preferences(rental_client, prefs)
         assert result["total_matched"] > 0, (

@@ -91,7 +91,7 @@ class TestUserPreferencesModel:
             max_area=100,
             utilities_type="民水民电",
             subway_line="13号线",
-            near_subway=True,
+            max_subway_dist=800,
             listing_platform="链家",
             available_before="2026-04-01",
             max_commute_minutes=30,
@@ -106,7 +106,7 @@ class TestUserPreferencesModel:
         assert prefs.max_area == 100
         assert prefs.utilities_type == "民水民电"
         assert prefs.subway_line == "13号线"
-        assert prefs.near_subway is True
+        assert prefs.max_subway_dist == 800
         assert prefs.listing_platform == "链家"
         assert prefs.available_before == "2026-04-01"
         assert prefs.max_commute_minutes == 30
@@ -509,9 +509,9 @@ class TestUpdatePreferences:
         assert result["preferences_summary"]["bedrooms"] == "2"
 
     @pytest.mark.anyio
-    async def test_near_subway_bool(self, rental_client, fresh_prefs):
-        await update_preferences(rental_client, fresh_prefs, near_subway=True)
-        assert fresh_prefs.near_subway is True
+    async def test_max_subway_dist_int(self, rental_client, fresh_prefs):
+        await update_preferences(rental_client, fresh_prefs, max_subway_dist=800)
+        assert fresh_prefs.max_subway_dist == 800
 
     @pytest.mark.anyio
     async def test_elevator_bool(self, rental_client, fresh_prefs):

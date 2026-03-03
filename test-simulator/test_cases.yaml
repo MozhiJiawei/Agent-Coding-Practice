@@ -126,6 +126,7 @@ test_cases:
             tool: get_house_detail
             contains:
               house_id: "HF_830"
+          houses_match: ["HF_830"]
       - round: 5
         expect: {}
     tags:
@@ -169,6 +170,7 @@ test_cases:
       response_not_empty: true
       response_json_valid: true
       status_success: true
+      tool_call_chain: ["update_preferences", "search_by_preferences"]
       tool_call_args:
         tool: update_preferences
         contains:
@@ -189,6 +191,7 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
+      tool_call_chain: ["update_preferences", "search_by_preferences"]
       tool_call_args:
         tool: update_preferences
         contains:
@@ -222,7 +225,7 @@ test_cases:
           bedrooms: "3"
           max_price: 13000
           decoration: "精装"
-          near_subway: true
+          max_subway_dist: 800
       houses_match: ["HF_87", "HF_291", "HF_1287", "HF_1317", "HF_1611"]
       house_count_min: 1
     tags:
@@ -255,7 +258,7 @@ test_cases:
           tool_call_args:
             tool: update_preferences
             contains:
-              near_subway: true
+              max_subway_dist: 800
       - round: 3
         expect:
           tool_call_args:
@@ -275,6 +278,7 @@ test_cases:
             tool: get_house_detail
             contains:
               house_id: "HF_67"
+          houses_match: ["HF_67"]
     tags:
       - ev07
       - multi-turn
@@ -398,6 +402,7 @@ test_cases:
           message_content:
             - "电梯"
             - "朝向"
+          houses_match: ["HF_38"]
       - round: 3
         expect:
           # 用户「这套可以租吗？我想租这套」可触发 get_house_detail 或直接 execute_action
@@ -452,6 +457,7 @@ test_cases:
             tool: get_house_detail
             contains:
               house_id: "HF_67"
+          houses_match: ["HF_67"]
     tags:
       - ev13
       - multi-turn
@@ -591,6 +597,7 @@ test_cases:
             tool: get_house_detail
             contains:
               house_id: "HF_277"
+          houses_match: ["HF_277"]
       - round: 3
         expect: {}
     tags:
@@ -611,7 +618,7 @@ test_cases:
       tool_call_args:
         tool: update_preferences
         contains:
-          near_subway: true
+          max_subway_dist: 800
           max_price: 5000
       houses_match_subset: true
       houses_match: ["HF_1", "HF_12", "HF_14", "HF_23", "HF_30"]
@@ -842,13 +849,14 @@ test_cases:
                 noise_preference: "安静"
       - round: 2
         expect:
-          househouses_match: ["HF_1", "HF_3", "HF_4", "HF_6", "HF_7"]
+          houses_match: ["HF_1", "HF_3", "HF_4", "HF_6", "HF_7"]
       - round: 3
         expect:
           tool_call_args:
             tool: get_house_detail
             contains:
               house_id: "HF_37"
+          houses_match: ["HF_37"]
     tags:
       - ev30
       - multi-turn
@@ -883,8 +891,8 @@ test_cases:
       response_not_empty: true
       status_success: true
       tool_call_chain: ["update_preferences", "search_by_preferences"]
-      # near_subway 现在是排序参数而非过滤参数，HF_1084（地铁3079m）满足其他所有硬约束被返回
-      # 本用例重点验证：「有电梯更好」→ soft_preferences，near_subway → 仅排序不过滤
+      # 模糊近地铁仅用 sort_by，不做距离硬过滤，HF_1084（地铁3079m）满足其他所有硬约束被返回
+      # 本用例重点验证：「有电梯更好」→ soft_preferences，近地铁 → 仅 sort_by=subway
       houses_match: ["HF_1084"]
       tool_call_args:
         tool: update_preferences
@@ -892,7 +900,8 @@ test_cases:
           location: ["海淀"]
           bedrooms: "2"
           decoration: "精装"
-          near_subway: true
+          sort_by: subway
+          sort_order: asc
           min_area: 60
           utilities_type: "民水民电"
           max_price: 10000
@@ -902,7 +911,7 @@ test_cases:
       - tool-call
 
   # ── EV-43: 东城精装两居 5000 以内 离地铁 500 米 → 无房 ─────────────────────────
-  - id: ev43_dongcheng_2br_5000_500m_no_result
+  - id: ev43
     type: Single
     messages:
       - "东城区精装两居，租金 5000 以内，离地铁 500 米以内的有吗？"
@@ -910,14 +919,22 @@ test_cases:
       has_response: true
       response_not_empty: true
       status_success: true
-      message_content:
-        - "没有"
+      tool_call_chain: ["update_preferences", "search_by_preferences"]
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location: ["东城"]
+          bedrooms: "2"
+          decoration: "精装"
+          max_price: 5000
+          max_subway_dist: 500
       houses_match: []
     tags:
       - ev43
+      - tool-call
 
   # ── EV-46: 西城离地铁近一居室按距离排序 → 仅 HF_13，追问「还有其他的吗」 ─────
-  - id: ev46_xicheng_1br_subway_order_then_all
+  - id: ev46
     type: Multi
     messages:
       - "西城区离地铁近的一居室有吗？按离地铁从近到远排。"
@@ -929,23 +946,25 @@ test_cases:
     round_expects:
       - round: 1
         expect:
-          message_content:
-            - "西城"
-            - "1"
-            - "800"
-            - "subway_distance"
-            - "asc"
+          tool_call_chain: ["update_preferences", "search_by_preferences"]
+          tool_call_args:
+            tool: update_preferences
+            contains:
+              location: ["西城"]
+              bedrooms: "1"
+              max_subway_dist: 800
+              sort_by: subway
+              sort_order: asc
           houses_match: ["HF_13"]
       - round: 2
         expect:
-          message_content:
-            - "没有其他的了，只有这一套"
           houses_match: ["HF_13"]
     tags:
       - ev46
+      - tool-call
 
   # ── EV-45: 海淀离地铁近两居按距离排序 → 五套，再租最近那套 HF_906 ─────────────
-  - id: ev45_haidian_2br_subway_order_then_rent
+  - id: ev45
     type: Multi
     messages:
       - "海淀区离地铁近的两居有吗？按离地铁从近到远排一下。"
@@ -957,17 +976,19 @@ test_cases:
     round_expects:
       - round: 1
         expect:
-          message_content:
-            - "海淀"
-            - "2"
-            - "800"
-            - "subway_distance"
-            - "asc"
+          tool_call_chain: ["update_preferences", "search_by_preferences"]
+          tool_call_args:
+            tool: update_preferences
+            contains:
+              location: ["海淀"]
+              bedrooms: "2"
+              max_subway_dist: 800
+              sort_by: subway
+              sort_order: asc
           houses_match: ["HF_906", "HF_1586", "HF_1876", "HF_706", "HF_33"]
       - round: 2
         expect:
-          message_content:
-            - "好的"
           houses_match: ["HF_906"]
     tags:
       - ev45
+      - tool-call

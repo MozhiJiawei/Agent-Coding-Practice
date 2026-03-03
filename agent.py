@@ -12,6 +12,16 @@ from tools import (
 )
 from logger import log_event
 
+# 从 TOOLS schema 构建「工具名 -> 允许的参数名集合」，调用时只传 schema 内参数，避免 LLM 误传导致 TypeError
+TOOL_SCHEMA_PARAMS: dict[str, set[str]] = {}
+for _t in TOOLS:
+    if _t.get("type") == "function" and "function" in _t:
+        _name = _t["function"].get("name")
+        _params = _t["function"].get("parameters") or {}
+        _props = _params.get("properties") or {}
+        if _name:
+            TOOL_SCHEMA_PARAMS[_name] = set(_props.keys())
+
 # 模块顶层常量
 SYSTEM_PROMPT = """你是智能租房助手，帮助用户在北京寻找和租赁房源。当前年份为 2026。
 
@@ -23,42 +33,35 @@ SYSTEM_PROMPT = """你是智能租房助手，帮助用户在北京寻找和租�
 
 工具调用边界：
 - 用户明确表达「找房」「帮我找」「推荐」「想换房」等意图时，调用 update_preferences / search_by_preferences
-- 用户抱怨当前住房且可推断出明确偏好时，也应调用 update_preferences 仅更新该偏好（如：太吵/睡眠差→noise_preference=安静；采光不好→soft_preferences={"orientation":"朝南"}或 sort_by=area、sort_order=desc；通勤太长/每天早起→near_subway=true（系统按地铁距离排序），不要设 max_commute_minutes 除非用户说了具体分钟数；房间小→sort_by=area、sort_order=desc），不必等用户明确说「找房」
+- 用户抱怨当前住房且可推断出明确偏好时，也应调用 update_preferences 仅更新该偏好（如：太吵/睡眠差→noise_preference=安静；采光不好→soft_preferences={"orientation":"朝南"}或 sort_by=area、sort_order=desc；通勤太长/每天早起→max_subway_dist=800，不要设 max_commute_minutes 除非用户说了具体分钟数；房间小→sort_by=area、sort_order=desc），不必等用户明确说「找房」
 - 纯聊天或与房源无关的问题 → 直接自然语言回复，禁止调工具
 
 硬约束 vs 软偏好的区分规则（重要）：
 软偏好触发语：「XX更好」「最好XX」「尽量XX」「如果有XX就好了」「XX优先」「XX也行/XX也可以」等模糊表达 → 放入 soft_preferences，不过滤房源，仅对结果排序加分。
-以下四个字段存在软版本，请严格区分：
+以下三个字段存在软版本，请严格区分：
 
-  near_subway（统一排序，无硬软之分）：
-    凡用户提到「近地铁」「地铁方便」「靠近地铁更好」「最好有地铁」等任何地铁相关表达 → 统一设 near_subway=true
-    系统自动按 subway_distance 对结果排序（最近地铁的房子排前），不做距离硬过滤，不影响结果数量
-    near_subway 不放入 soft_preferences，直接用硬约束字段即可
 
   decoration:
-    软偏好 → soft_preferences={"decoration": "精装"}（填用户偏好的等级），不传硬约束 decoration
-    触发词：「精装最好」「最好精装」「精装优先，简装也行」「装修好一点」
-    硬约束 → decoration="精装"
-    触发词：「只要精装」「必须精装」「不要简装/毛坯」
+    硬约束 → 用户把装修作为明确条件列举时，必须传 decoration（精装/简装/豪华/毛坯）。例如：「精装两居」「东城精装两居」「要精装」「精装的」「只要精装」「必须精装」等，均作为硬约束传 decoration="精装"（或对应等级）。
+    软偏好 → 仅当出现「XX更好」「最好XX」「XX优先」「XX也行」等软化表达时，放入 soft_preferences={"decoration": "精装"}，不传硬约束。触发词：「精装最好」「最好精装」「精装优先，简装也行」「装修好一点」
 
   elevator:
     软偏好 → soft_preferences={"elevator": true}，不传硬约束 elevator（包括 false 也不传）
     触发词：「有电梯更好」「最好有电梯」「有电梯就好了」
     硬约束 → elevator=true
-    触发词：「必须有电梯」「要求电梯」「不接受步梯」
+
 
   rental_type:
     软偏好 → soft_preferences={"rental_type": "整租"}，不传硬约束 rental_type
     触发词：「最好整租」「整租优先」「合租也行」「整租更好」
     硬约束 → rental_type="整租"
-    触发词：「只要整租」「必须整租」「不考虑合租」
 
 通用规则：软偏好字段出现在 soft_preferences 时，同一字段不得出现在硬约束参数中（任何值均不传）。软偏好不过滤结果，只影响排序。
 
 使用 update_preferences 与 search_by_preferences 的规则：
 - 用户明确表达租房/找房需求时，必须按顺序调用：先 update_preferences，再 search_by_preferences；二者成对调用，不可只调 update 不调 search。当用户说「帮我找找」「找一下」时，必须调用 search_by_preferences 获取房源并回复，不能只回复文字不调工具。若本轮用户同时表达了偏好（如「想换个安静一点的房子，帮我找找」），必须先调用 update_preferences（如 noise_preference="安静"）再 search_by_preferences，不得只调用 search
 - 未调用 search_by_preferences 时，禁止虚构或引用任何 house_id，必须基于 search 返回的 items 引用房源
-- 每轮用户表达找房或补充条件时，必须先调用 update_preferences 再调用 search_by_preferences。每次 update_preferences 只传本轮新增或变更的字段，不要重复传上一轮已设置且本轮未提及的字段；仅当用户仅变更部分条件（如「预算放宽到8000」）时，同一次调用中需同时传入要保留的上一轮关键条件（如 location、bedrooms）以及本轮变更的字段
+- 每轮用户表达找房或补充条件时，必须先调用 update_preferences 再调用 search_by_preferences。用户在一句话中列举的多个条件。每次 update_preferences 只传本轮新增或变更的字段，不要重复传上一轮已设置且本轮未提及的字段；仅当用户仅变更部分条件（如「预算放宽到8000」）时，同一次调用中需同时传入要保留的上一轮关键条件（如 location、bedrooms）以及本轮变更的字段
 - 位置统一放在 location 字段，支持区名/商圈/地标
 - 「换XX看看」场景：只传新的 location 与其它条件（如 bedrooms、max_price）；禁止传 clear_location 参数，系统会根据新 location 自动处理换区
 - 用户仅表达通勤时间/到西二旗距离（如「西二旗上班，通勤30分钟以内」）时，只设置 max_commute_minutes，不要推断或添加 location
@@ -117,6 +120,7 @@ async def run_agent(
         tools_called: set[str] = set()
         tool_results_log: list[dict] = []
         collected_house_ids: list[str] = []
+        detail_house_id: str | None = None  # 单套房详情（get_house_detail 返回）
         iterations = 0
         total_tokens = 0
         total_time_slices = 0
@@ -213,7 +217,9 @@ async def run_agent(
                         result = {"error": f"Unknown tool: {tool_name}"}
                         log_event("ERROR", session_id, {"error": f"Unknown tool: {tool_name}", "tool_name": tool_name})
                     else:
-                        result = await fn(client, **args)
+                        allowed = TOOL_SCHEMA_PARAMS.get(tool_name, set())
+                        filtered_args = {k: v for k, v in args.items() if k in allowed}
+                        result = await fn(client, **filtered_args)
 
                     log_event("TOOL_CALL", session_id, {
                         "tool_name": tool_name,
@@ -238,6 +244,12 @@ async def run_agent(
                             hid = item.get("house_id")
                             if hid:
                                 collected_house_ids.append(hid)
+                    if tool_name == "get_house_detail":
+                        data = result.get("data") if isinstance(result, dict) else None
+                        if isinstance(data, dict):
+                            hid = data.get("house_id")
+                            if isinstance(hid, str) and hid:
+                                detail_house_id = hid
 
                     history.append({
                         "role": "tool",
@@ -269,5 +281,11 @@ async def run_agent(
                 ensure_ascii=False,
             )
             return {"response": response_str, "status": "success", "tool_results": tool_results_log, **_stats}
-        else:
-            return {"response": content, "status": "success", "tool_results": tool_results_log, **_stats}
+        if detail_house_id is not None:
+            # 涉及单套房信息时按题目要求返回 {"message":"", "house":""}
+            response_str = json.dumps(
+                {"message": content, "house": detail_house_id},
+                ensure_ascii=False,
+            )
+            return {"response": response_str, "status": "success", "tool_results": tool_results_log, **_stats}
+        return {"response": content, "status": "success", "tool_results": tool_results_log, **_stats}
