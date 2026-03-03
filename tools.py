@@ -229,7 +229,7 @@ def post_filter_and_rank(items: list[dict], prefs: UserPreferences) -> list[dict
     """对搜索结果进行软偏好过滤和评分排序。
 
     硬过滤：
-      - noise_preference="安静" → 过滤 hidden_noise_level 为"吵闹"/"临街"的房源。
+      - noise_preference="安静" → 只保留 hidden_noise_level 为"安静"的房源（排除中等/吵闹/临街）。
       - 地铁距离由 API 的 max_subway_dist 硬过滤，此处不再处理。
 
     加分项（来自 prefs 直接字段）：
@@ -246,9 +246,9 @@ def post_filter_and_rank(items: list[dict], prefs: UserPreferences) -> list[dict
     for item in items:
         score = 0
 
-        # 硬过滤：噪音偏好
+        # 硬过滤：噪音偏好（安静 = 只保留安静，排除中等/吵闹/临街）
         if prefs.noise_preference == "安静":
-            if item.get("hidden_noise_level") in ("吵闹", "临街"):
+            if item.get("hidden_noise_level") != "安静":
                 continue
 
         # 朝向偏好（加分）
