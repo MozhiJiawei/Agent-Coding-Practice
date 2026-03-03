@@ -211,7 +211,9 @@ test_cases:
     expect:
       has_response: true
       response_not_empty: true
+      response_json_valid: true
       status_success: true
+      tool_call_chain: ["update_preferences", "search_by_preferences"]
       tool_call_args:
         tool: update_preferences
         contains:
@@ -220,6 +222,8 @@ test_cases:
           max_price: 13000
           decoration: "精装"
           near_subway: true
+      houses_match: ["HF_87", "HF_291", "HF_1287", "HF_1317", "HF_1611"]
+      house_count_min: 1
     tags:
       - ev05
       - tool-call
@@ -256,13 +260,16 @@ test_cases:
     expect:
       has_response: true
       response_not_empty: true
+      response_json_valid: true
       status_success: true
+      tool_call_chain: ["update_preferences", "search_by_preferences"]
       tool_call_args:
         tool: update_preferences
         contains:
           location: ["朝阳区"]
       houses_match_subset: true
-      houses_match: ["HF_2"]
+      houses_match: ["HF_2", "HF_14", "HF_20", "HF_25", "HF_28"]
+      house_count_min: 1
     tags:
       - ev08
       - tool-call
@@ -274,12 +281,15 @@ test_cases:
     expect:
       has_response: true
       response_not_empty: true
+      response_json_valid: true
       status_success: true
+      tool_call_chain: ["update_preferences", "search_by_preferences"]
       tool_call_args:
         tool: update_preferences
         contains:
           max_price: 4000
       houses_match_subset: true
+      houses_match: ["HF_1", "HF_4", "HF_6", "HF_8", "HF_9"]
       house_count_min: 1
     tags:
       - ev09
@@ -292,12 +302,15 @@ test_cases:
     expect:
       has_response: true
       response_not_empty: true
+      response_json_valid: true
       status_success: true
+      tool_call_chain: ["update_preferences", "search_by_preferences"]
       tool_call_args:
         tool: update_preferences
         contains:
           bedrooms: "2"
       houses_match_subset: true
+      houses_match: ["HF_2", "HF_3", "HF_4", "HF_6", "HF_7"]
       house_count_min: 1
     tags:
       - ev10
