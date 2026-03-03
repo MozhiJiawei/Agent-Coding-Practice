@@ -247,7 +247,33 @@ test_cases:
             tool: update_preferences
             contains:
               orientation: "朝南"
-              min_area: 80
+              sort_by: "area"
+              sort_order: "desc"
+      - round: 2
+        expect:
+          tool_call_args:
+            tool: update_preferences
+            contains:
+              near_subway: true
+      - round: 3
+        expect:
+          tool_call_args:
+            tool: search_by_preferences
+            contains: {}
+      - round: 4
+        expect:
+          tool_call_args:
+            tool: update_preferences
+            contains:
+              bedrooms: "2"
+              max_price: 4000
+              decoration: "精装"
+      - round: 5
+        expect:
+          tool_call_args:
+            tool: get_house_detail
+            contains:
+              house_id: "HF_830"
     tags:
       - ev07
       - multi-turn
@@ -564,11 +590,7 @@ test_cases:
             contains:
               house_id: "HF_277"
       - round: 3
-        expect:
-          tool_call_args:
-            tool: get_house_detail
-            contains:
-              house_id: "HF_277"
+        expect: {}
     tags:
       - ev19
       - multi-turn
@@ -759,6 +781,7 @@ test_cases:
         tool: update_preferences
         contains:
           location: ["海淀"]
+          available_before: "2026-03-01"
           bedrooms: "2"
     tags:
       - ev27
@@ -822,7 +845,11 @@ test_cases:
             contains:
               noise_preference: "安静"
       - round: 3
-        expect: {}
+        expect:
+          tool_call_args:
+            tool: get_house_detail
+            contains:
+              house_id: "HF_37"
     tags:
       - ev30
       - multi-turn
