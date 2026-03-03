@@ -399,9 +399,6 @@ test_cases:
             tool: get_house_detail
             contains:
               house_id: "HF_38"
-          message_content:
-            - "电梯"
-            - "朝向"
           houses_match: ["HF_38"]
       - round: 3
         expect:

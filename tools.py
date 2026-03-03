@@ -265,9 +265,9 @@ def post_filter_and_rank(items: list[dict], prefs: UserPreferences, *, is_landma
     for item in items:
         score = 0
 
-        # 硬过滤：噪音偏好
+        # 硬过滤：噪音偏好（安静 = 只保留安静，排除中等/吵闹/临街）
         if prefs.noise_preference == "安静":
-            if item.get("hidden_noise_level") in ("吵闹", "临街"):
+            if item.get("hidden_noise_level") != "安静":
                 continue
 
         # 硬过滤：朝向（所有路径统一处理，不走 API 精确匹配）
