@@ -44,6 +44,9 @@ sessions: dict[str, list] = {}
 session_stats: dict[str, dict] = {}
 # 全局 Session 偏好存储（session_id → UserPreferences）
 session_preferences: dict[str, UserPreferences] = {}
+# 按首次出现顺序为 session 编号（1-based），用于 PROCESS_SESSION_INDEX 过滤
+_session_next_index: int = 1
+_session_to_index: dict[str, int] = {}
 
 
 # lifespan 上下文（httpx.AsyncClient 全生命周期）
@@ -60,11 +63,35 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
+def _empty_chat_response(session_id: str, duration_ms: int) -> ChatResponse:
+    """不处理的 session 返回空响应"""
+    return ChatResponse(
+        session_id=session_id,
+        response="",
+        status="success",
+        tool_results=[],
+        timestamp=int(time.time()),
+        duration_ms=duration_ms,
+    )
+
+
 @app.post("/api/v1/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest, req: Request):
+    # 只处理第 X 个 session（按首次出现的顺序，1-based）。0 表示处理所有 session；非 0 时其余 session 返回空响应
+    PROCESS_SESSION_INDEX = 0
     start_time = time.time()
     client = req.app.state.client
     try:
+        # 按首次出现顺序为 session 编号（1-based）
+        if request.session_id not in _session_to_index:
+            global _session_next_index
+            _session_to_index[request.session_id] = _session_next_index
+            _session_next_index += 1
+        session_index = _session_to_index[request.session_id]
+        if PROCESS_SESSION_INDEX != 0 and session_index != PROCESS_SESSION_INDEX:
+            duration_ms = int((time.time() - start_time) * 1000)
+            return _empty_chat_response(request.session_id, duration_ms)
+
         if request.session_id not in sessions:
             log_event("SESSION_START", request.session_id, {})
             log_event("SESSION_INIT", request.session_id, {})
