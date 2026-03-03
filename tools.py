@@ -173,8 +173,12 @@ def build_search_params(prefs: UserPreferences) -> dict:
         params["rental_type"] = prefs.rental_type
     if prefs.decoration is not None:
         params["decoration"] = prefs.decoration
+    if prefs.orientation is not None:
+        params["orientation"] = prefs.orientation
     if prefs.elevator is True:
         params["elevator"] = "true"
+    elif prefs.elevator is False:
+        params["elevator"] = "false"
     if prefs.min_area is not None:
         params["min_area"] = prefs.min_area
     if prefs.max_area is not None:
@@ -211,13 +215,26 @@ async def search_by_landmark(
         return {"total": 0, "items": [], "error": f"未找到'{query}'相关地标"}
 
     landmark_id = items[0]["id"]
-    nearby_params: dict = {"landmark_id": landmark_id}
+    nearby_params: dict = {"landmark_id": landmark_id, "page_size": 200}
     if prefs.listing_platform:
         nearby_params["listing_platform"] = prefs.listing_platform
 
-    result = await search_nearby_landmark(client, **nearby_params)
-    data = result.get("data", result)
-    return {"total": data.get("total", 0), "items": data.get("items", [])}
+    all_items: list = []
+    page = 1
+    total = None
+    while True:
+        nearby_params["page"] = page
+        result = await search_nearby_landmark(client, **nearby_params)
+        data = result.get("data", result)
+        page_items = data.get("items", [])
+        if total is None:
+            total = data.get("total", 0)
+        all_items.extend(page_items)
+        if not page_items or len(all_items) >= total:
+            break
+        page += 1
+
+    return {"total": total or len(all_items), "items": all_items}
 
 
 def _subway_dist(item: dict) -> int:
@@ -225,12 +242,16 @@ def _subway_dist(item: dict) -> int:
     return item.get("subway_distance") or 9999
 
 
-def post_filter_and_rank(items: list[dict], prefs: UserPreferences) -> list[dict]:
-    """对搜索结果进行软偏好过滤和评分排序。
+def post_filter_and_rank(items: list[dict], prefs: UserPreferences, *, is_landmark_search: bool = False) -> list[dict]:
+    """对搜索结果进行硬约束过滤和软偏好评分排序。
 
-    硬过滤：
-      - noise_preference="安静" → 只保留 hidden_noise_level 为"安静"的房源（排除中等/吵闹/临街）。
-      - 地铁距离由 API 的 max_subway_dist 硬过滤，此处不再处理。
+    硬过滤（所有路径）：
+      - noise_preference="安静" → 过滤 hidden_noise_level 为"吵闹"/"临街"的房源。
+
+    硬过滤（地标搜索路径补充，因 nearby API 不支持这些参数）：
+      - min_price / max_price / bedrooms / rental_type / decoration / elevator
+      - min_area / max_area / max_subway_dist / utilities_type / available_before
+      - max_commute_minutes
 
     加分项（来自 prefs 直接字段）：
       - orientation 匹配 +10；floor_pref 匹配 +5
@@ -250,6 +271,44 @@ def post_filter_and_rank(items: list[dict], prefs: UserPreferences) -> list[dict
         if prefs.noise_preference == "安静":
             if item.get("hidden_noise_level") != "安静":
                 continue
+
+        # ── 地标搜索补充硬过滤（nearby API 不支持这些参数） ──────────────────
+        if is_landmark_search:
+            if prefs.min_price is not None and (item.get("price") or 0) < prefs.min_price:
+                continue
+            if prefs.max_price is not None and (item.get("price") or 10**9) > prefs.max_price:
+                continue
+            if prefs.bedrooms is not None:
+                allowed = {int(b) for b in str(prefs.bedrooms).split(",") if b.strip().isdigit()}
+                if allowed and item.get("bedrooms") not in allowed:
+                    continue
+            if prefs.rental_type is not None and item.get("rental_type") != prefs.rental_type:
+                continue
+            if prefs.decoration is not None:
+                exp_dec = _DEC_NORM.get(prefs.decoration, prefs.decoration)
+                act_dec = _DEC_NORM.get(item.get("decoration", ""), item.get("decoration", ""))
+                if exp_dec and act_dec and exp_dec != act_dec:
+                    continue
+            if prefs.elevator is True and not item.get("elevator"):
+                continue
+            if prefs.min_area is not None and (item.get("area_sqm") or 0) < prefs.min_area:
+                continue
+            if prefs.max_area is not None and (item.get("area_sqm") or 10**9) > prefs.max_area:
+                continue
+            if prefs.max_subway_dist is not None:
+                dist = item.get("subway_distance")
+                if dist is None or dist > prefs.max_subway_dist:
+                    continue
+            if prefs.utilities_type is not None and item.get("utilities_type") != prefs.utilities_type:
+                continue
+            if prefs.available_before is not None:
+                avail = item.get("available_from", "")
+                if avail and avail > prefs.available_before:
+                    continue
+            if prefs.max_commute_minutes is not None:
+                commute = item.get("commute_to_xierqi")
+                if commute is not None and int(commute) > prefs.max_commute_minutes:
+                    continue
 
         # 朝向偏好（加分）
         if prefs.orientation:
@@ -310,8 +369,10 @@ def post_filter_and_rank(items: list[dict], prefs: UserPreferences) -> list[dict
 
 
 _SLIM_FIELDS = frozenset({
-    "house_id", "community", "district", "price", "bedrooms",
+    "house_id", "community", "district", "area", "price", "bedrooms",
     "area_sqm", "decoration", "subway_station", "subway_distance",
+    "rental_type", "elevator", "orientation", "floor",
+    "available_from", "commute_to_xierqi",
 })
 
 
@@ -415,7 +476,8 @@ async def search_by_preferences(
 
     需在 update_preferences 之后调用，使用已合并的偏好进行搜索。
     """
-    if session_prefs.landmark_queries:
+    is_landmark = bool(session_prefs.landmark_queries)
+    if is_landmark:
         raw_result = await search_by_landmark(
             client, session_prefs.landmark_queries[0], session_prefs
         )
@@ -424,14 +486,20 @@ async def search_by_preferences(
         raw_result = await search_houses(client, **params)
 
     raw_items: list[dict] = raw_result.get("items", [])
-    # 当用户设置了通勤上限时，按通勤时间升序排序，优先展示最近的房源
-    if session_prefs.max_commute_minutes is not None and raw_items and "commute_to_xierqi" in raw_items[0]:
-        raw_items = sorted(
-            raw_items,
-            key=lambda h: int(h.get("commute_to_xierqi", 10**9)),
-        )
 
-    filtered = post_filter_and_rank(raw_items, session_prefs)
+    filtered = post_filter_and_rank(raw_items, session_prefs, is_landmark_search=is_landmark)
+
+    # 用户指定 sort_by 时，在评分排序后按 sort_by 做稳定排序（评分同分时体现用户排序）
+    sort_key_map = {
+        "price": lambda h: h.get("price") or 10**9,
+        "area": lambda h: h.get("area_sqm") or 0,
+        "subway": lambda h: h.get("subway_distance") or 9999,
+    }
+    if session_prefs.sort_by and session_prefs.sort_by in sort_key_map:
+        reverse = session_prefs.sort_order == "desc"
+        filtered.sort(key=sort_key_map[session_prefs.sort_by], reverse=reverse)
+    elif session_prefs.max_commute_minutes is not None and filtered and "commute_to_xierqi" in (filtered[0] if filtered else {}):
+        filtered.sort(key=lambda h: int(h.get("commute_to_xierqi", 10**9)))
 
     top_items = [
         {k: v for k, v in item.items() if k in _SLIM_FIELDS}
