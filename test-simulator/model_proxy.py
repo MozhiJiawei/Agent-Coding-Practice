@@ -16,16 +16,22 @@ if TYPE_CHECKING:
 
 
 def load_api_key(config: SimulatorConfig) -> str:
-    """优先用 config.llm_api_key，否则读 api_key_file 第一行"""
+    """优先用 config.llm_api_key，否则读 api_key_file 第一行（支持 UTF-8 BOM）"""
     if config.llm_api_key:
-        return config.llm_api_key
+        return config.llm_api_key.strip()
     key_path = Path(config.api_key_file)
+    if not key_path.is_absolute():
+        # 相对路径相对于当前工作目录（通常为 test-simulator/）
+        key_path = key_path.resolve()
     if not key_path.exists():
         raise FileNotFoundError(
             f"API key file not found: {key_path}. "
             "Set llm_api_key in config.yaml or create the .api_key file"
         )
-    return key_path.read_text(encoding="utf-8").splitlines()[0].strip()
+    raw = key_path.read_text(encoding="utf-8-sig").splitlines()[0].strip()
+    if not raw:
+        raise ValueError(f"API key file is empty or first line blank: {key_path}")
+    return raw
 
 
 def create_model_proxy_app(
@@ -51,6 +57,9 @@ def create_model_proxy_app(
         # 用配置的模型名覆盖 agent 发来的空 model 字段，SiliconFlow 要求必须指定有效模型名
         if not body.get("model"):
             body = {**body, "model": config.llm_model}
+        # 阿里云 DashScope：非流式调用必须显式传 enable_thinking=false
+        if not body.get("stream"):
+            body = {**body, "enable_thinking": False}
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {api_key}",
