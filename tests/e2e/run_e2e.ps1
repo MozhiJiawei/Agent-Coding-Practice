@@ -286,11 +286,6 @@ try {
         Write-Host "[e2e] Startup failed. Check tests\e2e\logs\ for details."
         $exitCode = 2
     } else {
-        # ── 3b. Dashboard 就绪后自动打开浏览器 ─────────────────────────────────────
-        $dashboardUrl = "http://localhost:$DashboardPort/"
-        Write-Host "[e2e] Opening Dashboard: $dashboardUrl"
-        Start-Process $dashboardUrl
-
         # ── 4. 运行 test-simulator 用例（默认 SimAll 全部用例）───────────────────
         Write-Host ""
         if ($SimCase -and $SimCase.Count -gt 0) {
@@ -310,6 +305,17 @@ try {
             $exitCode = if ($LASTEXITCODE -eq 0) { 0 } else { $LASTEXITCODE }
         } finally {
             Pop-Location
+        }
+
+        # ── 5. 运行完成后打开本次保存的 HTML 报告 ───────────────────────────────────
+        $htmlReports = Get-ChildItem -Path $e2eReportsDir -Filter "report-*.html" -File -ErrorAction SilentlyContinue
+        if ($htmlReports) {
+            $latestHtml = $htmlReports | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+            $htmlPath = $latestHtml.FullName
+            Write-Host "[e2e] Opening HTML report: $htmlPath"
+            Start-Process $htmlPath
+        } else {
+            Write-Host "[e2e] No HTML report found in $e2eReportsDir"
         }
     }
 
