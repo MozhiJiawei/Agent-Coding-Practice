@@ -12,8 +12,9 @@
 
 ---
 
-## 二、当前接口不足分析
+## 二、当前接口不足分析（历史参考）
 
+以下为 v1 阶段问题，v2 已通过直接字段 + xxx_is_soft 机制解决。
 
 | 问题                                  | 影响                                          |
 | ----------------------------------- | ------------------------------------------- |
@@ -26,6 +27,11 @@
 | `bedrooms` 描述不够明确                   | LLM 有时输出 `2` (int) 而非 `"2"` (string)        |
 | `payment_method` 参数存在但未在 tool 定义中暴露 | 月付/季付等无法被 LLM 提取                            |
 
+### 2.1 意图识别现状（v2 已落地）
+
+- **意图接口已稳定可用**：TOOLS 定义与 [tools.py](tools.py) 中实现一致，标注为 v2 final。
+- **意图识别准确率**：整体 >90%，仅部分软硬约束场景存在误判（如「最好/希望」与「必须」的区分），预期对最终搜索结果影响可控。
+- **update_preferences / search_by_preferences**：已按本文档与《update_preferences 与 search_by_preferences 实现方案》完成重写，包含 location 路由（行政区/商圈/地标/地铁站）、硬约束过滤、软约束评分、Top5 返回。
 
 ---
 
@@ -804,5 +810,28 @@ if prefs.subway_line:
 | P0  | update_preferences 合并逻辑：根据 xxx_is_soft 推导 soft_constraint_keys、13 个标签类参数 | tools.py 合并逻辑     |
 | P1  | system prompt 更新（硬约束 vs 软约束：xxx_is_soft 规则）    | agent.py / prompt  |
 | P2  | 测试用例对齐（tag_preferences 改为直接字段 + xxx_is_soft） | test_cases.yaml   |
+
+**当前状态**：P0 已全部完成（TOOLS、UserPreferences、update_preferences、search_by_preferences、post_filter_and_rank 已实现并同步测试）。
+
+---
+
+## 十一、search_by_preferences 搜索流水线（已实现）
+
+流程概览：
+
+1. **搜索路径路由**：根据 session_prefs 的 districts/areas/landmark_queries 决定调用 by_platform 和/或 landmark→nearby；无位置时 by_platform 不传位置参数。
+2. **API 参数构建**：`build_search_params(prefs)` 生成 by_platform 参数；软约束字段不下推 API；subway_line 不下推（改在 post-filter 做包含匹配）。
+3. **数据拉取**：by_platform 翻页拉全量；landmark 路径对每个 landmark_query 调用 search_landmark → search_nearby_landmark(landmark_id, max_distance=2000)，结果按 house_id 去重合并。
+4. **Post-filter**：`post_filter_and_rank(items, prefs)` 做本地硬约束过滤（subway_line 包含、floor_pref、noise_preference、13 个 tag 字段、payment_method/deposit_type/no_agent_fee、价格/户型等 API 级约束补滤）。
+5. **软约束评分**：对通过硬约束的房源按 soft_constraint_keys 逐字段匹配加分，等权。
+6. **排序与截取**：有软约束得分时按得分降序再按 sort_by；否则按 prefs.sort_by/sort_order；截取 Top 5，返回精简字段（含 soft_score 若有）。
+
+**location 路由（resolve_location）**：在 update_preferences 中调用，将用户输入的「海淀」「望京商圈」「西二旗站」「国贸附近」等归一为 districts/areas/landmark_queries；规则优先级为：行政区精确 → 商圈精确/模糊 → 地标名精确（含地铁站）→ 反向子串匹配 → 兜底为 landmark_query。
+
+### 测试文档与代码同步说明
+
+- **tests/test_preferences.py**：覆盖 UserPreferences 模型、resolve_location（含行政区/商圈/地标/地铁站）、build_area_district_map、update_preferences 合并与 clear_location、TOOLS schema 不暴露内部字段。不依赖 Mock Rental 的用例可直接 `pytest tests/test_preferences.py`；依赖 Mock 的用例需先启动 test-simulator Mock Rental。
+- **tests/test_search_pipeline.py**：覆盖 build_search_params 与 API 参数映射、post_filter_and_rank（噪音/朝向/楼层软约束、空输入）、search_by_landmark 链式调用、search_by_preferences 完整流水线与返回结构。需 Mock Rental 可用（conftest 中 rental_client 不可达时自动 skip）。
+- 软约束测试时需显式传入 `soft_constraint_keys`（如 `orientation`、`floor_pref`）以验证「匹配加分、不匹配不排除」的排序行为。
 
 

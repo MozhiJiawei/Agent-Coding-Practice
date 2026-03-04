@@ -1,15 +1,15 @@
 """
-tests/test_search_pipeline.py — Story 8.2 TDD 测试
+tests/test_search_pipeline.py — 搜索流水线测试
 
-所有测试均对接 test-simulator Mock Rental (localhost:8080)。
-运行前置条件：cd test-simulator && python main.py
+所有测试均对接 test-simulator Mock Rental（conftest 中 rental_client 不可达时自动 skip）。
+运行完整流水线测试前请启动 Mock Rental。
 
 覆盖范围：
-  - TestBuildSearchParams   : 偏好字段 → API 参数映射 + Mock Rental 验证
-  - TestPostFilterAndRank   : 软偏好后过滤/评分排序（用真实数据 + 附加字段）
-  - TestSearchByLandmark    : Landmark 链式调用（search_landmark → search_nearby_landmark）
-  - TestUpdatePreferencesPipeline : 完整搜索流水线
-  - TestAgentHouseIdExtraction    : agent.py 从工具结果提取 house_id
+  - TestBuildSearchParams   : build_search_params 偏好 → API 参数映射（district/area/价格/地铁/平台等）
+  - TestPostFilterAndRank   : post_filter_and_rank 硬过滤（noise_preference）与软约束评分排序（orientation/floor_pref，需传 soft_constraint_keys）
+  - TestSearchByLandmark    : search_by_landmark 链式调用（search_landmark → search_nearby_landmark）
+  - TestUpdatePreferencesPipeline : update_preferences + search_by_preferences 完整流水线、返回结构、slim 字段
+  - TestAgentHouseIdExtraction    : agent 从工具结果提取 house_id
 """
 from __future__ import annotations
 
@@ -246,7 +246,7 @@ class TestPostFilterAndRank:
         if not south_items or not non_south:
             pytest.skip("fixture 中朝南/非朝南房源不足，跳过排序验证")
 
-        prefs = UserPreferences(orientation="朝南")
+        prefs = UserPreferences(orientation="朝南", soft_constraint_keys=["orientation"])
         filtered = post_filter_and_rank(items, prefs)
 
         # 找第一个非朝南房源的位置，所有朝南房源应在其之前
@@ -278,7 +278,7 @@ class TestPostFilterAndRank:
         high_floor_ids = {h["house_id"] for h in items if h["floor"] == "高层"}
         low_floor_ids = {h["house_id"] for h in items if h["floor"] == "低层"}
 
-        prefs = UserPreferences(floor_pref="高层")
+        prefs = UserPreferences(floor_pref="高层", soft_constraint_keys=["floor_pref"])
         filtered = post_filter_and_rank(items, prefs)
 
         # 检查最后一套高层房源的位置不晚于第一套低层房源（高层应排前面）
@@ -349,7 +349,7 @@ class TestUpdatePreferencesPipeline:
         "house_id", "community", "district", "area", "price", "bedrooms",
         "area_sqm", "decoration", "subway_station", "subway_distance",
         "rental_type", "elevator", "orientation", "floor",
-        "available_from", "commute_to_xierqi",
+        "available_from", "tags", "soft_score",
     })
 
     @pytest.mark.anyio

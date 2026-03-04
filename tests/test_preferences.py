@@ -1,11 +1,12 @@
 """
-tests/test_preferences.py — Story 8.1 TDD 测试
+tests/test_preferences.py — 偏好与位置路由测试
 
 覆盖范围：
-  - UserPreferences 模型字段完整性
-  - resolve_location 路由逻辑（district / area / landmark_query）
-  - build_area_district_map 映射构建
-  - update_preferences 增量合并逻辑、clear_location 行为
+  - UserPreferences 模型字段完整性（含 soft_constraint_keys，无 tag_preferences）
+  - resolve_location 路由逻辑：行政区 / 商圈 / 地标 / 地铁站（精确地标优先于子串匹配）
+  - build_area_district_map、build_landmark_names
+  - update_preferences 增量合并、xxx_is_soft → soft_constraint_keys、clear_location、数组追加
+  - TOOLS schema 不暴露 districts/areas/landmark_queries
 """
 import os
 
@@ -58,7 +59,7 @@ def setup_area_map():
         "回龙观": "昌平",
     })
     LANDMARK_NAMES.clear()
-    LANDMARK_NAMES.update({"望京SOHO", "国贸", "中关村", "鸟巢"})
+    LANDMARK_NAMES.update({"望京SOHO", "国贸", "中关村", "鸟巢", "西二旗站", "双合站"})
     yield
     AREA_TO_DISTRICT.clear()
     LANDMARK_NAMES.clear()
@@ -78,7 +79,7 @@ class TestUserPreferencesModel:
         assert fresh_prefs.max_price is None
         assert fresh_prefs.mentioned_house_ids == []
         assert fresh_prefs.current_focus_house_id is None
-        assert fresh_prefs.tag_preferences == []
+        assert fresh_prefs.soft_constraint_keys == []
 
     def test_hard_constraint_fields_settable(self):
         prefs = UserPreferences(
@@ -129,14 +130,18 @@ class TestUserPreferencesModel:
         assert prefs.payment_method == "月付"
         assert prefs.deposit_type == "押一"
 
-    def test_tag_class_direct_params_and_tag_preferences_settable(self):
-        """标签类直接参数（如 pet_policy、required_nearby）与 tag_preferences 可设置"""
-        prefs = UserPreferences(pet_policy="可养猫", required_nearby=["近公园"], tag_preferences=["有电梯"])
+    def test_tag_class_direct_params_and_soft_constraint_keys_settable(self):
+        """标签类直接参数与 soft_constraint_keys 可设置"""
+        prefs = UserPreferences(
+            pet_policy="可养猫",
+            required_nearby=["近公园"],
+            soft_constraint_keys=["elevator"],
+        )
         assert prefs.pet_policy == "可养猫"
         assert prefs.required_nearby == ["近公园"]
-        assert prefs.tag_preferences == ["有电梯"]
+        assert prefs.soft_constraint_keys == ["elevator"]
         empty = UserPreferences()
-        assert empty.tag_preferences == []
+        assert empty.soft_constraint_keys == []
 
     def test_context_memory_fields_default(self, fresh_prefs):
         assert fresh_prefs.mentioned_house_ids == []
@@ -221,6 +226,16 @@ class TestResolveLocation:
         result = resolve_location("百度科技园")
         assert result == {"landmark_query": "百度科技园"}
 
+    def test_subway_station_exact_landmark(self):
+        """西二旗站 → 规则3 精确地标名（地铁站）命中，返回 landmark_query"""
+        result = resolve_location("西二旗站")
+        assert result == {"landmark_query": "西二旗站"}
+
+    def test_subway_station_with_fujin(self):
+        """双合站附近 → 预处理后 双合站 精确命中 LANDMARK_NAMES"""
+        result = resolve_location("双合站附近")
+        assert result == {"landmark_query": "双合站"}
+
     def test_result_is_dict(self):
         result = resolve_location("海淀")
         assert isinstance(result, dict)
@@ -292,9 +307,9 @@ class TestResolveLocation:
         assert result == {"landmark_query": "鸟巢"}
 
     def test_landmark_substr_wangjing_soho_note(self):
-        """望京SOHO周边 → "望京"(area)先于"望京SOHO"(landmark)命中规则3b，返回 area"""
+        """望京SOHO周边 → 规则3 精确地标名命中，返回 landmark_query"""
         result = resolve_location("望京SOHO周边")
-        assert result == {"area": "望京", "district": "朝阳"}
+        assert result == {"landmark_query": "望京SOHO"}
 
     def test_landmark_substr_another(self):
         """国贸中心地带 → "国贸"是子串 → landmark_query: 国贸"""
@@ -543,16 +558,16 @@ class TestUpdatePreferences:
         assert isinstance(result, dict)
 
     @pytest.mark.anyio
-    async def test_tag_class_params_and_tag_preferences_merge(self, rental_client, fresh_prefs):
-        """标签类直接参数覆盖、tag_preferences 增量追加去重"""
+    async def test_tag_class_params_and_soft_keys_merge(self, rental_client, fresh_prefs):
+        """标签类直接参数覆盖、soft_constraint_keys 与 required_nearby 合并"""
         await update_preferences(rental_client, fresh_prefs, pet_policy="可养猫")
         assert fresh_prefs.pet_policy == "可养猫"
-        await update_preferences(rental_client, fresh_prefs, tag_preferences=["有电梯"])
-        assert fresh_prefs.tag_preferences == ["有电梯"]
+        await update_preferences(rental_client, fresh_prefs, elevator=True, elevator_is_soft=True)
+        assert "elevator" in fresh_prefs.soft_constraint_keys
         await update_preferences(rental_client, fresh_prefs, required_nearby=["近公园"])
         assert fresh_prefs.required_nearby == ["近公园"]
-        await update_preferences(rental_client, fresh_prefs, tag_preferences=["有电梯", "精装修"])
-        assert set(fresh_prefs.tag_preferences) == {"有电梯", "精装修"}
+        await update_preferences(rental_client, fresh_prefs, required_nearby=["近菜市场"])
+        assert set(fresh_prefs.required_nearby or []) >= {"近公园", "近菜市场"}
 
 
 # ─────────────────────────────────────────────

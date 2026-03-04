@@ -130,15 +130,61 @@ def build_landmark_names(landmarks: list[dict]) -> set[str]:
     return {lm["name"] for lm in landmarks if lm.get("name")}
 
 
-_LOCATION_FUZZY_SUFFIXES = ("商圈", "商业区", "片区", "附近")
+def resolve_location(loc: str) -> dict:
+    """将用户输入的位置字符串路由为 district / area+district / landmark_query。
+    依赖模块级 DISTRICTS、AREA_TO_DISTRICT、LANDMARK_NAMES（session 初始化时填充）。
+    优先级：1 行政区精确 → 2 商圈精确/模糊 → 3 地标名精确（含地铁站）→ 4 反向子串 → 5 兜底。
+    """
+    cleaned = loc.replace("附近", "").replace("周边", "").strip()
+    if not cleaned:
+        cleaned = loc.strip()
+
+    # 规则1: 精确匹配行政区
+    candidate = cleaned.rstrip("区")
+    if candidate in DISTRICTS:
+        return {"district": candidate}
+
+    # 规则2: 精确/模糊匹配商圈（依次去掉后缀）
+    for suffix in ("", "商圈", "商业区", "片区"):
+        c = cleaned[: -len(suffix)] if suffix and cleaned.endswith(suffix) else cleaned
+        if not c and suffix:
+            continue
+        cand = c.rstrip("区") if c else cleaned
+        if cand in AREA_TO_DISTRICT:
+            return {"area": cand, "district": AREA_TO_DISTRICT[cand]}
+
+    # 规则3: 精确匹配地标名（含地铁站名），必须在反向子串之前
+    if cleaned in LANDMARK_NAMES:
+        return {"landmark_query": cleaned}
+
+    # 规则4: 反向子串匹配（area 优先于 district 优先于 landmark）
+    for area_name, district in AREA_TO_DISTRICT.items():
+        if area_name in cleaned:
+            return {"area": area_name, "district": district}
+    for d in DISTRICTS:
+        if d in cleaned:
+            return {"district": d}
+    for lm_name in LANDMARK_NAMES:
+        if lm_name in cleaned:
+            return {"landmark_query": lm_name}
+
+    # 规则5: 兜底
+    return {"landmark_query": cleaned if cleaned else loc}
 
 
-
-
-
-
-
-
+# 供 update_preferences 使用的有效标量/数组字段名（不含 location/clear_location/xxx_is_soft）
+_PREFS_SCALAR_KEYS = frozenset({
+    "min_price", "max_price", "bedrooms", "rental_type", "decoration", "elevator",
+    "orientation", "floor_pref", "min_area", "max_area", "max_subway_dist", "subway_line",
+    "utilities_type", "property_type", "listing_platform", "available_before",
+    "max_commute_minutes", "noise_preference", "sort_by", "sort_order",
+    "no_agent_fee", "payment_method", "deposit_type",
+    "pet_policy", "viewing_method", "viewing_time", "lease_flexibility",
+    "required_utilities", "termination_sublet", "parking_type", "security_requirement",
+    "property_management", "environment_preference", "required_nearby",
+    "house_feature", "landlord_contract",
+})
+_PREFS_ARRAY_KEYS = frozenset({"required_utilities", "required_nearby"})
 
 
 async def update_preferences(
@@ -146,7 +192,75 @@ async def update_preferences(
     session_prefs: UserPreferences,
     **kwargs,
 ) -> dict:
-    """提取并合并用户租房偏好到 session，不执行搜索。调用后需再调用 search_by_preferences 获取匹配房源。（实现待重写）"""
+    """提取并合并用户租房偏好到 session，不执行搜索。调用后需再调用 search_by_preferences 获取匹配房源。"""
+    # Step 1: xxx_is_soft → soft_constraint_keys
+    soft_keys = list(session_prefs.soft_constraint_keys)
+    for key, value in kwargs.items():
+        if key.endswith("_is_soft"):
+            field = key[: -len("_is_soft")]
+            if value is True and field not in soft_keys:
+                soft_keys.append(field)
+            elif value is False and field in soft_keys:
+                soft_keys.remove(field)
+    session_prefs.soft_constraint_keys = soft_keys
+
+    # Step 2: location + clear_location
+    if kwargs.get("clear_location") is True:
+        session_prefs.location = None
+        session_prefs.districts = None
+        session_prefs.areas = None
+        session_prefs.landmark_queries = None
+
+    loc_list = kwargs.get("location")
+    if loc_list:
+        new_districts: list[str] = []
+        new_areas: list[str] = []
+        new_landmark_queries: list[str] = []
+        for loc in loc_list:
+            result = resolve_location(loc)
+            if "district" in result:
+                new_districts.append(result["district"])
+            if "area" in result:
+                new_areas.append(result["area"])
+                new_districts.append(result["district"])
+            if "landmark_query" in result:
+                new_landmark_queries.append(result["landmark_query"])
+        combined_loc = (session_prefs.location or []) + list(loc_list)
+        seen_loc: set[str] = set()
+        session_prefs.location = [x for x in combined_loc if x not in seen_loc and not seen_loc.add(x)]
+        for d in new_districts:
+            if session_prefs.districts is None:
+                session_prefs.districts = []
+            if d not in (session_prefs.districts or []):
+                session_prefs.districts.append(d)
+        for a in new_areas:
+            if session_prefs.areas is None:
+                session_prefs.areas = []
+            if a not in (session_prefs.areas or []):
+                session_prefs.areas.append(a)
+        for q in new_landmark_queries:
+            if session_prefs.landmark_queries is None:
+                session_prefs.landmark_queries = []
+            if q not in (session_prefs.landmark_queries or []):
+                session_prefs.landmark_queries.append(q)
+
+    # Step 3: 合并其余字段
+    skip = {k for k in kwargs if k.endswith("_is_soft")} | {"location", "clear_location"}
+    for key, value in kwargs.items():
+        if key in skip or key not in _PREFS_SCALAR_KEYS and key not in _PREFS_ARRAY_KEYS:
+            continue
+        if key in _PREFS_ARRAY_KEYS and value is not None:
+            existing = getattr(session_prefs, key) or []
+            add = value if isinstance(value, list) else [value]
+            seen = set(existing)
+            for v in add:
+                if v not in seen:
+                    existing.append(v)
+                    seen.add(v)
+            setattr(session_prefs, key, existing)
+        else:
+            setattr(session_prefs, key, value)
+
     return {
         "preferences_summary": session_prefs.model_dump(
             exclude_none=True, exclude={"clear_location"}
@@ -154,15 +268,296 @@ async def update_preferences(
     }
 
 
+def build_search_params(prefs: UserPreferences) -> dict:
+    """从 UserPreferences 构建 by_platform API 参数。软约束字段不下推；subway_line 不下推（改 post-filter 包含匹配）。"""
+    soft = set(prefs.soft_constraint_keys or [])
+    params: dict = {"listing_platform": prefs.listing_platform or "安居客"}
+    if prefs.districts:
+        params["district"] = ",".join(prefs.districts)
+    if prefs.areas:
+        params["area"] = ",".join(prefs.areas)
+    for k, v in [
+        ("min_price", prefs.min_price),
+        ("max_price", prefs.max_price),
+        ("bedrooms", prefs.bedrooms),
+        ("min_area", prefs.min_area),
+        ("max_area", prefs.max_area),
+        ("property_type", prefs.property_type),
+        ("utilities_type", prefs.utilities_type),
+        ("available_from_before", prefs.available_before),
+        ("commute_to_xierqi_max", prefs.max_commute_minutes),
+        ("listing_platform", prefs.listing_platform or "安居客"),
+    ]:
+        if v is not None:
+            params[k] = v
+    if "rental_type" not in soft and prefs.rental_type is not None:
+        params["rental_type"] = prefs.rental_type
+    if "decoration" not in soft and prefs.decoration is not None:
+        params["decoration"] = prefs.decoration
+    if "orientation" not in soft and prefs.orientation is not None:
+        params["orientation"] = prefs.orientation
+    if "elevator" not in soft and prefs.elevator is not None:
+        params["elevator"] = "true" if prefs.elevator else "false"
+    if "max_subway_dist" not in soft and prefs.max_subway_dist is not None:
+        params["max_subway_dist"] = prefs.max_subway_dist
+    if prefs.sort_by is not None:
+        params["sort_by"] = prefs.sort_by
+    if prefs.sort_order is not None:
+        params["sort_order"] = prefs.sort_order
+    return params
+
+
+def _normalize_decoration(s: str | None) -> str:
+    if not s:
+        return ""
+    m = {"精装修": "精装", "精修": "精装", "精": "精装", "简装修": "简装", "简修": "简装", "简": "简装"}
+    return m.get(s, s)
+
+
+def _match_floor(floor_val: str, pref: str) -> bool:
+    if pref in (floor_val or ""):
+        return True
+    if (floor_val or "").startswith("共"):
+        try:
+            n = int(floor_val.replace("共", "").replace("层", "").strip())
+            if pref == "低层" and n <= 6:
+                return True
+        except ValueError:
+            pass
+    return False
+
+
+def _calc_soft_score(house: dict, prefs: UserPreferences) -> int:
+    soft_keys = set(prefs.soft_constraint_keys or [])
+    score = 0
+    tags = set(house.get("tags") or [])
+    for field in soft_keys:
+        val = getattr(prefs, field, None)
+        if val is None:
+            continue
+        matched = False
+        if field == "decoration":
+            matched = _normalize_decoration(house.get("decoration")) == _normalize_decoration(val)
+        elif field == "elevator":
+            matched = bool(house.get("elevator")) == val
+        elif field == "orientation":
+            matched = (val or "") in (house.get("orientation") or "")
+        elif field == "floor_pref":
+            matched = _match_floor(house.get("floor", ""), val)
+        elif field == "rental_type":
+            matched = house.get("rental_type") == val
+        elif field == "max_subway_dist":
+            matched = int(house.get("subway_distance") or 99999) <= val
+        elif field == "no_agent_fee":
+            matched = "房东直租" in tags
+        elif field == "payment_method":
+            matched = val in tags
+        elif field == "deposit_type":
+            matched = val in tags
+        elif field == "required_utilities":
+            for t in val or []:
+                if t in tags:
+                    score += 1
+            continue
+        elif field == "required_nearby":
+            for t in val or []:
+                if t in tags:
+                    score += 1
+            continue
+        else:
+            matched = val in tags
+        if matched:
+            score += 1
+    return score
+
+
+# 硬约束 tag 单值字段
+_TAG_HARD_FIELDS = (
+    "pet_policy", "viewing_method", "viewing_time", "lease_flexibility",
+    "termination_sublet", "parking_type", "security_requirement",
+    "property_management", "environment_preference", "house_feature", "landlord_contract",
+)
+# 噪音等级：安静 = 排除 吵闹/临街（若房源有 hidden_noise_level）
+_NOISY_LEVELS = frozenset({"吵闹", "临街"})
+
+
+def post_filter_and_rank(items: list[dict], prefs: UserPreferences) -> list[dict]:
+    """本地硬约束过滤 + 软约束评分 + 排序。subway_line 包含匹配；floor_pref/noise 仅本地。"""
+    soft = set(prefs.soft_constraint_keys or [])
+    filtered: list[dict] = []
+    for h in items:
+        house_tags = set(h.get("tags") or [])
+        if prefs.subway_line and "subway_line" not in soft:
+            if prefs.subway_line not in (h.get("subway") or ""):
+                continue
+        if prefs.floor_pref and "floor_pref" not in soft:
+            if not _match_floor(h.get("floor", ""), prefs.floor_pref):
+                continue
+        if prefs.noise_preference == "安静":
+            lvl = h.get("hidden_noise_level")
+            if lvl in _NOISY_LEVELS:
+                continue
+        for f in _TAG_HARD_FIELDS:
+            if f in soft:
+                continue
+            v = getattr(prefs, f, None)
+            if v is not None and v not in house_tags:
+                break
+        else:
+            if prefs.required_utilities and "required_utilities" not in soft:
+                if not all(t in house_tags for t in prefs.required_utilities):
+                    continue
+            if prefs.required_nearby and "required_nearby" not in soft:
+                if not all(t in house_tags for t in prefs.required_nearby):
+                    continue
+            if prefs.payment_method and "payment_method" not in soft:
+                if prefs.payment_method not in house_tags:
+                    continue
+            if prefs.deposit_type and "deposit_type" not in soft:
+                if prefs.deposit_type not in house_tags:
+                    continue
+            if prefs.no_agent_fee is True and "no_agent_fee" not in soft:
+                if "房东直租" not in house_tags:
+                    continue
+            # API 级硬约束（landmark 通道未下推时在此补滤）
+            if prefs.min_price is not None and int(h.get("price") or 0) < prefs.min_price:
+                continue
+            if prefs.max_price is not None and int(h.get("price") or 0) > prefs.max_price:
+                continue
+            if prefs.bedrooms is not None:
+                want = [int(x.strip()) for x in prefs.bedrooms.split(",") if x.strip().isdigit()]
+                if want and h.get("bedrooms") not in want:
+                    continue
+            if prefs.rental_type and "rental_type" not in soft and h.get("rental_type") != prefs.rental_type:
+                continue
+            if prefs.decoration and "decoration" not in soft:
+                if _normalize_decoration(h.get("decoration")) != _normalize_decoration(prefs.decoration):
+                    continue
+            if prefs.orientation and "orientation" not in soft and (prefs.orientation or "") not in (h.get("orientation") or ""):
+                continue
+            if prefs.elevator is not None and "elevator" not in soft and bool(h.get("elevator")) != prefs.elevator:
+                continue
+            if prefs.max_subway_dist is not None and "max_subway_dist" not in soft:
+                if int(h.get("subway_distance") or 99999) > prefs.max_subway_dist:
+                    continue
+            filtered.append(h)  # 通过所有硬约束
+
+    scored = [(h, _calc_soft_score(h, prefs)) for h in filtered]
+    has_soft = any(s > 0 for _, s in scored)
+    sort_by = prefs.sort_by or "price"
+    sort_order = prefs.sort_order or "asc"
+    key_map = {"price": "price", "area": "area_sqm", "subway": "subway_distance"}
+    key_f = key_map.get(sort_by, "price")
+    reverse = sort_order == "desc"
+    if has_soft:
+        def _key(x):
+            h, s = x
+            v = float(h.get(key_f) or 0)
+            return (-s, v if not reverse else -v)
+        scored.sort(key=_key)
+    else:
+        scored.sort(key=lambda x: float(x[0].get(key_f) or 0), reverse=reverse)
+    return [h for h, _ in scored]
+
+
+async def search_by_landmark(
+    client: httpx.AsyncClient,
+    query: str,
+    prefs: UserPreferences,
+) -> dict:
+    """地标链式调用：search_landmark → search_nearby_landmark。供测试或内部使用。"""
+    try:
+        lm_resp = await search_landmark(client, query=query)
+        inner = lm_resp.get("data", lm_resp)
+        if isinstance(inner, dict):
+            items_lm = inner.get("items", [])
+        else:
+            items_lm = []
+        if not items_lm:
+            return {"total": 0, "items": [], "error": "未找到地标"}
+        lm = items_lm[0]
+        lm_id = lm.get("id") or lm.get("name") or query
+        nearby_resp = await search_nearby_landmark(
+            client,
+            landmark_id=lm_id,
+            max_distance=2000,
+            listing_platform=prefs.listing_platform or "安居客",
+        )
+        data = nearby_resp.get("data", nearby_resp)
+        if isinstance(data, dict):
+            nearby_items = data.get("items", [])
+        else:
+            nearby_items = []
+        return {"total": len(nearby_items), "items": nearby_items}
+    except Exception as e:
+        return {"total": 0, "items": [], "error": str(e)}
+
+
+SUMMARY_FIELDS = (
+    "house_id", "community", "district", "area", "price", "bedrooms", "area_sqm",
+    "floor", "decoration", "orientation", "rental_type", "elevator",
+    "subway_station", "subway_distance", "available_from", "tags",
+)
+
+
 async def search_by_preferences(
     client: httpx.AsyncClient,
     session_prefs: UserPreferences,
 ) -> dict:
-    """按当前 session 偏好搜索并返回 top 5 精简房源列表。需在 update_preferences 之后调用。（实现待重写）"""
+    """按当前 session 偏好搜索并返回 top 5 精简房源列表。需在 update_preferences 之后调用。"""
+    raw_items: list[dict] = []
+    total_raw = 0
+    has_districts_or_areas = bool(session_prefs.districts or session_prefs.areas)
+    has_landmarks = bool(session_prefs.landmark_queries)
+
+    if has_districts_or_areas or not has_landmarks:
+        params = build_search_params(session_prefs)
+        if not has_districts_or_areas:
+            params.pop("district", None)
+            params.pop("area", None)
+        result = await search_houses(client, **params)
+        if "error" not in result:
+            raw_items.extend(result.get("items", []))
+            total_raw += result.get("total", 0)
+
+    if has_landmarks:
+        for q in session_prefs.landmark_queries or []:
+            lm_resp = await search_landmark(client, query=q)
+            inner = lm_resp.get("data", lm_resp)
+            items_lm = (inner.get("items", []) if isinstance(inner, dict) else []) or []
+            if not items_lm:
+                continue
+            lm = items_lm[0]
+            lm_id = lm.get("id") or lm.get("name") or q
+            near = await search_nearby_landmark(
+                client, landmark_id=lm_id, max_distance=2000,
+                listing_platform=session_prefs.listing_platform or "安居客",
+            )
+            data = near.get("data", near)
+            near_items = (data.get("items", []) if isinstance(data, dict) else []) or []
+            total_raw += len(near_items)
+            seen_ids = {h["house_id"] for h in raw_items}
+            for h in near_items:
+                if h.get("house_id") not in seen_ids:
+                    seen_ids.add(h["house_id"])
+                    raw_items.append(h)
+
+    filtered = post_filter_and_rank(raw_items, session_prefs)
+    top5 = filtered[:5]
+    scores: dict[str, int] = {}
+    for h in top5:
+        scores[h["house_id"]] = _calc_soft_score(h, session_prefs)
+    slim = []
+    for h in top5:
+        row = {k: h[k] for k in SUMMARY_FIELDS if k in h}
+        if scores.get(h["house_id"], 0) > 0:
+            row["soft_score"] = scores[h["house_id"]]
+        slim.append(row)
+
     return {
-        "total_matched": 0,
-        "total_raw": 0,
-        "items": [],
+        "total_matched": len(filtered),
+        "total_raw": total_raw,
+        "items": slim,
         "preferences_summary": session_prefs.model_dump(
             exclude_none=True, exclude={"clear_location"}
         ),
