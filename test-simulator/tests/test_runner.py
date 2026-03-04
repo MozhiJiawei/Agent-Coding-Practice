@@ -398,6 +398,29 @@ class TestToolCallArgs:
         assert ok is False
         assert msg.startswith("SOFT: ")
 
+    def test_pass_when_actual_has_xx_is_soft_false_but_contains_omits_it(self):
+        """软约束字段 XX_is_soft：模型传入 false、用例未配置时视为通过（符合默认值，intent_interface_design_v2）"""
+        expect = {"tool": "update_preferences", "contains": {"location": ["海淀"], "bedrooms": "2"}}
+        resp = self._make_response(
+            "update_preferences",
+            {"location": ["海淀"], "bedrooms": "2", "decoration_is_soft": False, "payment_method_is_soft": False},
+        )
+        ok, msg = ASSERTION_RULES["tool_call_args"](resp, expect)
+        assert ok is True, msg
+
+    def test_extra_only_is_soft_keys_returns_soft_prefix(self):
+        """c6 场景：仅多出 *_is_soft 参数（contains 未声明）时返回 SOFT: 前缀，用例标黄灯"""
+        expect = {"tool": "update_preferences", "contains": {"no_agent_fee": True, "payment_method": "月付"}}
+        resp = self._make_response(
+            "update_preferences",
+            {"no_agent_fee": True, "payment_method": "月付", "no_agent_fee_is_soft": True, "payment_method_is_soft": True},
+        )
+        ok, msg = ASSERTION_RULES["tool_call_args"](resp, expect)
+        assert ok is False, msg
+        assert msg.startswith("SOFT: ")
+        assert "未在 contains 中声明的参数" in msg
+        assert "no_agent_fee_is_soft" in msg or "payment_method_is_soft" in msg
+
 
 class TestToolCallChain:
     """tool_call_chain: 验证链式调用顺序"""

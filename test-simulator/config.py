@@ -74,6 +74,7 @@ class RoundDetail(BaseModel):
     agent_response_raw: dict[str, Any] | None = None  # full Agent response body
     error: str | None = None
     expect_failure: str | None = None  # 本轮 round_expect 断言失败时的原因，便于在 HTML/终端完整呈现
+    expect_soft_failure: bool = False  # 本轮是否为 XX_is_soft 软失败（HTML 黄灯展示用）
 
 
 class TokenUsage(BaseModel):

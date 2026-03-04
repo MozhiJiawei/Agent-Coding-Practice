@@ -109,6 +109,8 @@ HTML_PAGE = """
     .collapse.open { display: block; }
     pre { margin: 0; font-size: 12px; overflow-x: auto; }
     .failure { color: #f87171; padding: 8px; background: rgba(248,113,113,0.1); border-radius: 4px; margin-top: 8px; }
+    .failure.expect-failure-warn { color: #d97706; background: rgba(251,191,36,0.2); border-left: 3px solid #fbbf24; }
+    .warn-badge { font-size: 11px; color: #b45309; }
     .tool-results { margin-top: 8px; }
     .tool-item { padding: 6px; background: #0f3460; border-radius: 4px; margin: 4px 0; font-size: 12px; }
     .llm-detail { margin-top: 12px; padding: 10px; background: #0f3460; border-radius: 6px; font-size: 11px; }
@@ -122,7 +124,7 @@ HTML_PAGE = """
     <span class="total">Total: <b id="total">0</b></span>
     <span class="passed">Passed: <b id="passed">0</b></span>
     <span class="failed">Failed: <b id="failed">0</b></span>
-    <span class="warn">Warn: <b id="warn">0</b></span>
+    <span class="warn" title="仅软约束字段失败">Warn (黄灯): <b id="warn">0</b></span>
     <span class="other">Duration: <b id="duration">-</b></span>
   </div>
   <div class="tabs" id="tabs"></div>
@@ -171,7 +173,8 @@ HTML_PAGE = """
         }
       }
       if (rd.expect_failure) {
-        html += '<div class="failure expect-failure"><b>Expect 失败</b>: ' + escapeHtml(rd.expect_failure) + '</div>';
+        const failClass = (rd.expect_soft_failure ? ' failure expect-failure expect-failure-warn' : ' failure expect-failure');
+        html += '<div class="' + failClass.trim() + '"><b>Expect 失败</b>' + (rd.expect_soft_failure ? ' <span class="warn-badge">(黄灯/软约束)</span>' : '') + ': ' + escapeHtml(rd.expect_failure) + '</div>';
       }
       html += '</div></div>';
       return html;
@@ -299,6 +302,8 @@ EXPORT_HTML_TEMPLATE = """<!DOCTYPE html>
     .msg-label { font-size: 11px; color: #94a3b8; margin-bottom: 4px; }
     pre { margin: 0; font-size: 12px; overflow-x: auto; }
     .failure { color: #f87171; padding: 8px; background: rgba(248,113,113,0.1); border-radius: 4px; margin-top: 8px; }
+    .failure.expect-failure-warn { color: #d97706; background: rgba(251,191,36,0.2); border-left: 3px solid #fbbf24; }
+    .warn-badge { font-size: 11px; color: #b45309; }
     .tool-results { margin-top: 8px; }
     .tool-item { padding: 6px; background: #0f3460; border-radius: 4px; margin: 4px 0; font-size: 12px; }
     .llm-detail { margin-top: 12px; padding: 10px; background: #0f3460; border-radius: 6px; font-size: 11px; }
@@ -312,7 +317,7 @@ EXPORT_HTML_TEMPLATE = """<!DOCTYPE html>
     <span class="total">Total: <b id="total">0</b></span>
     <span class="passed">Passed: <b id="passed">0</b></span>
     <span class="failed">Failed: <b id="failed">0</b></span>
-    <span class="warn">Warn: <b id="warn">0</b></span>
+    <span class="warn" title="仅软约束字段失败">Warn (黄灯): <b id="warn">0</b></span>
     <span class="other">Duration: <b id="duration">-</b></span>
   </div>
   <div class="tabs" id="tabs"></div>
@@ -360,7 +365,8 @@ EXPORT_HTML_TEMPLATE = """<!DOCTYPE html>
         }
       }
       if (rd.expect_failure) {
-        html += '<div class="failure expect-failure"><b>Expect 失败</b>: ' + escapeHtml(rd.expect_failure) + '</div>';
+        const failClass = (rd.expect_soft_failure ? ' failure expect-failure expect-failure-warn' : ' failure expect-failure');
+        html += '<div class="' + failClass.trim() + '"><b>Expect 失败</b>' + (rd.expect_soft_failure ? ' <span class="warn-badge">(黄灯/软约束)</span>' : '') + ': ' + escapeHtml(rd.expect_failure) + '</div>';
       }
       return html + '</div></div>';
     }

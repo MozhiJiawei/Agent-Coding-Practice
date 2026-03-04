@@ -1254,6 +1254,7 @@ test_cases:
         tool: update_preferences
         contains:
           payment_method: 月付
+          payment_method_is_soft: true
           no_agent_fee: true
           no_agent_fee_is_soft: true
   tags:
@@ -1436,6 +1437,7 @@ test_cases:
           max_price: 6000
           noise_preference: 安静
           orientation: 朝南
+          rental_type: 整租
   - round: 2
     expect:
       tool_call_chain:
@@ -1470,6 +1472,8 @@ test_cases:
           required_utilities:
           - 免车位费
           required_utilities_is_soft: true
+          parking_type: 车库车位
+          parking_type_is_soft: true
   - round: 5
     expect:
       tool_call_chain:
@@ -1480,6 +1484,7 @@ test_cases:
         contains:
           required_utilities:
           - 包物业费
+          required_utilities_is_soft: true
   tags:
   - final-test
 - id: c10
@@ -1522,7 +1527,10 @@ test_cases:
         location:
         - 西二旗
         decoration: 精装
+        decoration_is_soft: false
         noise_preference: 安静
+        orientation: 朝南
+        orientation_is_soft: true
   tags:
   - final-test
 - id: c12
@@ -1586,6 +1594,61 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 海淀
+          max_price: 5000
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          no_agent_fee: true
+          no_agent_fee_is_soft: true
+          viewing_time: 工作日14-18点
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          utilities_type: 民水民电
+          required_utilities:
+          - 包水电费
+          required_utilities_is_soft: true
+  - round: 4
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          deposit_type: 押一
+          deposit_type_is_soft: true
+  - round: 5
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          pet_policy: 可养宠物
+          pet_policy_is_soft: true
   tags:
   - final-test
 - id: c14
@@ -1599,6 +1662,43 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 朝阳
+          bedrooms: '3'
+          elevator: true
+          max_price: 3000
+          max_subway_dist: 800
+          max_subway_dist_is_soft: true
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近公园
+          required_nearby_is_soft: true
+          noise_preference: 安静
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          utilities_type: 民水民电
   tags:
   - final-test
 - id: c15
@@ -1610,6 +1710,21 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 西城
+        bedrooms: '2'
+        decoration: 简装
+        rental_type: 整租
+        noise_preference: 安静
+        payment_method: 月付
+        payment_method_is_soft: true
+        available_before: "2026-03-10"
   tags:
   - final-test
 - id: c16
@@ -1622,6 +1737,32 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 房山城关
+          bedrooms: '2'
+          max_price: 1200
+          elevator: true
+          elevator_is_soft: true
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近医院
+          - 近菜市场
   tags:
   - final-test
 - id: c17
@@ -1635,6 +1776,42 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 通州
+          bedrooms: '4'
+          max_price: 18000
+          required_nearby:
+          - 近公园
+          required_nearby_is_soft: true
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近健身房
+          required_nearby_is_soft: true
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          elevator: true
   tags:
   - final-test
 - id: c18
@@ -1649,6 +1826,54 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 丰台
+          - 朝阳
+          max_price: 6000
+          min_price: 4800
+          required_nearby:
+          - 近医院
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          bedrooms: '2'
+          viewing_time: 仅周末看房
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近餐饮
+          required_nearby_is_soft: true
+  - round: 4
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_utilities:
+          - 包车位
+          required_utilities_is_soft: true
   tags:
   - final-test
 - id: c19
@@ -1663,6 +1888,53 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 丰台
+          bedrooms: '2'
+          max_price: 2800
+          noise_preference: 安静
+          max_subway_dist: 800
+          max_subway_dist_is_soft: true
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          elevator: true
+          floor_pref: 低层
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近医院
+          required_nearby_is_soft: true
+  - round: 4
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          payment_method: 月付
+          payment_method_is_soft: true
   tags:
   - final-test
 - id: c20
@@ -1679,6 +1951,71 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 朝阳
+          max_price: 3600
+          min_price: 2400
+          payment_method: 月付
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          deposit_type: 押一
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          rental_type: 合租
+  - round: 4
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近餐饮
+          required_nearby_is_soft: true
+  - round: 5
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近健身房
+          required_nearby_is_soft: true
+  - round: 6
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_utilities:
+          - 包宽带
+          required_utilities_is_soft: true
   tags:
   - final-test
 - id: c21
@@ -1690,6 +2027,17 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 立水桥站
+        max_subway_dist: 500
+        rental_type: 合租
+        pet_policy: 不可养宠物
   tags:
   - final-test
 - id: c22
@@ -1701,6 +2049,16 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 大兴
+        bedrooms: '2'
+        max_price: 5000
   tags:
   - final-test
 - id: c23
@@ -1712,6 +2070,16 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 大兴
+        bedrooms: '3'
+        max_price: 15000
   tags:
   - final-test
 - id: c24
@@ -1723,6 +2091,13 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        max_subway_dist: 800
   tags:
   - final-test
 - id: c25
@@ -1736,6 +2111,40 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 海淀
+          rental_type: 合租
+          max_price: 2500
+          max_subway_dist: 800
+          max_subway_dist_is_soft: true
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          payment_method: 月付
+          payment_method_is_soft: true
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          no_agent_fee: true
   tags:
   - final-test
 - id: c26
@@ -1747,6 +2156,21 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 西城
+        bedrooms: '3'
+        decoration: 简装
+        max_subway_dist: 800
+        required_nearby:
+        - 近医院
+        required_nearby_is_soft: true
+        environment_preference: 绿化好环境佳
   tags:
   - final-test
 - id: c27
@@ -1762,6 +2186,60 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 朝阳
+          max_price: 4800
+          min_price: 3200
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近商超
+          - 近餐饮
+          required_nearby_is_soft: true
+          viewing_time: 仅周末看房
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          pet_policy: 可养猫
+  - round: 4
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          payment_method: 月付
+  - round: 5
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          security_requirement: 24小时保安
+          security_requirement_is_soft: true
   tags:
   - final-test
 - id: c28
@@ -1778,6 +2256,72 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 朝阳
+          max_price: 6000
+          min_price: 4000
+          required_nearby:
+          - 近餐饮
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          security_requirement: 24小时保安
+          security_requirement_is_soft: true
+          viewing_time: 工作日14-18点
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          rental_type: 合租
+          rental_type_is_soft: true
+  - round: 4
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_utilities:
+          - 包宽带
+  - round: 5
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          pet_policy: 可养猫
+          pet_policy_is_soft: true
+  - round: 6
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          parking_type: 车库车位
+          parking_type_is_soft: true
   tags:
   - final-test
 - id: c29
@@ -1789,6 +2333,24 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 昌平
+        pet_policy: 可养狗
+        elevator: true
+        elevator_is_soft: true
+        required_nearby:
+        - 近公园
+        required_nearby_is_soft: true
+        max_price: 4800
+        min_price: 3200
+        decoration: 精装
+        bedrooms: '2'
   tags:
   - final-test
 - id: c30
@@ -1800,6 +2362,20 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 东城
+        bedrooms: '2'
+        max_price: 2400
+        min_price: 1600
+        required_nearby:
+        - 近餐饮
+        required_nearby_is_soft: true
   tags:
   - final-test
 - id: c31
@@ -1812,6 +2388,33 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 昌平
+          bedrooms: '2'
+          max_price: 1800
+          pet_policy: 可养狗
+          max_subway_dist: 800
+          max_subway_dist_is_soft: true
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近公园
+          required_nearby_is_soft: true
   tags:
   - final-test
 - id: c32
@@ -1823,6 +2426,19 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 海淀
+        bedrooms: '2'
+        max_price: 3360
+        min_price: 2240
+        required_nearby:
+        - 近健身房
   tags:
   - final-test
 - id: c33
@@ -1834,6 +2450,15 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 丰台
+        bedrooms: '2'
   tags:
   - final-test
 - id: c34
@@ -1845,6 +2470,19 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 海淀
+        bedrooms: '2'
+        max_price: 7000
+        rental_type: 整租
+        deposit_type: 押二
+        pet_policy: 可养猫
   tags:
   - final-test
 - id: c35
@@ -1859,6 +2497,52 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 海淀
+          rental_type: 合租
+          bedrooms: '1'
+          max_price: 4200
+          max_subway_dist: 800
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          noise_preference: 安静
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          orientation: 朝南
+          orientation_is_soft: true
+  - round: 4
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          payment_method: 月付
+          payment_method_is_soft: true
+          deposit_type: 押二
+          deposit_type_is_soft: true
   tags:
   - final-test
 - id: c36
@@ -1871,6 +2555,29 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 海淀
+          rental_type: 合租
+          max_price: 3000
+          max_subway_dist: 800
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          no_agent_fee: true
   tags:
   - final-test
 - id: c37
@@ -1883,6 +2590,35 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 朝阳
+          rental_type: 合租
+          bedrooms: '1'
+          max_price: 4800
+          min_price: 3200
+          max_subway_dist: 800
+          max_subway_dist_is_soft: true
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          decoration: 精装
+          decoration_is_soft: true
+          payment_method: 月付
+          payment_method_is_soft: true
   tags:
   - final-test
 - id: c38
@@ -1896,6 +2632,39 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 通州
+          max_price: 4800
+          min_price: 3200
+          max_subway_dist: 2000
+          lease_flexibility: 可租2个月
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          decoration: 精装
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          payment_method: 月付
   tags:
   - final-test
 - id: c39
@@ -1907,6 +2676,20 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 海淀
+        rental_type: 合租
+        bedrooms: '2'
+        max_price: 6000
+        landlord_contract: 房东好沟通
+        payment_method: 月付
+        payment_method_is_soft: true
   tags:
   - final-test
 - id: c40
@@ -1921,6 +2704,52 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 西城
+          - 海淀
+          bedrooms: '2'
+          max_subway_dist: 800
+          max_price: 7800
+          min_price: 5200
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          viewing_time: 工作日9-18点
+          pet_policy: 可养猫
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          payment_method: 月付
+          deposit_type: 押一
+          deposit_type_is_soft: true
+  - round: 4
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          landlord_contract: 房东好沟通
   tags:
   - final-test
 - id: c41
@@ -1935,6 +2764,44 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          decoration: 空房
+          max_price: 7500
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          max_subway_dist: 2000
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          payment_method: 月付
+  - round: 4
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          no_agent_fee: true
   tags:
   - final-test
 - id: c42
@@ -1946,6 +2813,20 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 大兴
+        bedrooms: '2'
+        max_price: 3600
+        min_price: 2400
+        deposit_type: 押一
+        deposit_type_is_soft: true
+        decoration: 精装
   tags:
   - final-test
 - id: c43
@@ -1960,6 +2841,49 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 通州
+          bedrooms: '2'
+          max_price: 4000
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          max_price: 5000
+          max_subway_dist: 800
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_utilities:
+          - 包宽带
+          required_utilities_is_soft: true
+  - round: 4
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          utilities_type: 民水民电
   tags:
   - final-test
 - id: c44
@@ -1975,6 +2899,52 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 海淀
+          termination_sublet: 提前退租可协商
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          house_feature: 南北通透
+          house_feature_is_soft: true
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          max_price: 3000
+  - round: 4
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          viewing_method: 仅线下看房
+  - round: 5
+    expect:
+      tool_call_args:
+        tool: execute_action
+        contains:
+          action: rent
   tags:
   - final-test
 - id: c45
@@ -1989,6 +2959,43 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 海淀
+          decoration: 精装
+          elevator: true
+          rental_type: 合租
+          bedrooms: '2'
+          sort_by: price
+          sort_order: asc
+          payment_method: 半年付
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          payment_method: 月付
+  - round: 3
+    expect:
+      tool_call_chain:
+      - get_house_listings
+  - round: 4
+    expect:
+      tool_call_args:
+        tool: execute_action
+        contains:
+          action: rent
   tags:
   - final-test
 - id: c46
@@ -2002,6 +3009,38 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 朝阳
+          bedrooms: '2'
+          max_price: 5200
+          max_subway_dist: 1000
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          payment_method: 月付
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          no_agent_fee: true
   tags:
   - final-test
 - id: c47
@@ -2014,6 +3053,31 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 西二旗
+          bedrooms: '2'
+          max_price: 10800
+          min_price: 7200
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          elevator: true
+          payment_method: 月付
+          payment_method_is_soft: true
   tags:
   - final-test
 - id: c48
@@ -2025,6 +3089,21 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 朝阳
+        decoration: 精装
+        max_subway_dist: 800
+        required_nearby:
+        - 近商超
+        max_price: 3600
+        min_price: 2400
+        bedrooms: '2'
   tags:
   - final-test
 - id: c49
@@ -2038,6 +3117,42 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 海淀
+          decoration: 精装
+          bedrooms: '2'
+          max_price: 5500
+          max_subway_dist: 800
+          max_subway_dist_is_soft: true
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_utilities:
+          - 包宽带
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          max_price: 6500
+          max_subway_dist: 400
   tags:
   - final-test
 - id: c50
@@ -2049,6 +3164,16 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 望京西站
+        required_utilities:
+        - 包水电费
   tags:
   - final-test
 - id: c51
@@ -2065,6 +3190,69 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 海淀
+          max_price: 6000
+          min_price: 4000
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近学校
+          required_nearby_is_soft: true
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          bedrooms: '2'
+          viewing_time: 仅周末看房
+  - round: 4
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_utilities:
+          - 包物业费
+  - round: 5
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          payment_method: 季付
+          payment_method_is_soft: true
+  - round: 6
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          viewing_method: 仅线上图片看房
   tags:
   - final-test
 - id: c52
@@ -2076,6 +3264,14 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 上地
   tags:
   - final-test
 - id: c53
@@ -2087,6 +3283,19 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 百子湾
+        bedrooms: '2'
+        max_price: 4200
+        min_price: 2800
+        max_subway_dist: 800
+        elevator: true
   tags:
   - final-test
 - id: c54
@@ -2101,6 +3310,52 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 朝阳
+          bedrooms: '3'
+          max_price: 10800
+          min_price: 7200
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          viewing_time: 仅周末看房
+          required_nearby:
+          - 近商超
+          - 近餐饮
+          required_nearby_is_soft: true
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          pet_policy: 可养猫
+  - round: 4
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          payment_method: 月付
+          payment_method_is_soft: true
   tags:
   - final-test
 - id: c55
@@ -2112,6 +3367,18 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 东城
+        rental_type: 整租
+        max_subway_dist: 1000
+        decoration: 简装
+        viewing_method: 仅线下看房
   tags:
   - final-test
 - id: c56
@@ -2123,6 +3390,20 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 朝阳
+        - 海淀
+        rental_type: 合租
+        bedrooms: '2'
+        max_price: 2760
+        min_price: 1840
+        decoration: 精装
   tags:
   - final-test
 - id: c57
@@ -2135,6 +3416,31 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 望京
+          bedrooms: '3'
+          max_price: 10000
+          required_nearby:
+          - 近学校
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          elevator: true
+          elevator_is_soft: true
   tags:
   - final-test
 - id: c58
@@ -2146,6 +3452,19 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 顺义
+        lease_flexibility: 可月租
+        max_price: 6000
+        min_price: 4000
+        decoration: 精装
+        bedrooms: '2'
   tags:
   - final-test
 - id: c59
@@ -2159,6 +3478,43 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 东城
+          bedrooms: '2'
+          max_price: 6000
+          rental_type: 整租
+          max_subway_dist: 1500
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近公园
+          required_nearby_is_soft: true
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近学校
+          required_nearby_is_soft: true
   tags:
   - final-test
 - id: c60
@@ -2173,6 +3529,40 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 丰台
+          rental_type: 合租
+          bedrooms: '1'
+          required_nearby:
+          - 近警察局
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          payment_method: 月付
+  - round: 3
+    expect:
+      tool_call_chain:
+      - get_house_listings
+  - round: 4
+    expect:
+      tool_call_args:
+        tool: execute_action
+        contains:
+          action: rent
   tags:
   - final-test
 - id: c61
@@ -2186,6 +3576,43 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 海淀
+          rental_type: 合租
+          bedrooms: '1'
+          max_price: 3000
+          min_price: 2000
+          max_subway_dist: 800
+          max_subway_dist_is_soft: true
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          noise_preference: 安静
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          payment_method: 月付
+          payment_method_is_soft: true
+          no_agent_fee: true
   tags:
   - final-test
 - id: c62
@@ -2200,6 +3627,46 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 西城
+          bedrooms: '2'
+          max_subway_dist: 800
+          sort_by: subway
+          sort_order: asc
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          payment_method: 月付
+          deposit_type: 押二
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          viewing_time: 仅周末看房
+  - round: 4
+    expect:
+      tool_call_args:
+        tool: execute_action
+        contains:
+          action: rent
   tags:
   - final-test
 - id: c63
@@ -2213,6 +3680,41 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 顺义
+          bedrooms: '2'
+          max_price: 4000
+          decoration: 精装
+          decoration_is_soft: true
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          pet_policy: 可养猫
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近公园
+          required_nearby_is_soft: true
   tags:
   - final-test
 - id: c64
@@ -2224,6 +3726,22 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 丰台
+        bedrooms: '2'
+        decoration: 精装
+        max_price: 3000
+        min_price: 2000
+        elevator: true
+        required_nearby:
+        - 近医院
+        - 近菜市场
   tags:
   - final-test
 - id: c65
@@ -2239,6 +3757,56 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 西城
+          bedrooms: '2'
+          max_price: 8400
+          min_price: 5600
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          pet_policy: 可养狗
+          viewing_time: 工作日14-18点
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近公园
+          required_nearby_is_soft: true
+  - round: 4
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          payment_method: 月付
+  - round: 5
+    expect:
+      tool_call_args:
+        tool: execute_action
+        contains:
+          action: rent
   tags:
   - final-test
 - id: c66
@@ -2253,6 +3821,47 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 西城
+          bedrooms: '3'
+          elevator: true
+          required_utilities:
+          - 包水电费
+          payment_method: 月付
+          payment_method_is_soft: true
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          available_before: "2026-03-10"
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          viewing_method: 仅线上AR看房
+  - round: 4
+    expect:
+      tool_call_args:
+        tool: execute_action
+        contains:
+          action: rent
   tags:
   - final-test
 - id: c67
@@ -2264,6 +3873,14 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 建清园南区
   tags:
   - final-test
 - id: c68
@@ -2275,6 +3892,18 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 朝阳
+        bedrooms: "1,2"
+        max_subway_dist: 800
+        max_price: 4000
+        lease_flexibility: 可租3个月
   tags:
   - final-test
 - id: c69
@@ -2286,6 +3915,17 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 丰台
+        bedrooms: '2'
+        rental_type: 整租
+        decoration: 简装
   tags:
   - final-test
 - id: c70
@@ -2297,6 +3937,18 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 海淀
+        bedrooms: '2'
+        rental_type: 整租
+        viewing_method: 线下+线上
+        viewing_time: 全天可看房
   tags:
   - final-test
 - id: c71
@@ -2311,6 +3963,49 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 朝阳
+          max_price: 10000
+          decoration: 豪华
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          bedrooms: '3'
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近公园
+          required_nearby_is_soft: true
+  - round: 4
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_utilities:
+          - 包物业费
   tags:
   - final-test
 - id: c72
@@ -2324,6 +4019,42 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 丰台
+          bedrooms: '2'
+          decoration: 精装
+          max_price: 5500
+          max_subway_dist: 800
+          max_subway_dist_is_soft: true
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          elevator: true
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          lease_flexibility: 可年租
+          parking_type: 车库车位
+          parking_type_is_soft: true
   tags:
   - final-test
 - id: c73
@@ -2335,6 +4066,17 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 通州
+        bedrooms: '2'
+        rental_type: 整租
+        pet_policy: 仅限小型犬
   tags:
   - final-test
 - id: c74
@@ -2346,6 +4088,19 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 西城
+        bedrooms: '2'
+        no_agent_fee: true
+        max_price: 3600
+        min_price: 2400
+        decoration: 精装
   tags:
   - final-test
 - id: c75
@@ -2359,6 +4114,40 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 通州
+          rental_type: 整租
+          bedrooms: '2'
+          max_price: 3000
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          payment_method: 月付
+          payment_method_is_soft: true
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          no_agent_fee: true
+          lease_flexibility: 可租3个月
   tags:
   - final-test
 - id: c76
@@ -2373,6 +4162,50 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 朝阳
+          bedrooms: '3'
+          rental_type: 整租
+          decoration: 简装
+          max_subway_dist: 1000
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近公园
+          required_nearby_is_soft: true
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近菜市场
+          required_nearby_is_soft: true
+          max_subway_dist: 300
+  - round: 4
+    expect:
+      tool_call_args:
+        tool: execute_action
+        contains:
+          action: rent
   tags:
   - final-test
 - id: c77
@@ -2386,6 +4219,40 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 东城
+          rental_type: 合租
+          bedrooms: '2'
+          max_price: 4000
+          max_subway_dist: 800
+          max_subway_dist_is_soft: true
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          noise_preference: 安静
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          deposit_type: 押一
   tags:
   - final-test
 - id: c78
@@ -2397,6 +4264,20 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 朝阳
+        bedrooms: '2'
+        max_price: 4200
+        min_price: 2800
+        decoration: 精装
+        decoration_is_soft: true
+        max_subway_dist: 800
   tags:
   - final-test
 - id: c79
@@ -2409,6 +4290,33 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 昌平
+          bedrooms: '2'
+          max_price: 3000
+          max_subway_dist: 800
+          max_subway_dist_is_soft: true
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          max_price: 6000
+          min_price: 4000
+          decoration: 精装
+          elevator: true
   tags:
   - final-test
 - id: c80
@@ -2423,6 +4331,41 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 大兴
+          bedrooms: '2'
+          max_price: 8000
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          termination_sublet: 提前退租可协商
+          deposit_type: 押二
+  - round: 3
+    expect:
+      tool_call_args:
+        tool: execute_action
+        contains:
+          action: rent
+  - round: 4
+    expect:
+      tool_call_args:
+        tool: execute_action
+        contains:
+          action: terminate
   tags:
   - final-test
 - id: c81
@@ -2438,6 +4381,60 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 海淀
+          bedrooms: '2'
+          rental_type: 整租
+          max_price: 9000
+          elevator: true
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近菜市场
+          required_nearby_is_soft: true
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近公园
+          required_nearby_is_soft: true
+  - round: 4
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近学校
+          required_nearby_is_soft: true
+  - round: 5
+    expect:
+      tool_call_args:
+        tool: execute_action
+        contains:
+          action: rent
   tags:
   - final-test
 - id: c82
@@ -2450,6 +4447,33 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 西城
+          bedrooms: '2'
+          max_price: 6500
+          required_nearby:
+          - 近菜市场
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          max_subway_dist: 800
+          required_nearby:
+          - 近餐饮
+          required_nearby_is_soft: true
   tags:
   - final-test
 - id: c83
@@ -2462,6 +4486,31 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 丰台
+          rental_type: 合租
+          bedrooms: '2'
+          max_price: 2000
+          decoration: 精装
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          security_requirement: 门禁刷卡
+          noise_preference: 安静
   tags:
   - final-test
 - id: c84
@@ -2477,6 +4526,55 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 朝阳
+          bedrooms: '2'
+          rental_type: 整租
+          pet_policy: 可养猫
+          required_nearby:
+          - 近健身房
+          required_nearby_is_soft: true
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近菜市场
+          required_nearby_is_soft: true
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近公园
+          required_nearby_is_soft: true
+  - round: 4
+    expect:
+      tool_call_chain:
+      - get_house_listings
+  - round: 5
+    expect:
+      tool_call_args:
+        tool: execute_action
+        contains:
+          action: rent
   tags:
   - final-test
 - id: c85
@@ -2493,6 +4591,72 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 朝阳
+          decoration: 精装
+          max_price: 9600
+          min_price: 6400
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近商超
+          required_nearby_is_soft: true
+          viewing_time: 周末9-18点
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_utilities:
+          - 包宽带
+  - round: 4
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          pet_policy: 可养猫
+          pet_policy_is_soft: true
+  - round: 5
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          deposit_type: 押一
+          deposit_type_is_soft: true
+  - round: 6
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          parking_type: 车库车位
+          parking_type_is_soft: true
   tags:
   - final-test
 - id: c86
@@ -2506,6 +4670,37 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 丰台
+          bedrooms: '2'
+          rental_type: 合租
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_utilities:
+          - 免物业费
+          - 免水电费
+          no_agent_fee: true
+  - round: 3
+    expect:
+      tool_call_args:
+        tool: execute_action
+        contains:
+          action: rent
   tags:
   - final-test
 - id: c87
@@ -2518,6 +4713,34 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 海淀
+          rental_type: 合租
+          bedrooms: '1'
+          max_price: 4500
+          required_nearby:
+          - 近学校
+          required_nearby_is_soft: true
+          max_subway_dist: 800
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          payment_method: 月付
+          payment_method_is_soft: true
   tags:
   - final-test
 - id: c88
@@ -2529,6 +4752,18 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 朝阳
+        bedrooms: '2'
+        max_price: 2160
+        min_price: 1440
+        noise_preference: 安静
   tags:
   - final-test
 - id: c89
@@ -2540,6 +4775,20 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 朝阳
+        bedrooms: '2'
+        max_price: 1800
+        min_price: 1200
+        elevator: true
+        elevator_is_soft: true
+        noise_preference: 安静
   tags:
   - final-test
 - id: c90
@@ -2555,6 +4804,60 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 海淀
+          bedrooms: '2'
+          max_price: 10000
+          rental_type: 整租
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          pet_policy: 可养狗
+          viewing_time: 仅周末看房
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近公园
+          required_nearby_is_soft: true
+  - round: 4
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          no_agent_fee: true
+  - round: 5
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          deposit_type: 押一
+          deposit_type_is_soft: true
   tags:
   - final-test
 - id: c91
@@ -2568,6 +4871,44 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 朝阳
+          bedrooms: '3'
+          decoration: 精装
+          elevator: true
+          max_subway_dist: 500
+          max_price: 4800
+          min_price: 3200
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          parking_type: 车库车位
+          required_utilities:
+          - 包车位
+          required_utilities_is_soft: true
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          property_management: 物业管理到位
   tags:
   - final-test
 - id: c92
@@ -2579,6 +4920,19 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 丰台
+        max_price: 4200
+        min_price: 2800
+        noise_preference: 安静
+        landlord_contract: 房东好沟通
+        landlord_contract_is_soft: true
   tags:
   - final-test
 - id: c93
@@ -2592,6 +4946,42 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 丰台
+          bedrooms: '2'
+          max_price: 6000
+          decoration: 精装
+          max_subway_dist: 800
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近商超
+          required_nearby_is_soft: true
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          orientation: 朝南
+          orientation_is_soft: true
   tags:
   - final-test
 - id: c94
@@ -2606,6 +4996,52 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 大兴
+          bedrooms: '3'
+          max_price: 6000
+          max_subway_dist: 2000
+          elevator: true
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          max_price: 9600
+          min_price: 6400
+          max_subway_dist: 800
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          lease_flexibility: 可年租
+  - round: 4
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_utilities:
+          - 免车位费
+          required_utilities_is_soft: true
   tags:
   - final-test
 - id: c95
@@ -2617,6 +5053,16 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 顺义
+        required_nearby:
+        - 近学校
   tags:
   - final-test
 - id: c96
@@ -2631,6 +5077,45 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 百子湾站
+          bedrooms: '2'
+          decoration: 简装
+          max_price: 6000
+          payment_method: 月付
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          max_price: 3000
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          viewing_time: 仅周末看房
+  - round: 4
+    expect:
+      tool_call_args:
+        tool: execute_action
+        contains:
+          action: rent
   tags:
   - final-test
 - id: c97
@@ -2643,6 +5128,29 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 大兴
+          bedrooms: '2'
+          max_price: 1500
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          deposit_type: 押一
+          deposit_type_is_soft: true
   tags:
   - final-test
 - id: c98
@@ -2656,6 +5164,39 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 昌平
+          bedrooms: '2'
+          max_price: 5000
+          decoration: 简装
+          elevator: true
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          noise_preference: 安静
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          house_feature: 采光好
   tags:
   - final-test
 - id: c99
@@ -2667,6 +5208,17 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 丰台
+        bedrooms: '2'
+        max_price: 7000
+        parking_type: 车库车位
   tags:
   - final-test
 - id: c100
@@ -2680,6 +5232,39 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 国贸
+          bedrooms: '2'
+          max_price: 3600
+          min_price: 2400
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          noise_preference: 安静
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          max_subway_dist: 800
+          max_subway_dist_is_soft: true
   tags:
   - final-test
 - id: c101
@@ -2694,6 +5279,53 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 昌平
+          bedrooms: '2'
+          max_price: 1800
+          max_subway_dist: 1000
+          max_subway_dist_is_soft: true
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          decoration: 精装
+          decoration_is_soft: true
+          max_price: 6000
+          max_subway_dist: 800
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          lease_flexibility: 可半年租
+  - round: 4
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          max_price: 2000
+          max_subway_dist: 500
+          max_subway_dist_is_soft: true
   tags:
   - final-test
 - id: c102
@@ -2705,6 +5337,20 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 房山
+        bedrooms: '2'
+        parking_type: 车库车位
+        required_utilities:
+        - 包车位
+        required_nearby:
+        - 近加油站
   tags:
   - final-test
 - id: c103
@@ -2716,6 +5362,16 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 西城
+        bedrooms: '2'
+        noise_preference: 安静
   tags:
   - final-test
 - id: c104
@@ -2729,6 +5385,38 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 大兴
+          bedrooms: '3'
+          decoration: 精装
+          max_price: 8500
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          lease_flexibility: 可月租
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          payment_method: 月付
   tags:
   - final-test
 - id: c105
@@ -2742,6 +5430,43 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 通州
+          bedrooms: '2'
+          max_price: 7000
+          max_subway_dist: 800
+          max_subway_dist_is_soft: true
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          floor_pref: 高层
+          floor_pref_is_soft: true
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近商超
+          - 近餐饮
+          required_nearby_is_soft: true
   tags:
   - final-test
 - id: c106
@@ -2753,6 +5478,16 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 西城
+        bedrooms: '1'
+        viewing_time: 仅周末看房
   tags:
   - final-test
 - id: c107
@@ -2764,6 +5499,18 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 顺义
+        bedrooms: '2'
+        max_price: 6000
+        min_price: 4000
+        viewing_time: 仅周末看房
   tags:
   - final-test
 - id: c108
@@ -2775,6 +5522,17 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 昌平
+        rental_type: 整租
+        max_price: 5000
+        no_agent_fee: true
   tags:
   - final-test
 - id: c109
@@ -2786,6 +5544,17 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 西城
+        bedrooms: '2'
+        max_price: 6000
+        no_agent_fee: true
   tags:
   - final-test
 - id: c110
@@ -2800,6 +5569,55 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 丰台
+          bedrooms: '2'
+          decoration: 精装
+          elevator: true
+          max_price: 5000
+          max_subway_dist: 800
+          max_subway_dist_is_soft: true
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近健身房
+          required_nearby_is_soft: true
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近公园
+          required_nearby_is_soft: true
+  - round: 4
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          max_price: 6500
+          max_subway_dist: 400
   tags:
   - final-test
 - id: c111
@@ -2811,6 +5629,19 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 通州
+        bedrooms: '2'
+        decoration: 精装
+        max_subway_dist: 800
+        max_price: 7200
+        min_price: 4800
   tags:
   - final-test
 - id: c112
@@ -2822,6 +5653,17 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 通州
+        rental_type: 整租
+        bedrooms: '1'
+        max_price: 4000
   tags:
   - final-test
 - id: c113
@@ -2835,6 +5677,41 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 国贸
+          rental_type: 合租
+          bedrooms: '2'
+          max_price: 3000
+          max_subway_dist: 800
+          max_subway_dist_is_soft: true
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          pet_policy: 不可养宠物
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          property_management: 物业管理到位
+          property_management_is_soft: true
   tags:
   - final-test
 - id: c114
@@ -2850,6 +5727,62 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 丰台
+          max_price: 8000
+          environment_preference: 绿化好环境佳
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          bedrooms: '2'
+          rental_type: 整租
+          viewing_time: 仅周末看房
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近商超
+          required_nearby_is_soft: true
+  - round: 4
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          pet_policy: 可养狗
+  - round: 5
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          parking_type: 车库车位
+          required_utilities:
+          - 包车位
+          required_utilities_is_soft: true
   tags:
   - final-test
 - id: c115
@@ -2863,6 +5796,38 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 通州
+          bedrooms: '2'
+          max_subway_dist: 800
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          elevator: true
+          elevator_is_soft: true
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          lease_flexibility: 可半年租
   tags:
   - final-test
 - id: c116
@@ -2875,6 +5840,33 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 昌平
+          bedrooms: '2'
+          max_price: 2000
+          max_subway_dist: 800
+          max_subway_dist_is_soft: true
+          elevator: true
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近商超
+          required_nearby_is_soft: true
   tags:
   - final-test
 - id: c117
@@ -2886,6 +5878,20 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 朝阳
+        bedrooms: '1'
+        required_nearby:
+        - 近健身房
+        max_price: 6000
+        min_price: 4000
+        viewing_time: 仅周末看房
   tags:
   - final-test
 - id: c118
@@ -2899,6 +5905,39 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 海淀
+          bedrooms: '2'
+          decoration: 简装
+          rental_type: 整租
+          security_requirement: 24小时保安
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          max_price: 10000
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          viewing_time: 仅周末看房
   tags:
   - final-test
 - id: c119
@@ -2913,6 +5952,45 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 通州
+          bedrooms: '2'
+          required_utilities:
+          - 包车位
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          lease_flexibility: 可年租
+          payment_method: 年付
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          parking_type: 车库车位
+  - round: 4
+    expect:
+      tool_call_args:
+        tool: execute_action
+        contains:
+          action: rent
   tags:
   - final-test
 - id: c120
@@ -2927,6 +6005,42 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 丰台
+          bedrooms: '2'
+          min_price: 3000
+          max_price: 5000
+          required_utilities:
+          - 包水电费
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          payment_method: 月付
+          deposit_type: 押一
+  - round: 3
+    expect:
+      tool_call_chain:
+      - get_house_listings
+  - round: 4
+    expect:
+      tool_call_args:
+        tool: execute_action
+        contains:
+          action: rent
   tags:
   - final-test
 - id: c121
@@ -2938,6 +6052,18 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 通州
+        rental_type: 合租
+        pet_policy: 可养猫
+        max_price: 4500
+        bedrooms: '2'
   tags:
   - final-test
 - id: c122
@@ -2952,6 +6078,50 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 东城
+          rental_type: 合租
+          bedrooms: '1'
+          max_price: 1800
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          max_price: 2500
+          max_subway_dist: 800
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          noise_preference: 安静
+  - round: 4
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_utilities:
+          - 包宽带
+          required_utilities_is_soft: true
   tags:
   - final-test
 - id: c123
@@ -2966,6 +6136,40 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 海淀
+          bedrooms: '2'
+          max_price: 7000
+          required_utilities:
+          - 包物业费
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          deposit_type: 押一
+  - round: 3
+    expect:
+      tool_call_chain:
+      - get_house_listings
+  - round: 4
+    expect:
+      tool_call_args:
+        tool: execute_action
+        contains:
+          action: rent
   tags:
   - final-test
 - id: c124
@@ -2977,6 +6181,17 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 中关村站
+        max_subway_dist: 800
+        rental_type: 整租
+        security_requirement: 门禁刷卡
   tags:
   - final-test
 - id: c125
@@ -2989,6 +6204,29 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 昌平
+          bedrooms: '2'
+          max_price: 5000
+          decoration: 简装
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          noise_preference: 安静
   tags:
   - final-test
 - id: c126
@@ -3002,6 +6240,41 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 丰台
+          rental_type: 合租
+          bedrooms: '2'
+          max_price: 4000
+          max_subway_dist: 800
+          max_subway_dist_is_soft: true
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          pet_policy: 可养猫
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          payment_method: 月付
+          payment_method_is_soft: true
   tags:
   - final-test
 - id: c127
@@ -3013,6 +6286,18 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 丰台
+        bedrooms: '2'
+        decoration: 空房
+        max_price: 1440
+        min_price: 960
   tags:
   - final-test
 - id: c128
@@ -3024,6 +6309,19 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+    tool_call_chain:
+    - update_preferences
+    - search_by_preferences
+    tool_call_args:
+      tool: update_preferences
+      contains:
+        location:
+        - 昌平
+        bedrooms: '1'
+        deposit_type: 押一
+        payment_method: 月付
+        max_price: 3600
+        min_price: 2400
   tags:
   - final-test
 - id: c129
@@ -3039,5 +6337,59 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
+  round_expects:
+  - round: 1
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          location:
+          - 朝阳
+          max_price: 4800
+          min_price: 3200
+  - round: 2
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_nearby:
+          - 近公园
+          required_nearby_is_soft: true
+  - round: 3
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          required_utilities:
+          - 包宽带
+  - round: 4
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          deposit_type: 押一
+          deposit_type_is_soft: true
+  - round: 5
+    expect:
+      tool_call_chain:
+      - update_preferences
+      - search_by_preferences
+      tool_call_args:
+        tool: update_preferences
+        contains:
+          security_requirement: 24小时保安
+          security_requirement_is_soft: true
   tags:
   - final-test
