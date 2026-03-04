@@ -1209,8 +1209,14 @@ async def get_house_listings(client: httpx.AsyncClient, **kwargs) -> dict:
         return err_resp
 
 
-# ── get_all_houses_for_debug：session 初始化时获取全量房屋用于调试 ───────
+# ── get_all_houses_for_debug / get_all_landmarks_for_debug：全生命周期单次查询，session 间复用 ──
 PLATFORMS = ["链家", "安居客", "58同城"]
+
+# 进程级缓存：全生命周期内只查一次，district/area/landmark 结果在 session 间复用
+_debug_houses_cache: dict | None = None
+_debug_landmarks_cache: dict | None = None
+_debug_houses_lock = asyncio.Lock()
+_debug_landmarks_lock = asyncio.Lock()
 
 
 async def _fetch_all_houses_for_platform(
@@ -1247,25 +1253,46 @@ async def _fetch_all_houses_for_platform(
 
 
 async def get_all_houses_for_debug(client: httpx.AsyncClient) -> dict:
-    """获取链家、安居客、58同城三个平台的全量房源，用于调试日志。"""
-    tasks = [
-        _fetch_all_houses_for_platform(client, platform) for platform in PLATFORMS
-    ]
-    results = await asyncio.gather(*tasks)
-    return {platform: result for platform, result in zip(PLATFORMS, results)}
+    """获取链家、安居客、58同城三个平台的全量房源，用于调试；全生命周期只查一次，结果在 session 间复用。"""
+    global _debug_houses_cache
+    async with _debug_houses_lock:
+        if _debug_houses_cache is not None:
+            return _debug_houses_cache
+        tasks = [
+            _fetch_all_houses_for_platform(client, platform) for platform in PLATFORMS
+        ]
+        results = await asyncio.gather(*tasks)
+        _debug_houses_cache = {platform: r for platform, r in zip(PLATFORMS, results)}
+        # 首次查询时构建并更新全局 area → district，供所有 session 复用
+        all_items: list[dict] = []
+        for platform_data in _debug_houses_cache.values():
+            all_items.extend(platform_data.get("items", []))
+        area_map = build_area_district_map(all_items)
+        AREA_TO_DISTRICT.update(area_map)
+        return _debug_houses_cache
 
 
-# ── get_all_landmarks_for_debug：session 初始化时获取全量地标用于调试 ──────
 async def get_all_landmarks_for_debug(client: httpx.AsyncClient) -> dict:
-    """获取全量地标数据用于调试日志。"""
-    try:
-        resp = await client.get("/api/landmarks")
-        resp.raise_for_status()
-        inner = resp.json().get("data", resp.json())
-        items = inner.get("items", [])
-        return {"total": len(items), "items": items}
-    except Exception as e:
-        return {"error": f"get_all_landmarks_for_debug failed: {str(e)}", "total": 0, "items": []}
+    """获取全量地标数据用于调试；全生命周期只查一次，结果在 session 间复用。"""
+    global _debug_landmarks_cache
+    async with _debug_landmarks_lock:
+        if _debug_landmarks_cache is not None:
+            return _debug_landmarks_cache
+        try:
+            resp = await client.get("/api/landmarks")
+            resp.raise_for_status()
+            inner = resp.json().get("data", resp.json())
+            items = inner.get("items", [])
+            _debug_landmarks_cache = {"total": len(items), "items": items}
+        except Exception as e:
+            _debug_landmarks_cache = {
+                "error": f"get_all_landmarks_for_debug failed: {str(e)}",
+                "total": 0,
+                "items": [],
+            }
+        # 首次查询时构建并更新全局地标名称集合，供所有 session 复用
+        LANDMARK_NAMES.update(build_landmark_names(_debug_landmarks_cache.get("items", [])))
+        return _debug_landmarks_cache
 
 
 # ── init_houses（Story 2.2 已实现，保持不变） ───────────────────────────────
