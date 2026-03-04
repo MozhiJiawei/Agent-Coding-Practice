@@ -501,26 +501,73 @@ SUMMARY_FIELDS = (
     "subway_station", "subway_distance", "available_from", "tags",
 )
 
+# 跨平台搜索：三平台枚举，用于「搜三遍取并集」以兼容各平台 tags 差异
+LISTING_PLATFORMS = ("链家", "安居客", "58同城")
+
+
+def merge_cross_platform_houses(items_per_platform: list[list[dict]]) -> list[dict]:
+    """将多平台搜索结果按 house_id 取并集：同一房源多条记录合并为一条，tags 取并集，价格取最低。"""
+    by_id: dict[str, dict] = {}
+    for platform_items in items_per_platform:
+        for h in platform_items or []:
+            hid = h.get("house_id")
+            if not hid:
+                continue
+            if hid not in by_id:
+                by_id[hid] = dict(h)
+                by_id[hid]["tags"] = list(set(h.get("tags") or []))
+                continue
+            cur = by_id[hid]
+            cur["tags"] = list(set(cur.get("tags") or []) | set(h.get("tags") or []))
+            # 展示价取三平台最低，便于用户比价
+            p_cur = int(cur.get("price") or 0)
+            p_new = int(h.get("price") or 0)
+            if p_new and (not p_cur or p_new < p_cur):
+                cur["price"] = p_new
+    return list(by_id.values())
+
 
 async def search_by_preferences(
     client: httpx.AsyncClient,
     session_prefs: UserPreferences,
 ) -> dict:
-    """按当前 session 偏好搜索并返回 top 5 精简房源列表。需在 update_preferences 之后调用。"""
+    """按当前 session 偏好搜索并返回 top 5 精简房源列表。需在 update_preferences 之后调用。
+    未指定 listing_platform 时按「搜三遍取并集」做跨平台搜索，兼容各平台房屋 tags 差异。"""
     raw_items: list[dict] = []
     total_raw = 0
     has_districts_or_areas = bool(session_prefs.districts or session_prefs.areas)
     has_landmarks = bool(session_prefs.landmark_queries)
+    single_platform = session_prefs.listing_platform
 
     if has_districts_or_areas or not has_landmarks:
         params = build_search_params(session_prefs)
         if not has_districts_or_areas:
             params.pop("district", None)
             params.pop("area", None)
-        result = await search_houses(client, **params)
-        if "error" not in result:
-            raw_items.extend(result.get("items", []))
-            total_raw += result.get("total", 0)
+        if single_platform:
+            result = await search_houses(client, **params)
+            if "error" not in result:
+                raw_items.extend(result.get("items", []))
+                total_raw += result.get("total", 0)
+        else:
+            # 跨平台：三平台各搜一遍，按 house_id 取并集（tags 合并，价格取最低）
+            tasks = [
+                search_houses(client, **{**params, "listing_platform": p})
+                for p in LISTING_PLATFORMS
+            ]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            per_platform: list[list[dict]] = []
+            for r in results:
+                if isinstance(r, Exception):
+                    log_event("TOOL_API_CALL", "", {"error": str(r)})
+                    per_platform.append([])
+                    continue
+                if "error" not in r:
+                    per_platform.append(r.get("items", []))
+                else:
+                    per_platform.append([])
+            raw_items = merge_cross_platform_houses(per_platform)
+            total_raw = len(raw_items)
 
     if has_landmarks:
         for q in session_prefs.landmark_queries or []:
@@ -531,18 +578,44 @@ async def search_by_preferences(
                 continue
             lm = items_lm[0]
             lm_id = lm.get("id") or lm.get("name") or q
-            near = await search_nearby_landmark(
-                client, landmark_id=lm_id, max_distance=2000,
-                listing_platform=session_prefs.listing_platform or "安居客",
-            )
-            data = near.get("data", near)
-            near_items = (data.get("items", []) if isinstance(data, dict) else []) or []
-            total_raw += len(near_items)
-            seen_ids = {h["house_id"] for h in raw_items}
-            for h in near_items:
-                if h.get("house_id") not in seen_ids:
-                    seen_ids.add(h["house_id"])
-                    raw_items.append(h)
+            if single_platform:
+                near = await search_nearby_landmark(
+                    client, landmark_id=lm_id, max_distance=2000,
+                    listing_platform=single_platform,
+                )
+                data = near.get("data", near)
+                near_items = (data.get("items", []) if isinstance(data, dict) else []) or []
+                total_raw += len(near_items)
+                seen_ids = {h["house_id"] for h in raw_items}
+                for h in near_items:
+                    if h.get("house_id") not in seen_ids:
+                        seen_ids.add(h["house_id"])
+                        raw_items.append(h)
+            else:
+                # 跨平台：地标附近三平台各搜一遍，取并集后按 house_id 合并再并入 raw_items
+                near_tasks = [
+                    search_nearby_landmark(
+                        client, landmark_id=lm_id, max_distance=2000, listing_platform=p,
+                    )
+                    for p in LISTING_PLATFORMS
+                ]
+                near_results = await asyncio.gather(*near_tasks, return_exceptions=True)
+                near_per_platform: list[list[dict]] = []
+                for nr in near_results:
+                    if isinstance(nr, Exception):
+                        near_per_platform.append([])
+                        continue
+                    data = nr.get("data", nr)
+                    near_per_platform.append(
+                        (data.get("items", []) if isinstance(data, dict) else []) or []
+                    )
+                merged_near = merge_cross_platform_houses(near_per_platform)
+                total_raw += len(merged_near)
+                seen_ids = {h["house_id"] for h in raw_items}
+                for h in merged_near:
+                    if h.get("house_id") not in seen_ids:
+                        seen_ids.add(h["house_id"])
+                        raw_items.append(h)
 
     filtered = post_filter_and_rank(raw_items, session_prefs)
     top5 = filtered[:5]

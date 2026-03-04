@@ -822,9 +822,10 @@ if prefs.subway_line:
 1. **搜索路径路由**：根据 session_prefs 的 districts/areas/landmark_queries 决定调用 by_platform 和/或 landmark→nearby；无位置时 by_platform 不传位置参数。
 2. **API 参数构建**：`build_search_params(prefs)` 生成 by_platform 参数；软约束字段不下推 API；subway_line 不下推（改在 post-filter 做包含匹配）。
 3. **数据拉取**：by_platform 翻页拉全量；landmark 路径对每个 landmark_query 调用 search_landmark → search_nearby_landmark(landmark_id, max_distance=2000)，结果按 house_id 去重合并。
-4. **Post-filter**：`post_filter_and_rank(items, prefs)` 做本地硬约束过滤（subway_line 包含、floor_pref、noise_preference、13 个 tag 字段、payment_method/deposit_type/no_agent_fee、价格/户型等 API 级约束补滤）。
-5. **软约束评分**：对通过硬约束的房源按 soft_constraint_keys 逐字段匹配加分，等权。
-6. **排序与截取**：有软约束得分时按得分降序再按 sort_by；否则按 prefs.sort_by/sort_order；截取 Top 5，返回精简字段（含 soft_score 若有）。
+4. **跨平台搜索（搜三遍取并集）**：当用户**未指定** `listing_platform` 时，因各平台房屋 tags 存在差异，采用「搜三遍取并集」：对链家、安居客、58同城分别调用 by_platform / nearby，将三份结果按 house_id 合并为一条（同一房源的 tags 取并集、展示价取三平台最低），再进入 Post-filter。用户指定「在链家上找」等时仍只搜单平台。
+5. **Post-filter**：`post_filter_and_rank(items, prefs)` 对合并后的列表做本地硬约束过滤（subway_line 包含、floor_pref、noise_preference、13 个 tag 字段、payment_method/deposit_type/no_agent_fee、价格/户型等 API 级约束补滤）。
+6. **软约束评分**：对通过硬约束的房源按 soft_constraint_keys 逐字段匹配加分，等权。
+7. **排序与截取**：有软约束得分时按得分降序再按 sort_by；否则按 prefs.sort_by/sort_order；截取 Top 5，返回精简字段（含 soft_score 若有）。
 
 **location 路由（resolve_location）**：在 update_preferences 中调用，将用户输入的「海淀」「望京商圈」「西二旗站」「国贸附近」等归一为 districts/areas/landmark_queries；规则优先级为：行政区精确 → 商圈精确/模糊 → 地标名精确（含地铁站）→ 反向子串匹配 → 兜底为 landmark_query。
 
