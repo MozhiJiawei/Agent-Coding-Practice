@@ -4,6 +4,8 @@ from typing import Optional
 import httpx
 from pydantic import BaseModel
 
+from logger import log_event
+
 # 模块顶层常量（必须在模块加载时读取一次）
 # 支持环境变量覆盖，与 debug_init_houses.py 一致；tools 不创建 client，client 由 main 传入且已设置 trust_env=False 不走代理
 RENTAL_API_BASE = os.environ.get("RENTAL_API_BASE", "http://7.225.29.223:8080")
@@ -851,6 +853,10 @@ async def search_houses(client: httpx.AsyncClient, **kwargs) -> dict:
     try:
         base_params: dict = {k: v for k, v in kwargs.items() if v is not None}
         base_params["page"] = 1
+        log_event("TOOL_API_CALL", "", {
+            "api": "/api/houses/by_platform",
+            "params": dict(base_params),
+        })
 
         resp = await client.get(
             "/api/houses/by_platform",
@@ -887,6 +893,10 @@ async def search_houses(client: httpx.AsyncClient, **kwargs) -> dict:
 async def get_house_detail(client: httpx.AsyncClient, **kwargs) -> dict:
     try:
         house_id = str(kwargs.get("house_id", ""))
+        log_event("TOOL_API_CALL", "", {
+            "api": f"/api/houses/{house_id}",
+            "params": {"house_id": house_id},
+        })
         resp = await client.get(f"/api/houses/{house_id}", headers=_get_headers())
         resp.raise_for_status()
         return resp.json()
@@ -905,6 +915,10 @@ async def search_landmark(client: httpx.AsyncClient, **kwargs) -> dict:
             params["category"] = kwargs["category"]
         if kwargs.get("district") is not None:
             params["district"] = kwargs["district"]
+        log_event("TOOL_API_CALL", "", {
+            "api": "/api/landmarks/search",
+            "params": dict(params),
+        })
 
         # 地标接口不需要 X-User-ID
         resp = await client.get("/api/landmarks/search", params=params)
@@ -918,6 +932,10 @@ async def search_landmark(client: httpx.AsyncClient, **kwargs) -> dict:
 async def search_nearby_landmark(client: httpx.AsyncClient, **kwargs) -> dict:
     try:
         params: dict = {k: v for k, v in kwargs.items() if v is not None}
+        log_event("TOOL_API_CALL", "", {
+            "api": "/api/houses/nearby",
+            "params": dict(params),
+        })
         resp = await client.get(
             "/api/houses/nearby",
             params=params,
@@ -936,6 +954,10 @@ async def get_nearby_amenities(client: httpx.AsyncClient, **kwargs) -> dict:
         # FR16 要求 1000 米，覆盖 API 默认的 3000 米
         if "max_distance_m" not in params:
             params["max_distance_m"] = 1000
+        log_event("TOOL_API_CALL", "", {
+            "api": "/api/houses/nearby_landmarks",
+            "params": dict(params),
+        })
         resp = await client.get(
             "/api/houses/nearby_landmarks",
             params=params,
@@ -958,6 +980,10 @@ async def execute_action(client: httpx.AsyncClient, **kwargs) -> dict:
         if action not in valid_actions:
             return {"error": f"execute_action failed: unknown action {action}"}
 
+        log_event("TOOL_API_CALL", "", {
+            "api": f"/api/houses/{house_id}/{action}",
+            "params": {"house_id": house_id, "action": action, "listing_platform": listing_platform},
+        })
         resp = await client.post(
             f"/api/houses/{house_id}/{action}",
             params={"listing_platform": listing_platform},
@@ -973,6 +999,10 @@ async def execute_action(client: httpx.AsyncClient, **kwargs) -> dict:
 async def get_houses_by_community(client: httpx.AsyncClient, **kwargs) -> dict:
     try:
         params: dict = {k: v for k, v in kwargs.items() if v is not None}
+        log_event("TOOL_API_CALL", "", {
+            "api": "/api/houses/by_community",
+            "params": dict(params),
+        })
         resp = await client.get("/api/houses/by_community", params=params, headers=_get_headers())
         resp.raise_for_status()
         return resp.json()
@@ -984,6 +1014,10 @@ async def get_houses_by_community(client: httpx.AsyncClient, **kwargs) -> dict:
 async def get_house_listings(client: httpx.AsyncClient, **kwargs) -> dict:
     try:
         house_id = str(kwargs.get("house_id", ""))
+        log_event("TOOL_API_CALL", "", {
+            "api": f"/api/houses/listings/{house_id}",
+            "params": {"house_id": house_id},
+        })
         resp = await client.get(f"/api/houses/listings/{house_id}", headers=_get_headers())
         resp.raise_for_status()
         return resp.json()

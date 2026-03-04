@@ -10,7 +10,7 @@ from tools import (
     TOOLS, get_house_detail, execute_action, get_house_listings,
     update_preferences, search_by_preferences, UserPreferences,
 )
-from logger import log_event
+from logger import log_event, current_session_id
 
 # 从 TOOLS schema 构建「工具名 -> 允许的参数名集合」，调用时只传 schema 内参数，避免 LLM 误传导致 TypeError
 TOOL_SCHEMA_PARAMS: dict[str, set[str]] = {}
@@ -207,7 +207,11 @@ async def run_agent(
                     else:
                         allowed = TOOL_SCHEMA_PARAMS.get(tool_name, set())
                         filtered_args = {k: v for k, v in args.items() if k in allowed}
-                        result = await fn(client, **filtered_args)
+                        token = current_session_id.set(session_id)
+                        try:
+                            result = await fn(client, **filtered_args)
+                        finally:
+                            current_session_id.reset(token)
 
                     log_event("TOOL_CALL", session_id, {
                         "tool_name": tool_name,
