@@ -96,6 +96,7 @@ class UserPreferences(BaseModel):
     floor_pref: Optional[str] = None
     min_area: Optional[int] = None
     max_area: Optional[int] = None
+    max_subway_dist: Optional[int] = None
     subway_line: Optional[str] = None
     utilities_type: Optional[str] = None
     property_type: Optional[str] = None
@@ -195,7 +196,7 @@ def resolve_location(loc: str) -> dict:
 # 供 update_preferences 使用的有效标量/数组字段名（不含 location/clear_location/xxx_is_soft）
 _PREFS_SCALAR_KEYS = frozenset({
     "min_price", "max_price", "bedrooms", "rental_type", "decoration", "elevator",
-    "orientation", "floor_pref", "min_area", "max_area", "subway_line",
+    "orientation", "floor_pref", "min_area", "max_area", "max_subway_dist", "subway_line",
     "utilities_type", "property_type", "listing_platform", "available_before",
     "max_commute_minutes", "noise_preference", "sort_by", "sort_order",
     "no_agent_fee", "payment_method", "deposit_type",
@@ -310,15 +311,16 @@ def build_search_params(prefs: UserPreferences) -> dict:
     ]:
         if v is not None:
             params[k] = v
-    # 未指定租住方式时默认整租
-    if "rental_type" not in soft:
-        params["rental_type"] = prefs.rental_type or "整租"
+    if "rental_type" not in soft and prefs.rental_type is not None:
+        params["rental_type"] = prefs.rental_type
     if "decoration" not in soft and prefs.decoration is not None:
         params["decoration"] = prefs.decoration
     if "orientation" not in soft and prefs.orientation is not None:
         params["orientation"] = prefs.orientation
     if "elevator" not in soft and prefs.elevator is not None:
         params["elevator"] = "true" if prefs.elevator else "false"
+    if prefs.max_subway_dist is not None:
+        params["max_subway_dist"] = prefs.max_subway_dist
     if prefs.sort_by is not None:
         params["sort_by"] = prefs.sort_by
     if prefs.sort_order is not None:
@@ -445,10 +447,8 @@ def post_filter_and_rank(items: list[dict], prefs: UserPreferences) -> list[dict
                 want = [int(x.strip()) for x in prefs.bedrooms.split(",") if x.strip().isdigit()]
                 if want and h.get("bedrooms") not in want:
                     continue
-            # 未指定租住方式时默认按整租过滤
-            if "rental_type" not in soft:
-                effective_rental = prefs.rental_type or "整租"
-                if h.get("rental_type") != effective_rental:
+            if "rental_type" not in soft and prefs.rental_type is not None:
+                if h.get("rental_type") != prefs.rental_type:
                     continue
             if prefs.decoration and "decoration" not in soft:
                 if _normalize_decoration(h.get("decoration")) != _normalize_decoration(prefs.decoration):
@@ -457,6 +457,9 @@ def post_filter_and_rank(items: list[dict], prefs: UserPreferences) -> list[dict
                 continue
             if prefs.elevator is not None and "elevator" not in soft and bool(h.get("elevator")) != prefs.elevator:
                 continue
+            if prefs.max_subway_dist is not None:
+                if int(h.get("subway_distance") or 99999) > prefs.max_subway_dist:
+                    continue
             filtered.append(h)  # 通过所有硬约束
 
     scored = [(h, _calc_soft_score(h, prefs)) for h in filtered]
@@ -668,7 +671,47 @@ TOOLS: list[dict] = [
         "type": "function",
         "function": {
             "name": "update_preferences",
-            "description": "提取或更新用户的租房偏好，仅合并偏好不搜索。调用后必须再调用 search_by_preferences 获取匹配房源。每轮只传本轮新增/变更的字段；用户说「最好、如果能、尽量、更倾向于、优先、有…更好、…就更好了、…的话更好、可以的话、理想情况、尽量能、倾向于」时，除设主字段外必须同时设对应 xxx_is_soft: true。数组类（如 required_nearby）追加时只传本轮新增项。",
+            "description": (
+                "提取或更新用户租房偏好（仅合并，不搜索），调用后须再调 search_by_preferences。\n\n"
+                "Few-shot 提参示例（仅传用户提到的字段）：\n"
+                "1) 「帮我找海淀区的两居室，整租，价格3000到6000」\n"
+                "   → location: [\"海淀\"], bedrooms: \"2\", rental_type: \"整租\", "
+                "min_price: 3000, max_price: 6000\n"
+                "2) 「换大兴区的看看吧，两居室，租金5000左右」\n"
+                "   → clear_location: true, location: [\"大兴\"], bedrooms: \"2\", "
+                "min_price: 4000, max_price: 6000  （左右按 0.8～1.2 倍）\n"
+                "3) 「80平以上、不超过100平的两居或三居，租金4000以内」\n"
+                "   → min_area: 80, max_area: 100, bedrooms: \"2,3\", max_price: 4000\n"
+                "4) 「朝阳两居预算5000以内，最好是精装修，地铁从近到远排」（软约束-精装）\n"
+                "   → location: [\"朝阳\"], bedrooms: \"2\", max_price: 5000"
+                "decoration: \"精装\", decoration_is_soft: true, sort_by: \"subway\", sort_order: \"asc\"\n"
+                "5) 「海淀合租3000以内，要民水民电，希望能月付、最好是房东直租」（软约束-月付/直租）\n"
+                "   → location: [\"海淀\"], rental_type: \"合租\", max_price: 3000, "
+                "utilities_type: \"民水民电\", payment_method: \"月付\", payment_method_is_soft: true, "
+                "no_agent_fee: true, no_agent_fee_is_soft: true\n"
+                "6) 「13号线沿线两居室， 近地铁」;「在链家上找海淀区的」\n"
+                "   → subway_line: \"13号线\, max_subway_dist: 800, sort_by: \"subway\", sort_order: \"asc\", bedrooms: \"2\"；"
+                ";location: [\"海淀\"], listing_platform: \"链家\"\n"
+                "7) 「朝阳两居要安静，最好朝南；有电梯，尽量低楼层」（软约束-朝向/楼层）\n"
+                "   → location: [\"朝阳\"], bedrooms: \"2\", noise_preference: \"安静\", "
+                "orientation: \"朝南\", orientation_is_soft: true, elevator: true, "
+                "floor_pref: \"低层\", floor_pref_is_soft: true\n"
+                "8) 「月付、房东直租、押一付一、要能养猫；3月10号前入住，通勤30分钟内，按价格从低到高」\n"
+                "   → payment_method: \"月付\", no_agent_fee: true, deposit_type: \"押一\", "
+                "pet_policy: \"可养猫\", available_before: \"2026-03-10\", max_commute_minutes: 30, "
+                "sort_by: \"price\", sort_order: \"asc\"\n"
+                "9) 「只能线下看房、周末才能看；最多租3个月，宽带包在房租里，近医院，南北通透，房东好沟通」\n"
+                "   → viewing_method: \"仅线下看房\", viewing_time: \"仅周末看房\", "
+                "lease_flexibility: \"可租3个月\", required_utilities: [\"包宽带\"], "
+                "required_nearby: [\"近医院\"], house_feature: \"南北通透\", landlord_contract: \"房东好沟通\"\n"
+                "10) 「要住宅不要公寓；有车库车位，24小时保安，绿化好，物业到位；提前退租可协商」\n"
+                "   → property_type: \"住宅\", parking_type: \"车库车位\", "
+                "security_requirement: \"24小时保安\", environment_preference: \"绿化好环境佳\", "
+                "property_management: \"物业管理到位\", termination_sublet: \"提前退租可协商\"\n\n"
+                "软约束：用户语气为「最好/如果能/尽量/优先/有…更好/…就更好了/可以的话/理想情况/倾向于」时，"
+                "设主字段值并同时设 xxx_is_soft: true（匹配加分但不排除）；"
+                "用户语气肯定「要/希望/必须/需要/一定/只能/不能」时为硬约束（不设 xxx_is_soft 或设 false，不满足则排除）。"
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -696,7 +739,7 @@ TOOLS: list[dict] = [
                     "rental_type": {
                         "type": "string",
                         "enum": ["整租", "合租"],
-                        "description": "整租或合租。未明确说明时默认整租；若预算约2000/室且用户提到两居、三居→视为整租；「一个人住/自己住」→整租；「合租/找室友/有室友」→合租；「单间」→合租"
+                        "description": "整租或合租。「一个人住/自己住」→整租；「合租/找室友/有室友」→合租；「单间」→合租"
                     },
                     "decoration": {
                         "type": "string",
@@ -725,6 +768,10 @@ TOOLS: list[dict] = [
                         "type": "integer",
                         "description": "最大面积（㎡）"
                     },
+                    "max_subway_dist": {
+                        "type": "integer",
+                        "description": "到最近地铁站最大距离（米）。「近地铁/交通方便」→800；「地铁500米内」→500；「地铁1公里」→1000；「走路10分钟」→800"
+                    },
                     "subway_line": {
                         "type": "string",
                         "description": "地铁线路，使用包含匹配（如「13号线」也会匹配「13号线/昌平线」换乘站）。「13号线沿线」→\"13号线\""
@@ -750,7 +797,7 @@ TOOLS: list[dict] = [
                     },
                     "max_commute_minutes": {
                         "type": "integer",
-                        "description": "到西二旗通勤上限（分钟）。「通勤30分钟内」→30"
+                        "description": "到西二旗通勤上限（分钟）。「通勤30分钟内」→30。用户仅表达通勤时间时只设本字段，不要推断 location"
                     },
                     "noise_preference": {
                         "type": "string",
@@ -814,7 +861,7 @@ TOOLS: list[dict] = [
                     "parking_type": {
                         "type": "string",
                         "enum": ["车库车位", "露天车位", "无车位"],
-                        "description": "车位有无及类型（硬约束）。仅表示要车库/露天/无车位。"
+                        "description": "车位有无及类型（硬约束）。仅表示要车库/露天/无车位。用户说车位免费→用 required_utilities: [免车位费]，不要用本字段"
                     },
                     "security_requirement": {
                         "type": "string",
@@ -846,27 +893,27 @@ TOOLS: list[dict] = [
                         "enum": ["合同规范条款清晰", "合同不规范", "房东好沟通", "房东不配合", "房东难联系"],
                         "description": "合同/房东相关要求（硬约束）"
                     },
-                    "decoration_is_soft": {"type": "boolean", "description": "true=本轮回该维度为软约束（匹配加分，不匹配不排除）。仅当用户说「最好、如果能、尽量、更倾向于、优及先、有…更好、…就更好了、…的话更好、可以的话、理想情况、尽量能、倾向于」时设为 true，用户语气肯定时，如提及「要、希望、想、必须、得、需要、只能、只要、一定、不得不、务必、不能（否定底线）」时设为false"},
-                    "elevator_is_soft": {"type": "boolean", "description": "true=本轮回该维度为软约束（匹配加分，不匹配不排除）。仅当用户说「最好、如果能、尽量、更倾向于、优及先、有…更好、…就更好了、…的话更好、可以的话、理想情况、尽量能、倾向于」时设为 true，用户语气肯定时，如提及「要、希望、想、必须、得、需要、只能、只要、一定、不得不、务必、不能（否定底线）」时设为false，对应 elevator"},
-                    "orientation_is_soft": {"type": "boolean", "description": "true=本轮回该维度为软约束（匹配加分，不匹配不排除）。仅当用户说「最好、如果能、尽量、更倾向于、优及先、有…更好、…就更好了、…的话更好、可以的话、理想情况、尽量能、倾向于」时设为 true，用户语气肯定时，如提及「要、希望、想、必须、得、需要、只能、只要、一定、不得不、务必、不能（否定底线）」时设为false，对应 orientation"},
-                    "floor_pref_is_soft": {"type": "boolean", "description": "true=本轮回该维度为软约束（匹配加分，不匹配不排除）。仅当用户说「最好、如果能、尽量、更倾向于、优及先、有…更好、…就更好了、…的话更好、可以的话、理想情况、尽量能、倾向于」时设为 true，用户语气肯定时，如提及「要、希望、想、必须、得、需要、只能、只要、一定、不得不、务必、不能（否定底线）」时设为false，对应 floor_pref"},
-                    "rental_type_is_soft": {"type": "boolean", "description": "同上，对应 rental_type"},
-                    "pet_policy_is_soft": {"type": "boolean", "description": "同上，对应 pet_policy"},
-                    "viewing_method_is_soft": {"type": "boolean", "description": "同上，对应 viewing_method"},
-                    "viewing_time_is_soft": {"type": "boolean", "description": "同上，对应 viewing_time"},
-                    "lease_flexibility_is_soft": {"type": "boolean", "description": "同上，对应 lease_flexibility"},
-                    "termination_sublet_is_soft": {"type": "boolean", "description": "同上，对应 termination_sublet"},
-                    "parking_type_is_soft": {"type": "boolean", "description": "同上，对应 parking_type"},
-                    "security_requirement_is_soft": {"type": "boolean", "description": "同上，对应 security_requirement"},
-                    "property_management_is_soft": {"type": "boolean", "description": "同上，对应 property_management"},
-                    "environment_preference_is_soft": {"type": "boolean", "description": "同上，对应 environment_preference"},
-                    "house_feature_is_soft": {"type": "boolean", "description": "同上，对应 house_feature"},
-                    "landlord_contract_is_soft": {"type": "boolean", "description": "同上，对应 landlord_contract"},
-                    "required_utilities_is_soft": {"type": "boolean", "description": "同上，对应 required_utilities"},
-                    "required_nearby_is_soft": {"type": "boolean", "description": "同上，对应 required_nearby"},
-                    "payment_method_is_soft": {"type": "boolean", "description": "同上，对应 payment_method"},
-                    "deposit_type_is_soft": {"type": "boolean", "description": "同上，对应 deposit_type"},
-                    "no_agent_fee_is_soft": {"type": "boolean", "description": "同上，对应 no_agent_fee"}
+                    "decoration_is_soft": {"type": "boolean", "description": "true=软约束，对应 decoration"},
+                    "elevator_is_soft": {"type": "boolean", "description": "true=软约束，对应 elevator"},
+                    "orientation_is_soft": {"type": "boolean", "description": "true=软约束，对应 orientation"},
+                    "floor_pref_is_soft": {"type": "boolean", "description": "true=软约束，对应 floor_pref"},
+                    "rental_type_is_soft": {"type": "boolean", "description": "true=软约束，对应 rental_type"},
+                    "pet_policy_is_soft": {"type": "boolean", "description": "true=软约束，对应 pet_policy"},
+                    "viewing_method_is_soft": {"type": "boolean", "description": "true=软约束，对应 viewing_method"},
+                    "viewing_time_is_soft": {"type": "boolean", "description": "true=软约束，对应 viewing_time"},
+                    "lease_flexibility_is_soft": {"type": "boolean", "description": "true=软约束，对应 lease_flexibility"},
+                    "termination_sublet_is_soft": {"type": "boolean", "description": "true=软约束，对应 termination_sublet"},
+                    "parking_type_is_soft": {"type": "boolean", "description": "true=软约束，对应 parking_type"},
+                    "security_requirement_is_soft": {"type": "boolean", "description": "true=软约束，对应 security_requirement"},
+                    "property_management_is_soft": {"type": "boolean", "description": "true=软约束，对应 property_management"},
+                    "environment_preference_is_soft": {"type": "boolean", "description": "true=软约束，对应 environment_preference"},
+                    "house_feature_is_soft": {"type": "boolean", "description": "true=软约束，对应 house_feature"},
+                    "landlord_contract_is_soft": {"type": "boolean", "description": "true=软约束，对应 landlord_contract"},
+                    "required_utilities_is_soft": {"type": "boolean", "description": "true=软约束，对应 required_utilities"},
+                    "required_nearby_is_soft": {"type": "boolean", "description": "true=软约束，对应 required_nearby"},
+                    "payment_method_is_soft": {"type": "boolean", "description": "true=软约束，对应 payment_method"},
+                    "deposit_type_is_soft": {"type": "boolean", "description": "true=软约束，对应 deposit_type"},
+                    "no_agent_fee_is_soft": {"type": "boolean", "description": "true=软约束，对应 no_agent_fee"}
                 },
                 "required": []
             }
