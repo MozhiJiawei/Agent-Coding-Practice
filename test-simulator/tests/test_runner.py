@@ -369,6 +369,20 @@ class TestToolCallArgs:
         ok, msg = ASSERTION_RULES["tool_call_args"](resp, expect)
         assert ok is True, msg
 
+    def test_pass_tag_preferences_equivalent(self):
+        """tag_preferences：精装修 与 精装 归一化等价；无序集合一致即通过"""
+        expect = {"tool": "update_preferences", "contains": {"tag_preferences": ["精装修"]}}
+        resp = self._make_response("update_preferences", {"tag_preferences": ["精装"]})
+        ok, msg = ASSERTION_RULES["tool_call_args"](resp, expect)
+        assert ok is True, msg
+
+    def test_pass_bedrooms_normalized(self):
+        """bedrooms：'2,3' 与 '2, 3' 规范化后等价"""
+        expect = {"tool": "update_preferences", "contains": {"bedrooms": "2,3"}}
+        resp = self._make_response("update_preferences", {"bedrooms": "2, 3"})
+        ok, msg = ASSERTION_RULES["tool_call_args"](resp, expect)
+        assert ok is True, msg
+
 
 class TestToolCallChain:
     """tool_call_chain: 验证链式调用顺序"""

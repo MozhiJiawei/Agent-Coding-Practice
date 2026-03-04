@@ -148,11 +148,23 @@ def _status_success(response: dict, expected: Any) -> tuple[bool, str]:
     return (False, f"status_success: expected 'success', got {status!r}")
 
 
+def _tag_list_equivalent(expected: list, actual: list) -> bool:
+    """标签列表等价：无序集合一致；精装修/精装等归一化后比较。"""
+    if not isinstance(expected, list) or not isinstance(actual, list):
+        return False
+    _tag_norm = {"精装修": "精装", "精修": "精装", "精": "精装", "简装修": "简装", "简修": "简装", "简": "简装"}
+    def norm(s: str) -> str:
+        return _tag_norm.get(str(s).strip(), str(s).strip())
+    exp_set = {norm(x) for x in expected if isinstance(x, str)}
+    act_set = {norm(x) for x in actual if isinstance(x, str)}
+    return exp_set == act_set
+
+
 def _tool_call_args(response: dict, expected: Any) -> tuple[bool, str]:
-    """验证指定工具被调用，且参数严格匹配：实际 args 的键必须与 contains 完全一致。
+    """验证指定工具被调用，且参数精确匹配：实际 args 的键必须与 contains 完全一致。
 
     expected 为 ToolCallArgsExpect.model_dump()，含 tool 和 contains 两个字段。
-    location/decoration 的值仍按现有规则做模糊等价，其余键严格相等。
+    location/decoration 的值仍按现有规则做模糊等价；tag_requirements/tag_preferences 按无序集合+标签归一化比较；bedrooms 规范化后比较。
     """
     if not isinstance(expected, dict):
         return (False, "tool_call_args: invalid expected config")
@@ -183,11 +195,19 @@ def _tool_call_args(response: dict, expected: Any) -> tuple[bool, str]:
             if not _locations_equivalent(expected_val, actual_val):
                 mismatches.append(f"{key}: 期望 {expected_val!r}, 实际 {actual_val!r}")
         elif key == "decoration" and isinstance(expected_val, str) and isinstance(actual_val, str):
-            # 精装修/精修 与 精装 等价，简装修/简修 与 简装 等价
             _dec_norm = {"精装修": "精装", "精修": "精装", "精": "精装", "简装修": "简装", "简修": "简装", "简": "简装"}
             exp_norm = _dec_norm.get(expected_val, expected_val)
             act_norm = _dec_norm.get(actual_val, actual_val)
             if exp_norm != act_norm:
+                mismatches.append(f"{key}: 期望 {expected_val!r}, 实际 {actual_val!r}")
+        elif key in ("tag_requirements", "tag_preferences") and isinstance(expected_val, list) and isinstance(actual_val, list):
+            if not _tag_list_equivalent(expected_val, actual_val):
+                mismatches.append(f"{key}: 期望 {expected_val!r}, 实际 {actual_val!r}")
+        elif key == "bedrooms" and expected_val is not None and actual_val is not None:
+            # 规范化：去掉空格后比较，"2,3" 与 "2, 3" 等价
+            exp_b = ",".join(str(expected_val).replace(" ", "").split(","))
+            act_b = ",".join(str(actual_val).replace(" ", "").split(","))
+            if exp_b != act_b:
                 mismatches.append(f"{key}: 期望 {expected_val!r}, 实际 {actual_val!r}")
         elif actual_val != expected_val:
             mismatches.append(f"{key}: 期望 {expected_val!r}, 实际 {actual_val!r}")
