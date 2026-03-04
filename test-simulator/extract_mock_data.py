@@ -5,7 +5,7 @@
 fixture 格式输出（含 landmarks 与 houses）。
 
 支持三平台（链家、安居客、58同城）：分别统计各平台数量、输出差距，去重后仅保留一个平台
-（默认保留链家）写入 YAML。
+（默认保留安居客）写入 YAML。
 
 用法（在 test-simulator/ 目录下运行）：
   python extract_mock_data.py <jsonl_path> [output_yaml]
@@ -137,16 +137,15 @@ def _print_platform_gap(platform_houses: dict[str, list], keep_platform: str) ->
 
 
 def _dedup_keep_one_platform(platform_houses: dict[str, list], keep_platform: str) -> list[dict]:
-    """仅保留一个平台：按去重 key 去重，同一套房只保留一条（平台优先级：链家 > 安居客 > 58同城）。"""
+    """仅保留指定平台的房源：只取 keep_platform 的 items，按去重 key 去重后返回。"""
     seen: dict[tuple, dict] = {}
-    for plat in PLATFORMS:
-        for h in platform_houses.get(plat, []):
-            try:
-                k = _house_dedup_key(h)
-            except Exception:
-                continue
-            if k not in seen:
-                seen[k] = h
+    for h in platform_houses.get(keep_platform, []):
+        try:
+            k = _house_dedup_key(h)
+        except Exception:
+            continue
+        if k not in seen:
+            seen[k] = h
     return list(seen.values())
 
 
@@ -156,7 +155,7 @@ def _dedup_keep_one_platform(platform_houses: dict[str, list], keep_platform: st
 def extract_mock_data(
     jsonl_path: Path,
     output_path: Path,
-    keep_platform: str = "链家",
+    keep_platform: str = "安居客",
 ) -> None:
     platform_houses: dict[str, list[dict]] = {p: [] for p in PLATFORMS}
     all_landmarks: list[dict] = []
@@ -262,14 +261,14 @@ def main() -> None:
     parser.add_argument(
         "output",
         nargs="?",
-        default="mock_data/EV-06.yaml",
-        help="输出 YAML 路径（默认: mock_data/EV-06.yaml）",
+        default="mock_data/final-test.yaml",
+        help="输出 YAML 路径（默认: mock_data/final-test.yaml）",
     )
     parser.add_argument(
         "--keep-platform",
         choices=PLATFORMS,
-        default="链家",
-        help="去重时优先保留的平台（默认: 链家）",
+        default="安居客",
+        help="去重时优先保留的平台（默认: 安居客）",
     )
     args = parser.parse_args()
 

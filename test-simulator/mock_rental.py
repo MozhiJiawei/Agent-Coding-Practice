@@ -62,14 +62,42 @@ def _listing_url(house_id: str, platform: str) -> str:
     return "https://bj.zu.anjuke.com/"
 
 
+# 与真实 API 一致：整数字段以 int 输出（YAML 可能加载为 float）
+_HOUSE_INT_KEYS = frozenset({
+    "area_sqm", "bedrooms", "livingrooms", "bathrooms", "subway_distance",
+    "total_floors", "commute_to_xierqi",
+})
+
+
+def _normalize_house_numeric(house: dict) -> dict:
+    """将房源中应为整数的字段规范为 int（与真实 API 一致，便于双端比对）。"""
+    out = dict(house)
+    for k in _HOUSE_INT_KEYS:
+        if k not in out:
+            continue
+        v = out[k]
+        if isinstance(v, float) and v == int(v):
+            out[k] = int(v)
+        elif isinstance(v, (int, float)) and not isinstance(v, bool):
+            try:
+                iv = int(v)
+                if iv == v:
+                    out[k] = iv
+            except (TypeError, ValueError):
+                pass
+    return out
+
+
 def _apply_platform(house: dict, platform: str) -> dict:
-    """返回应用平台定价后的房源副本（不修改原始数据）。"""
+    """返回应用平台定价后的房源副本（不修改原始数据）。与真实 API 一致地包含 price_unit、coordinate_system。"""
     factor = PLATFORM_FACTORS.get(platform, 1.00)
     result = dict(house)
     result["listing_platform"] = platform
     result["listing_url"] = _listing_url(house["house_id"], platform)
     result["price"] = int(house["price"] * factor)
-    return result
+    result.setdefault("price_unit", "元/月")
+    result.setdefault("coordinate_system", "WGS84")
+    return _normalize_house_numeric(result)
 
 
 # ── 分页辅助 ──────────────────────────────────────────────────────────────────
@@ -313,7 +341,8 @@ def create_mock_rental_app(
         page = max(1, page)
         page_size = min(max(1, page_size), 10000)
         items = [_apply_platform(h, platform) for h in _paginate(result, page, page_size)]
-        return _ok({"total": total, "page": page, "page_size": len(items), "items": items})
+        # 与真实 API 一致：响应中 page_size 为请求的每页条数（默认 10），无房源时仍为 10
+        return _ok({"total": total, "page": page, "page_size": page_size, "items": items})
 
     @app.get("/api/houses/by_platform")
     async def get_houses_by_platform(request: Request):
@@ -382,7 +411,7 @@ def create_mock_rental_app(
             cutoff = params["available_from_before"]
             result = [h for h in result if h.get("available_from", "9999") <= cutoff]
 
-        # AC4 步骤 3：排序
+        # AC4 步骤 3：排序（未指定 sort_by 时按 house_id 升序，与真实 API 分页顺序一致便于双端比对）
         sort_by = params.get("sort_by", "")
         sort_order = params.get("sort_order", "asc")
         reverse = sort_order == "desc"
@@ -390,6 +419,8 @@ def create_mock_rental_app(
         if sort_by in sort_map:
             field = sort_map[sort_by]
             result.sort(key=lambda h: float(h.get(field, 0)), reverse=reverse)
+        else:
+            result.sort(key=lambda h: _house_num(h.get("house_id", "")))
 
         # AC4 步骤 4：平台定价
         result_with_platform = [_apply_platform(h, platform) for h in result]
@@ -484,7 +515,9 @@ def create_mock_rental_app(
                 ref_house = h
                 break
         if ref_house is None:
-            return _ok({"community": community, "type": type, "total": 0, "items": []})
+            # 与真实 API 一致：无小区时 data.type 仍为请求的 type 字符串（非 None），保证为 str
+            type_val = str(type) if type is not None else ""
+            return _ok({"community": community, "type": type_val, "total": 0, "items": []})
 
         ref_lat = float(ref_house["latitude"])
         ref_lon = float(ref_house["longitude"])
@@ -504,7 +537,8 @@ def create_mock_rental_app(
                 result.append(entry)
 
         result.sort(key=lambda x: x["distance_m"])
-        return _ok({"community": community, "type": type, "total": len(result), "items": result or None})
+        type_val = str(type) if type is not None else ""
+        return _ok({"community": community, "type": type_val, "total": len(result), "items": result or []})
 
     @app.get("/api/houses/{house_id}")
     async def get_house_by_id(request: Request, house_id: str):

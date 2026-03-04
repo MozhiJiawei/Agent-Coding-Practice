@@ -48,6 +48,8 @@ def pytest_sessionfinish(session, exitstatus):
             f.write(f"RENTAL_API_BASE: {meta.get('base_url', 'N/A')}\n")
             f.write(f"数据源: {meta.get('fixture_source', 'N/A')}\n")
             f.write(f"双端模式 (Mock vs Real 同请求比对): {meta.get('parity_dual', False)}\n")
+            if meta.get("parity_from_log"):
+                f.write(f"本地日志对比 (PARITY_REAL_LOG): {meta.get('parity_from_log')}\n")
             f.write("------------------------------------------------------------\n")
             f.write(f"总用例数: {total}\n")
             f.write(f"通过: {total - failed_count}\n")
