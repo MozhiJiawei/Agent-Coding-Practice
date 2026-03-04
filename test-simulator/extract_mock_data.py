@@ -4,11 +4,15 @@
 读取日志中的 DEBUG_ALL_HOUSES 与 DEBUG_ALL_LANDMARKS 事件，将其 items 全量转换为
 fixture 格式输出（含 landmarks 与 houses）。
 
+支持三平台（链家、安居客、58同城）：分别统计各平台数量、输出差距，去重后仅保留一个平台
+（默认保留链家）写入 YAML。
+
 用法（在 test-simulator/ 目录下运行）：
   python extract_mock_data.py <jsonl_path> [output_yaml]
 
 示例：
   python extract_mock_data.py ../logs/eval_l00933108_EV-06_1772426116496476236.jsonl mock_data/EV-06.yaml
+  python extract_mock_data.py ../房屋数据/传输_还原/xxx.jsonl mock_data/final-test_new.yaml
 """
 from __future__ import annotations
 
@@ -18,6 +22,11 @@ import sys
 from pathlib import Path
 
 import yaml
+
+# 三平台名称（顺序：去重时优先保留链家）
+PLATFORMS = ("链家", "安居客", "58同城")
+# 用于跨平台去重的房源标识 key（同一套房）
+DEDUP_KEY_FIELDS = ("community", "address", "area_sqm", "price", "bedrooms")
 
 # ── 字段定义 ──────────────────────────────────────────────────────────────────
 
@@ -96,11 +105,60 @@ def landmark_to_fixture(lm: dict) -> dict:
     return entry
 
 
+def _house_dedup_key(h: dict) -> tuple:
+    """生成用于跨平台去重的 key（同一套房：小区+地址+面积+租金+室数）。"""
+    return tuple(
+        h.get(f) for f in DEDUP_KEY_FIELDS
+    )
+
+
+def _print_platform_gap(platform_houses: dict[str, list], keep_platform: str) -> None:
+    """输出三平台房源数量差距及去重统计。"""
+    print("\n--- 三平台房源信息统计 ---")
+    for name in PLATFORMS:
+        n = len(platform_houses.get(name, []))
+        print(f"  {name}: {n} 套")
+    # 按去重 key 统计：各平台独立去重、跨平台去重
+    seen_key: dict = {}
+    for plat in PLATFORMS:
+        for h in platform_houses.get(plat, []):
+            try:
+                k = _house_dedup_key(h)
+            except Exception:
+                continue
+            if k not in seen_key:
+                seen_key[k] = plat
+    print(f"  按「小区+地址+面积+租金+室数」去重后: 共 {len(seen_key)} 套唯一房源")
+    # 仅保留一个平台时的数量
+    keep_list = platform_houses.get(keep_platform, [])
+    keep_keys = {_house_dedup_key(h) for h in keep_list if all(h.get(f) is not None for f in DEDUP_KEY_FIELDS)}
+    print(f"  仅保留「{keep_platform}」平台: {len(keep_list)} 套（去重 key 数: {len(keep_keys)}）")
+    print("---\n")
+
+
+def _dedup_keep_one_platform(platform_houses: dict[str, list], keep_platform: str) -> list[dict]:
+    """仅保留一个平台：按去重 key 去重，同一套房只保留一条（平台优先级：链家 > 安居客 > 58同城）。"""
+    seen: dict[tuple, dict] = {}
+    for plat in PLATFORMS:
+        for h in platform_houses.get(plat, []):
+            try:
+                k = _house_dedup_key(h)
+            except Exception:
+                continue
+            if k not in seen:
+                seen[k] = h
+    return list(seen.values())
+
+
 # ── 主提取逻辑 ────────────────────────────────────────────────────────────────
 
 
-def extract_mock_data(jsonl_path: Path, output_path: Path) -> None:
-    all_houses: list[dict] = []
+def extract_mock_data(
+    jsonl_path: Path,
+    output_path: Path,
+    keep_platform: str = "链家",
+) -> None:
+    platform_houses: dict[str, list[dict]] = {p: [] for p in PLATFORMS}
     all_landmarks: list[dict] = []
     session_id: str = "unknown"
 
@@ -121,27 +179,31 @@ def extract_mock_data(jsonl_path: Path, output_path: Path) -> None:
                 session_id = event.get("session_id", "unknown")
 
             if event.get("event") == "DEBUG_ALL_HOUSES":
-                raw = event.get("details", {}).get("raw_response", {})
-                # 新结构：三平台分 key；旧结构：顶层 items
-                if "链家" in raw or "安居客" in raw or "58同城" in raw:
-                    items = []
-                    for platform in ("链家", "安居客", "58同城"):
-                        plat_data = raw.get(platform, {})
+                raw_resp = event.get("details", {}).get("raw_response", {})
+                # 新结构：三平台分 key
+                if any(p in raw_resp for p in PLATFORMS):
+                    for platform in PLATFORMS:
+                        plat_data = raw_resp.get(platform, {})
                         plat_items = plat_data.get("items", []) if isinstance(plat_data, dict) else []
-                        items.extend(plat_items)
-                    if items:
-                        all_houses = items
-                        print(f"  [DEBUG_ALL_HOUSES] 找到 {len(all_houses)} 套房源（三平台合并）")
+                        if plat_items:
+                            platform_houses[platform] = plat_items
+                    total = sum(len(platform_houses[p]) for p in PLATFORMS)
+                    print(f"  [DEBUG_ALL_HOUSES] 三平台: 链家 {len(platform_houses['链家'])} 套, "
+                          f"安居客 {len(platform_houses['安居客'])} 套, 58同城 {len(platform_houses['58同城'])} 套")
                 else:
-                    items = raw.get("items", [])
+                    items = raw_resp.get("items", [])
                     if items:
-                        all_houses = items
-                        print(f"  [DEBUG_ALL_HOUSES] 找到 {len(all_houses)} 套房源")
+                        platform_houses["链家"] = items
+                        print(f"  [DEBUG_ALL_HOUSES] 找到 {len(items)} 套房源（单结构）")
             elif event.get("event") == "DEBUG_ALL_LANDMARKS":
                 items = event.get("details", {}).get("raw_response", {}).get("items", [])
                 if items:
                     all_landmarks = items
                     print(f"  [DEBUG_ALL_LANDMARKS] 找到 {len(all_landmarks)} 个地标")
+
+    _print_platform_gap(platform_houses, keep_platform)
+    # 仅保留一个平台：按去重 key 去重，同 key 只留一条（平台优先级：链家 > 安居客 > 58同城）
+    all_houses = _dedup_keep_one_platform(platform_houses, keep_platform)
 
     if not all_houses:
         print("错误: 未找到 DEBUG_ALL_HOUSES 事件或 items 为空", file=sys.stderr)
@@ -203,6 +265,12 @@ def main() -> None:
         default="mock_data/EV-06.yaml",
         help="输出 YAML 路径（默认: mock_data/EV-06.yaml）",
     )
+    parser.add_argument(
+        "--keep-platform",
+        choices=PLATFORMS,
+        default="链家",
+        help="去重时优先保留的平台（默认: 链家）",
+    )
     args = parser.parse_args()
 
     jsonl_path = Path(args.jsonl)
@@ -210,7 +278,7 @@ def main() -> None:
         print(f"错误: 日志文件不存在: {jsonl_path}", file=sys.stderr)
         sys.exit(1)
 
-    extract_mock_data(jsonl_path, Path(args.output))
+    extract_mock_data(jsonl_path, Path(args.output), keep_platform=args.keep_platform)
 
 
 if __name__ == "__main__":
