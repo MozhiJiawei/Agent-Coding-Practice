@@ -819,17 +819,20 @@ class TestSearchHouses:
             raise
 
     @pytest.mark.asyncio
-    async def test_search_houses_max_subway_dist(self, client):
-        case_id = "search_houses_max_subway_dist"
+    async def test_search_houses_sort_by_subway(self, client):
+        """近地铁用 sort_by=subway, sort_order=asc；结果按地铁距离升序"""
+        case_id = "search_houses_sort_by_subway"
         record_parity_start(case_id)
         try:
-            r = await search_houses(client, max_subway_dist=400)
+            r = await search_houses(client, sort_by="subway", sort_order="asc")
             assert "error" not in r, r.get("error", "")
             assert "total" in r and "items" in r
-            for item in r.get("items", []):
-                assert int(item.get("subway_distance", 0)) <= 400
+            items = r.get("items", [])
+            if len(items) >= 2:
+                dists = [int(i.get("subway_distance") or 99999) for i in items]
+                assert dists == sorted(dists), "sort_by=subway asc 时结果应按地铁距离升序"
         except Exception as e:
-            _record_fail(case_id, "search_houses", "max_subway_dist=400", str(e))
+            _record_fail(case_id, "search_houses", "sort_by=subway, sort_order=asc", str(e))
             raise
 
     @pytest.mark.asyncio

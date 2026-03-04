@@ -94,21 +94,23 @@ class TestBuildSearchParams:
             assert item.get("area") == "望京", f"非望京商圈: {item}"
 
     @pytest.mark.anyio
-    async def test_max_subway_dist_800_in_params(self, rental_client):
-        prefs = UserPreferences(max_subway_dist=800)
+    async def test_sort_by_subway_in_params(self, rental_client):
+        """近地铁用 sort_by=subway, sort_order=asc；结果按地铁距离升序"""
+        prefs = UserPreferences(sort_by="subway", sort_order="asc")
         params = build_search_params(prefs)
-        assert params["max_subway_dist"] == 800
+        assert params["sort_by"] == "subway"
+        assert params["sort_order"] == "asc"
         result = await search_houses(rental_client, **params)
-        for item in result.get("items", []):
-            assert item.get("subway_distance", 0) <= 800, (
-                f"subway_distance={item.get('subway_distance')} 超过 800"
-            )
+        items = result.get("items", [])
+        if len(items) >= 2:
+            dists = [int(i.get("subway_distance") or 99999) for i in items]
+            assert dists == sorted(dists), "sort_by=subway asc 时结果应按地铁距离升序"
 
     @pytest.mark.anyio
-    async def test_max_subway_dist_none_not_in_params(self, rental_client):
+    async def test_sort_by_default_not_subway_in_params(self, rental_client):
         prefs = UserPreferences()
         params = build_search_params(prefs)
-        assert "max_subway_dist" not in params
+        assert params.get("sort_by") != "subway"
         result = await search_houses(rental_client, **params)
         assert isinstance(result.get("items"), list)
 
@@ -410,7 +412,7 @@ class TestUpdatePreferencesPipeline:
         prefs = UserPreferences()
         await update_preferences(
             rental_client, prefs,
-            location=["海淀"], bedrooms="3", max_price=13000, max_subway_dist=800,
+            location=["海淀"], bedrooms="3", max_price=13000, sort_by="subway", sort_order="asc",
         )
         result = await search_by_preferences(rental_client, prefs)
         assert result["total_matched"] > 0, (

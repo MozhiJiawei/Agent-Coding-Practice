@@ -395,9 +395,6 @@ def create_mock_rental_app(
             result = [h for h in result if float(h.get("area_sqm", mx)) <= mx]
         if "subway_line" in params:
             result = [h for h in result if h.get("subway") == params["subway_line"]]
-        if "max_subway_dist" in params:
-            mx = _parse_int(params["max_subway_dist"], 10**9)
-            result = [h for h in result if int(h.get("subway_distance", 10**9)) <= mx]
         if "subway_station" in params:
             result = [h for h in result if h.get("subway_station") == params["subway_station"]]
         if "commute_to_xierqi_max" in params:

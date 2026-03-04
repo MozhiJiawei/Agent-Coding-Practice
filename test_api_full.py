@@ -219,11 +219,10 @@ async def run_all_tests(client: httpx.AsyncClient) -> dict:
             "max_price": 6000,
             "bedrooms": "1,2",
             "rental_type": "整租",
-            "max_subway_dist": 1000,
             "listing_platform": "安居客",
             "page": 1,
             "page_size": 5,
-            "sort_by": "price",
+            "sort_by": "subway",
             "sort_order": "asc",
         }
         resp = await client.get("/api/houses/by_platform", params=params, headers=_house_headers())

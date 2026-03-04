@@ -33,7 +33,7 @@ SYSTEM_PROMPT = """你是智能租房助手，帮助用户在北京寻找和租�
 
 工具调用边界：
 - 用户明确表达「找房」「帮我找」「推荐」「想换房」等意图时，调用 update_preferences 再 search_by_preferences
-- 用户抱怨当前住房且可推断出明确偏好时，也可仅调用 update_preferences 更新该偏好（如：太吵/睡眠差→noise_preference=安静；采光不好→orientation="朝南"；通勤太长→sort_by=subway、sort_order=asc 或 max_subway_dist=800；房间小→sort_by=area、sort_order=desc），不必等用户明确说「找房」
+- 用户抱怨当前住房且可推断出明确偏好时，也可仅调用 update_preferences 更新该偏好（如：太吵/睡眠差→noise_preference=安静；采光不好→orientation="朝南"；通勤太长/近地铁→sort_by=subway、sort_order=asc；房间小→sort_by=area、sort_order=desc），不必等用户明确说「找房」
 - 纯聊天或与房源无关的问题 → 直接自然语言回复，禁止调工具
 
 硬约束 vs 软约束（v2 重要）：

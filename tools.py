@@ -96,7 +96,6 @@ class UserPreferences(BaseModel):
     floor_pref: Optional[str] = None
     min_area: Optional[int] = None
     max_area: Optional[int] = None
-    max_subway_dist: Optional[int] = None
     subway_line: Optional[str] = None
     utilities_type: Optional[str] = None
     property_type: Optional[str] = None
@@ -196,7 +195,7 @@ def resolve_location(loc: str) -> dict:
 # 供 update_preferences 使用的有效标量/数组字段名（不含 location/clear_location/xxx_is_soft）
 _PREFS_SCALAR_KEYS = frozenset({
     "min_price", "max_price", "bedrooms", "rental_type", "decoration", "elevator",
-    "orientation", "floor_pref", "min_area", "max_area", "max_subway_dist", "subway_line",
+    "orientation", "floor_pref", "min_area", "max_area", "subway_line",
     "utilities_type", "property_type", "listing_platform", "available_before",
     "max_commute_minutes", "noise_preference", "sort_by", "sort_order",
     "no_agent_fee", "payment_method", "deposit_type",
@@ -320,8 +319,6 @@ def build_search_params(prefs: UserPreferences) -> dict:
         params["orientation"] = prefs.orientation
     if "elevator" not in soft and prefs.elevator is not None:
         params["elevator"] = "true" if prefs.elevator else "false"
-    if "max_subway_dist" not in soft and prefs.max_subway_dist is not None:
-        params["max_subway_dist"] = prefs.max_subway_dist
     if prefs.sort_by is not None:
         params["sort_by"] = prefs.sort_by
     if prefs.sort_order is not None:
@@ -368,8 +365,6 @@ def _calc_soft_score(house: dict, prefs: UserPreferences) -> int:
             matched = _match_floor(house.get("floor", ""), val)
         elif field == "rental_type":
             matched = house.get("rental_type") == val
-        elif field == "max_subway_dist":
-            matched = int(house.get("subway_distance") or 99999) <= val
         elif field == "no_agent_fee":
             matched = "房东直租" in tags
         elif field == "payment_method":
@@ -462,9 +457,6 @@ def post_filter_and_rank(items: list[dict], prefs: UserPreferences) -> list[dict
                 continue
             if prefs.elevator is not None and "elevator" not in soft and bool(h.get("elevator")) != prefs.elevator:
                 continue
-            if prefs.max_subway_dist is not None and "max_subway_dist" not in soft:
-                if int(h.get("subway_distance") or 99999) > prefs.max_subway_dist:
-                    continue
             filtered.append(h)  # 通过所有硬约束
 
     scored = [(h, _calc_soft_score(h, prefs)) for h in filtered]
@@ -733,10 +725,6 @@ TOOLS: list[dict] = [
                         "type": "integer",
                         "description": "最大面积（㎡）"
                     },
-                    "max_subway_dist": {
-                        "type": "integer",
-                        "description": "到最近地铁站最大距离（米）。「近地铁/交通方便」→800；「地铁500米内」→500；「地铁1公里」→1000；「走路10分钟」→800"
-                    },
                     "subway_line": {
                         "type": "string",
                         "description": "地铁线路，使用包含匹配（如「13号线」也会匹配「13号线/昌平线」换乘站）。「13号线沿线」→\"13号线\""
@@ -772,7 +760,7 @@ TOOLS: list[dict] = [
                     "sort_by": {
                         "type": "string",
                         "enum": ["price", "area", "subway"],
-                        "description": "排序字段。「按价格排」→price，「按面积排」→area，「按地铁距离排，近地铁」→subway"
+                        "description": "排序字段。「按价格排」→price，「按面积排」→area；「近地铁/最好近地铁/交通方便」→subway，并设 sort_order=asc"
                     },
                     "sort_order": {
                         "type": "string",
