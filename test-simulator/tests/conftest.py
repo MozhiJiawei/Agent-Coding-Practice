@@ -71,4 +71,10 @@ def pytest_sessionfinish(session, exitstatus):
                     )
                     if item.get("mock_status") is not None or item.get("real_status") is not None:
                         f.write(f"       mock_status={item.get('mock_status')} real_status={item.get('real_status')}\n")
+                    raw = item.get("real_raw_response")
+                    if raw:
+                        f.write("       服务端原始响应:\n")
+                        for line in raw.splitlines():
+                            f.write(f"         {line}\n")
+                        f.write("\n")
         break

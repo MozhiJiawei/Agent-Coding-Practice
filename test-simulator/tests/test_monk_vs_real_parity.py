@@ -35,6 +35,7 @@ if _REPO_ROOT not in sys.path:
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import asyncio
+import logging
 import pytest
 import pytest_asyncio
 import httpx
@@ -47,6 +48,8 @@ PARITY_RUNS: list[str] = []  # 每跑一个用例 append case_id，用于统计�
 PARITY_REPORT_META: dict = {}
 # 双端模式：Mock 与内网 API 响应不一致时记录（mock_rental 行为须与内网 API 完全一致）
 PARITY_DUAL_FAILURES: list[dict] = []
+
+logger = logging.getLogger(__name__)
 
 # 双端模式：PARITY_DUAL=1 且已设置 RENTAL_API_BASE 时，每次请求同时发往 mock 与 real 并严格比较响应
 _PARITY_DUAL = os.environ.get("PARITY_DUAL") == "1" and bool(os.environ.get("RENTAL_API_BASE"))
@@ -189,6 +192,19 @@ def _response_json_strict_equal(mock_body: dict, real_body: dict) -> tuple[bool,
     return True, ""
 
 
+def _log_dual_failure(case_id: str, reason: str, real_status: int, real_raw_response: str) -> None:
+    """双端对比失败时，将服务端原始响应写入日志便于后续分析。"""
+    max_log_len = 4000
+    raw_preview = real_raw_response if len(real_raw_response) <= max_log_len else real_raw_response[:max_log_len] + "\n... (truncated)"
+    logger.warning(
+        "[双端对比失败] case_id=%s reason=%s real_status=%s\n服务端原始响应:\n%s",
+        case_id,
+        reason,
+        real_status,
+        raw_preview,
+    )
+
+
 class DualClient:
     """双端 Client：每次 get/post 同时发往 mock 与内网 API，严格比较响应后返回 mock 端结果。"""
 
@@ -229,14 +245,22 @@ class DualClient:
             case_id = _current_parity_case_id.get() or "unknown"
             summary = _params_summary(**kwargs.get("params") or kwargs.get("json") or {})
             reason = f"Mock vs Real 响应不一致: {msg}"
-            PARITY_DUAL_FAILURES.append({
+            try:
+                real_raw = resp_real.text
+            except Exception:
+                real_raw = repr(resp_real.content[:2000]) if resp_real.content else "(empty)"
+            failure_entry = {
                 "case_id": case_id,
                 "api_name": f"{method} {url}",
                 "params_summary": summary,
                 "reason": reason,
                 "mock_status": resp_mock.status_code,
                 "real_status": resp_real.status_code,
-            })
+                "real_raw_response": real_raw,
+            }
+            PARITY_DUAL_FAILURES.append(failure_entry)
+            # 双端对比失败时记录服务端原始响应到日志，便于后续分析
+            _log_dual_failure(case_id, reason, resp_real.status_code, real_raw)
             raise AssertionError(reason)
 
     async def aclose(self) -> None:
