@@ -3,17 +3,21 @@
 """
 final-test.yaml 统计脚本
 输出：字段取值范围与分布、house 全量字段（不含 house_id）、tags 语义分类统计、landmarks 全量信息统计
+用法:
+  python stats_final_test.py                    # 默认 final-test.yaml -> final-test-stats.txt
+  python stats_final_test.py a.yaml b.txt       # 指定输入 yaml 与输出 txt
 """
 
+import argparse
 import yaml
 import json
 from pathlib import Path
 from collections import Counter, defaultdict
 
-# 当前脚本所在目录下的 final-test.yaml
+# 当前脚本所在目录
 SCRIPT_DIR = Path(__file__).resolve().parent
-YAML_PATH = SCRIPT_DIR / "final-test.yaml"
-OUTPUT_PATH = SCRIPT_DIR / "final-test-stats.txt"
+DEFAULT_YAML = SCRIPT_DIR / "final-test.yaml"
+DEFAULT_OUTPUT = SCRIPT_DIR / "final-test-stats.txt"
 
 # house 需统计的字段（不含 house_id）
 HOUSE_FIELDS = [
@@ -162,9 +166,9 @@ def value_distribution(values, is_numeric=False):
     return res
 
 
-def main():
-    print("正在加载 YAML（文件较大，请稍候）...")
-    with open(YAML_PATH, "r", encoding="utf-8") as f:
+def main(yaml_path: Path, output_path: Path):
+    print(f"正在加载 YAML: {yaml_path}（文件较大，请稍候）...")
+    with open(yaml_path, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
 
     lines = []
@@ -172,7 +176,7 @@ def main():
 
     # ---------- 1. 总体概况 ----------
     write("=" * 60)
-    write("final-test.yaml 统计报告")
+    write(f"{yaml_path.name} 统计报告")
     write("=" * 60)
     landmarks = data.get("landmarks") or []
     houses = data.get("houses") or []
@@ -299,12 +303,24 @@ def main():
 
     # ---------- 输出到文件 ----------
     text = "\n".join(lines)
-    with open(OUTPUT_PATH, "w", encoding="utf-8") as out:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as out:
         out.write(text)
-    print(f"统计结果已写入: {OUTPUT_PATH}")
+    print(f"统计结果已写入: {output_path}")
     print("\n--- 预览（前 80 行）---")
     print("\n".join(lines[:80]))
+    return lines, data  # 供多文件对比时使用
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="final-test YAML 统计脚本")
+    parser.add_argument("yaml_path", nargs="?", type=Path, default=DEFAULT_YAML, help="输入 YAML 路径")
+    parser.add_argument("output_path", nargs="?", type=Path, default=None, help="输出 TXT 路径（默认：与 yaml 同目录，名为 xxx-stats.txt）")
+    args = parser.parse_args()
+    yaml_path = args.yaml_path.resolve()
+    output_path = args.output_path
+    if output_path is None:
+        output_path = yaml_path.parent / (yaml_path.stem + "-stats.txt")
+    else:
+        output_path = output_path.resolve()
+    main(yaml_path, output_path)

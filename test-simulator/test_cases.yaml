@@ -1671,6 +1671,7 @@ test_cases:
       tool_call_args:
         tool: update_preferences
         contains:
+          clear_location: true
           location:
           - 朝阳
           bedrooms: '3'
@@ -1789,6 +1790,7 @@ test_cases:
           - 通州
           bedrooms: '4'
           max_price: 18000
+          environment_preference: 绿化好环境佳
           required_nearby:
           - 近公园
           required_nearby_is_soft: true
@@ -2097,6 +2099,8 @@ test_cases:
     tool_call_args:
       tool: update_preferences
       contains:
+        location:
+          - 西二旗
         max_subway_dist: 800
   tags:
   - final-test
