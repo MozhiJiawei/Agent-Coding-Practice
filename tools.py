@@ -91,8 +91,22 @@ class UserPreferences(BaseModel):
     payment_method: Optional[str] = None
     deposit_type: Optional[str] = None
 
-    # ── 标签匹配 ──
-    tag_requirements: list[str] = []
+    # ── 硬约束标签类（直接参数，过滤时匹配房源 tags）──
+    pet_policy: Optional[str] = None
+    viewing_method: Optional[str] = None
+    viewing_time: Optional[str] = None
+    lease_flexibility: Optional[str] = None
+    required_utilities: Optional[list[str]] = None
+    termination_sublet: Optional[str] = None
+    parking_type: Optional[str] = None
+    security_requirement: Optional[str] = None
+    property_management: Optional[str] = None
+    environment_preference: Optional[str] = None
+    required_nearby: Optional[list[str]] = None
+    house_feature: Optional[str] = None
+    landlord_contract: Optional[str] = None
+
+    # ── 软偏好标签 ──
     tag_preferences: list[str] = []
 
     # ── 上下文记忆 ──
@@ -286,9 +300,15 @@ def post_filter_and_rank(items: list[dict], prefs: UserPreferences, *, is_landma
     加分项（来自 prefs 直接字段）：
       - orientation 匹配 +10；floor_pref 匹配 +5
 
-    tag_requirements / tag_preferences 的过滤与加分在迭代三实现。
+    直接参数→tags 硬过滤（8.1/8.3）、tag_preferences 加分（8.2）见下方。
     """
     scored: list[tuple[int, dict]] = []
+    # 单值标签类参数（过滤时要求房源 tags 包含该值）
+    _TAG_HARD_FIELDS = (
+        "pet_policy", "viewing_method", "viewing_time", "lease_flexibility",
+        "termination_sublet", "parking_type", "security_requirement",
+        "property_management", "environment_preference", "house_feature", "landlord_contract",
+    )
     for item in items:
         score = 0
 
@@ -303,6 +323,27 @@ def post_filter_and_rank(items: list[dict], prefs: UserPreferences, *, is_landma
             ori_target = prefs.orientation.replace("朝", "")
             if ori_target not in (item.get("orientation") or ""):
                 continue
+
+        # ── 直接参数 → tags 硬过滤（8.3 + 8.1）──────────────────────────────────
+        house_tags = set(item.get("tags") or [])
+        if prefs.payment_method is not None and prefs.payment_method not in house_tags:
+            continue
+        if prefs.deposit_type is not None and prefs.deposit_type not in house_tags:
+            continue
+        if prefs.no_agent_fee is True and "房东直租" not in house_tags:
+            continue
+        skip_tag = False
+        for field in _TAG_HARD_FIELDS:
+            val = getattr(prefs, field, None)
+            if val is not None and val not in house_tags:
+                skip_tag = True
+                break
+        if skip_tag:
+            continue
+        if prefs.required_utilities and not all(t in house_tags for t in prefs.required_utilities):
+            continue
+        if prefs.required_nearby and not all(t in house_tags for t in prefs.required_nearby):
+            continue
 
         # ── 地标搜索补充硬过滤（nearby API 不支持这些参数） ──────────────────
         if is_landmark_search:
@@ -356,6 +397,44 @@ def post_filter_and_rank(items: list[dict], prefs: UserPreferences, *, is_landma
         if prefs.floor_pref:
             if prefs.floor_pref in item.get("floor", ""):
                 score += 5
+
+        # tag_preferences 加分（8.2，含属性标签映射）
+        if prefs.tag_preferences:
+            for tag in prefs.tag_preferences:
+                if tag in house_tags:
+                    score += 5
+                    continue
+                if tag == "有电梯" and item.get("elevator"):
+                    score += 5
+                elif tag == "精装修" and item.get("decoration") == "精装":
+                    score += 5
+                elif tag == "简装" and item.get("decoration") == "简装":
+                    score += 5
+                elif tag == "豪华装修" and item.get("decoration") == "豪华":
+                    score += 5
+                elif tag in ("朝南", "朝北", "朝东", "朝西", "南北", "东西", "西北"):
+                    ori_val = item.get("orientation") or ""
+                    if tag in ("南北", "东西"):
+                        ori_ok = tag in ori_val
+                    else:
+                        ori_ok = tag.replace("朝", "") in ori_val
+                    if ori_ok:
+                        score += 10
+                elif tag in ("高层", "中层", "低层"):
+                    floor_val = item.get("floor") or ""
+                    if tag in floor_val:
+                        score += 5
+                    elif floor_val.startswith("共") and tag == "低层":
+                        try:
+                            total = int(floor_val.replace("共", "").replace("层", ""))
+                            if total <= 6:
+                                score += 5
+                        except ValueError:
+                            pass
+                elif tag == "整租" and item.get("rental_type") == "整租":
+                    score += 8
+                elif tag == "合租" and item.get("rental_type") == "合租":
+                    score += 8
 
         scored.append((score, item))
 
@@ -439,14 +518,7 @@ async def update_preferences(
         session_prefs.areas = new_areas if new_areas else None
         session_prefs.landmark_queries = new_landmarks if new_landmarks else None
 
-    # 合并 tag_requirements / tag_preferences（追加去重）
-    new_tag_req = kwargs.pop("tag_requirements", None)
-    if new_tag_req and isinstance(new_tag_req, list):
-        seen = set(session_prefs.tag_requirements)
-        for t in new_tag_req:
-            if isinstance(t, str) and t and t not in seen:
-                seen.add(t)
-                session_prefs.tag_requirements.append(t)
+    # 合并 tag_preferences（追加去重）
     new_tag_pref = kwargs.pop("tag_preferences", None)
     if new_tag_pref and isinstance(new_tag_pref, list):
         seen = set(session_prefs.tag_preferences)
@@ -462,6 +534,10 @@ async def update_preferences(
         "max_subway_dist", "listing_platform", "available_before", "max_commute_minutes",
         "noise_preference", "orientation", "floor_pref", "no_agent_fee", "payment_method",
         "deposit_type", "property_type", "sort_by", "sort_order",
+        "pet_policy", "viewing_method", "viewing_time", "lease_flexibility",
+        "required_utilities", "termination_sublet", "parking_type", "security_requirement",
+        "property_management", "environment_preference", "required_nearby", "house_feature",
+        "landlord_contract",
     }
     for field, value in kwargs.items():
         if field in updatable_fields and value is not None:
@@ -669,10 +745,70 @@ TOOLS: list[dict] = [
                         "enum": ["押一", "押二", "押三"],
                         "description": "押金偏好。「押一付一」→押一，「可以押二」→押二"
                     },
-                    "tag_requirements": {
+                    "pet_policy": {
+                        "type": "string",
+                        "enum": ["可养猫", "可养狗", "可养宠物", "不可养宠物", "仅限小型犬", "可养宠物需宠物押金"],
+                        "description": "宠物政策（硬约束）。「要能养猫」→可养猫，「能养狗」→可养狗"
+                    },
+                    "viewing_method": {
+                        "type": "string",
+                        "enum": ["仅线下看房", "仅线上VR看房", "仅线上AR看房", "仅线上图片看房", "线下+线上"],
+                        "description": "看房方式（硬约束）"
+                    },
+                    "viewing_time": {
+                        "type": "string",
+                        "enum": ["全天可看房", "仅周末看房", "仅工作日看房", "工作日9-18点", "工作日14-18点", "工作日9-12点", "周末9-18点", "周末14-18点", "周末9-12点"],
+                        "description": "看房时间（硬约束）"
+                    },
+                    "lease_flexibility": {
+                        "type": "string",
+                        "enum": ["可月租", "可租2个月", "可租3个月", "可租4个月", "可租5个月", "可半年租", "可年租", "仅接受年租"],
+                        "description": "租期灵活性（硬约束）"
+                    },
+                    "required_utilities": {
                         "type": "array",
-                        "items": {"type": "string"},
-                        "description": "必须匹配的标签（硬约束，不匹配则排除）。从用户明确需求中提取，值必须从标签参考表中选择。示例：「要能养猫」→[\"可养猫\"]；「附近有公园」→[\"近公园\"]；「要24小时保安」→[\"24小时保安\"]；「有车库车位」→[\"车库车位\"]；「包水电费」→[\"包水电费\"]；「房东直租」→[\"房东直租\"]；「提前退租可协商」→[\"提前退租可协商\"]；多条件示例：「能养猫、附近有公园」→[\"可养猫\",\"近公园\"]"
+                        "items": {"type": "string", "enum": ["包水电费", "免水电费", "免宽带费", "包宽带", "包物业费", "免物业费", "包车位", "免车位费", "包取暖费", "免取暖费"]},
+                        "description": "必须包含的费用项（硬约束，房源 tags 须全部匹配）"
+                    },
+                    "termination_sublet": {
+                        "type": "string",
+                        "enum": ["提前退租可协商", "提前退租扣押金", "经同意可转租", "不可转租"],
+                        "description": "退租/转租政策（硬约束）"
+                    },
+                    "parking_type": {
+                        "type": "string",
+                        "enum": ["车库车位", "露天车位", "无车位"],
+                        "description": "车位类型（硬约束）"
+                    },
+                    "security_requirement": {
+                        "type": "string",
+                        "enum": ["24小时保安", "门禁刷卡", "门禁形同虚设", "无门禁"],
+                        "description": "安保/门禁要求（硬约束）"
+                    },
+                    "property_management": {
+                        "type": "string",
+                        "enum": ["物业管理到位", "物业管理差"],
+                        "description": "物业管理要求（硬约束）"
+                    },
+                    "environment_preference": {
+                        "type": "string",
+                        "enum": ["绿化好环境佳", "绿化少环境一般"],
+                        "description": "小区环境偏好（硬约束）"
+                    },
+                    "required_nearby": {
+                        "type": "array",
+                        "items": {"type": "string", "enum": ["近公园", "近学校", "近菜市场", "近银行", "近医院", "近餐饮", "近健身房", "近警察局", "近商超", "近加油站"]},
+                        "description": "必须有的周边配套（硬约束，房源 tags 须全部匹配）"
+                    },
+                    "house_feature": {
+                        "type": "string",
+                        "enum": ["采光好", "南北通透", "高性价比"],
+                        "description": "房屋特点（硬约束）"
+                    },
+                    "landlord_contract": {
+                        "type": "string",
+                        "enum": ["合同规范条款清晰", "合同不规范", "房东好沟通", "房东不配合", "房东难联系"],
+                        "description": "合同/房东相关要求（硬约束）"
                     },
                     "tag_preferences": {
                         "type": "array",

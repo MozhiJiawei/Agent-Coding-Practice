@@ -147,13 +147,15 @@ class TestToolsConstant:
                 assert "clear_location" in props
                 assert props["clear_location"]["type"] == "boolean"
 
-    def test_update_preferences_schema_has_tag_requirements_tag_preferences_no_soft_preferences(self):
-        """意图接口 v2：有 tag_requirements/tag_preferences，无 soft_preferences"""
+    def test_update_preferences_schema_has_tag_class_params_tag_preferences_no_soft_preferences(self):
+        """意图接口 v2：有 13 个标签类直接参数与 tag_preferences，无 tag_requirements、无 soft_preferences"""
         for tool in TOOLS:
             if tool["function"]["name"] == "update_preferences":
                 props = tool["function"]["parameters"]["properties"]
-                assert "tag_requirements" in props
-                assert props["tag_requirements"]["type"] == "array"
+                assert "tag_requirements" not in props
+                assert "pet_policy" in props
+                assert "required_nearby" in props
+                assert props["required_nearby"]["type"] == "array"
                 assert "tag_preferences" in props
                 assert props["tag_preferences"]["type"] == "array"
                 assert "soft_preferences" not in props

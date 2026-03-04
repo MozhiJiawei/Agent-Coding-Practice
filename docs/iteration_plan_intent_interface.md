@@ -25,14 +25,14 @@
 2. **意图接口具体内容**  
    - **5 个工具的 JSON Schema**  
      按设计文档第四章：`update_preferences`、`search_by_preferences`、`get_house_detail`、`get_house_listings`、`execute_action` 的 `name`、`description`、`parameters`（含所有 properties、enum、description）。  
-     - `update_preferences`：包含全部 26 个参数（如 `location`、`clear_location`、`min_price`、`max_price`、`bedrooms`、`rental_type`、`decoration`、`elevator`、`orientation`、`floor_pref`、`min_area`、`max_area`、`max_subway_dist`、`subway_line`、`utilities_type`、`property_type`、`listing_platform`、`available_before`、`max_commute_minutes`、`noise_preference`、`sort_by`、`sort_order`、`no_agent_fee`、`payment_method`、`deposit_type`、`tag_requirements`、`tag_preferences`）；**不包含** `soft_preferences`。  
+     - `update_preferences`：包含全部 39 个参数（含 location、价格户型等 26 个 + pet_policy、viewing_method、viewing_time、lease_flexibility、required_utilities、termination_sublet、parking_type、security_requirement、property_management、environment_preference、required_nearby、house_feature、landlord_contract 等 13 个标签类直接参数，以及 tag_preferences）；**不包含** `soft_preferences`、**不包含** `tag_requirements`（已改为上述 13 个直接参数）。  
      - 其余 4 个工具按设计文档 4.2～4.5 的 schema 定义。  
    - **UserPreferences 数据模型（代码级）**  
-     与设计文档第七章一致：字段列表、类型、可选/必填；包含 `tag_requirements`、`tag_preferences`，**不包含** `soft_preferences` 及旧嵌套结构。  
+     与设计文档第七章一致：字段列表、类型、可选/必填；包含 13 个标签类直接参数及 `tag_preferences`，**不包含** `tag_requirements`、**不包含** `soft_preferences` 及旧嵌套结构。
    - **标签参考表（文档 + 可选代码常量）**  
-     设计文档 4.1 表格中 `tag_requirements` / `tag_preferences` 的可用值（宠物、付款、押金、看房、租期、费用、退租、小区、配套等），以文档形式固定，便于迭代二写 system prompt、迭代三做过滤与映射。  
+     设计文档 4.1 表格中仅 **tag_preferences** 的可用值（硬约束已改为直接参数），以文档形式固定，便于迭代二写 system prompt、迭代三做过滤与映射。
    - **意图与仿真 API 的映射说明（文档）**  
-     高层说明：哪些意图参数对应 [interface_simulate.md](./interface_simulate.md) 的哪些接口与 query/body 参数（如 `update_preferences` 的 `location`/价格/户型 等 → `GET /api/houses/by_platform` 的 `district`/`area`/`min_price`/`max_price`/`bedrooms` 等；`tag_requirements`/`tag_preferences` 仅在后端过滤/排序中使用，不直接对应单一 API 参数）。不要求在本迭代实现具体调用逻辑，只把映射关系写清，供迭代三实现。
+     高层说明：哪些意图参数对应 [interface_simulate.md](./interface_simulate.md) 的哪些接口与 query/body 参数；13 个标签类直接参数与 tag_preferences 仅在后端过滤/排序中使用，不直接对应单一 API 参数。不要求在本迭代实现具体调用逻辑，只把映射关系写清，供迭代三实现。
 
 3. **存放位置与形式**  
    - TOOLS 列表（JSON Schema）与 UserPreferences 模型：放在当前 Agent 工程内（如 `tools.py` 或等价模块），便于迭代二直接引用。  
@@ -43,8 +43,8 @@
 
 | # | 验收项 | 标准 |
 |---|--------|------|
-| 1 | 5 工具 Schema 完整且一致 | 与 intent_interface_design_v2 第四章逐项对照，参数名、类型、enum、description 一致；`update_preferences` 无 `soft_preferences`，有 `tag_requirements`、`tag_preferences` 及全部 26 个参数。 |
-| 2 | UserPreferences 与设计一致 | 与设计文档第七章字段、类型一致；含 `tag_requirements`、`tag_preferences`；无 `soft_preferences` 或旧嵌套。 |
+| 1 | 5 工具 Schema 完整且一致 | 与 intent_interface_design_v2 第四章逐项对照，参数名、类型、enum、description 一致；`update_preferences` 无 `soft_preferences`、无 `tag_requirements`，有 13 个标签类直接参数及 `tag_preferences`，共 39 个参数。 |
+| 2 | UserPreferences 与设计一致 | 与设计文档第七章字段、类型一致；含 13 个标签类直接参数及 `tag_preferences`；无 `tag_requirements`、无 `soft_preferences` 或旧嵌套。 |
 | 3 | 标签参考表可被引用 | 文档或代码中有一份与设计 4.1 表格一致的标签枚举/列表，供后续 prompt 与过滤使用。 |
 | 4 | 意图→仿真 API 映射文档 | 有单独小节或文档说明：各意图参数与 interface_simulate 中接口、参数的对应关系；标注“标签类仅在后端过滤/排序使用”。 |
 | 5 | 无功能行为变更 | 本迭代不实现或修改任何调用逻辑、过滤、排序；仅增加/调整接口定义与文档，现有 E2E 可仍失败或跳过，不要求通过。 |
@@ -67,21 +67,21 @@
 
 2. **System prompt 与提参规则**  
    - 更新 system prompt，包含：  
-     - 硬约束 vs 软偏好的判断规则（设计文档 6.1）：明确/肯定 → 硬约束字段或 `tag_requirements`；“最好/希望/如果有” → `tag_preferences`，不设对应硬约束字段。  
-     - 常见隐含意图提取表（设计 6.2）及价格“左右”约定（6.3）。  
-     - `tag_requirements` vs `tag_preferences` 使用规则（6.5）及与 `payment_method`/`deposit_type`/`no_agent_fee` 的关系（6.6）。  
+     - 硬约束 vs 软偏好的判断规则（设计文档 6.1）：明确/肯定 → 硬约束字段（含 13 个标签类直接参数）；“最好/希望/如果有” → `tag_preferences`，不设对应硬约束字段。
+     - 常见隐含意图提取表（设计 6.2）及价格“左右”约定（6.3）。
+     - 硬约束用直接参数、tag_preferences 使用规则（6.5）及 payment_method/deposit_type/no_agent_fee 仅用独立字段（6.6）。
      - `soft_preferences` 移除后的迁移规则（6.4）：一律用 `tag_preferences` 表达软偏好。  
    - 提供精简版标签参考表（或引用迭代一文档），便于 LLM 输出合法标签值。
 
 3. **Session 与偏好合并**  
    - 使用迭代一的 UserPreferences 模型在 session 中存储/合并偏好。  
    - `update_preferences` 调用时：仅合并本轮传入的字段；若传入 `clear_location: true`，则清空已有位置再写入新的 `location`。  
-   - 不要求本迭代实现“真实搜索/过滤”（可继续返回占位或旧逻辑），但合并逻辑必须按新模型（无 soft_preferences、有 tag_requirements/tag_preferences）正确实现。
+   - 不要求本迭代实现“真实搜索/过滤”（可继续返回占位或旧逻辑），但合并逻辑必须按新模型（无 soft_preferences、无 tag_requirements，有 13 个标签类直接参数与 tag_preferences）正确实现。
 
 4. **E2E 验证方式**  
    - 使用 [tests/e2e/run_e2e.ps1](../tests/e2e/run_e2e.ps1) 运行用例（默认或指定 `-SimCase`/`-SimTag`）。  
    - 验证重点：**意图提参正确性**——即 E2E 用例中对 `tool_call_chain`、`tool_call_args`、`contains` 的断言是否通过。  
-   - 若 test_cases.yaml 中仍有对 `soft_preferences` 的断言，需在本迭代中按设计文档改为对 `tag_preferences` 或对应硬约束字段的断言（参见设计文档 5.2、5.3、6.4），使“意图层”期望与 v2 设计一致。  
+   - 若 test_cases.yaml 中仍有对 `soft_preferences` 或 `tag_requirements` 的断言，需在本迭代中按设计文档改为对直接参数或 `tag_preferences` 的断言（参见设计文档 5.2、5.3），使“意图层”期望与 v2 设计一致。  
    - 不要求本迭代通过“查询结果正确性”或“HTTP 调用与 interface_simulate 完全一致”的用例（这些留给迭代三）；若工具实现仍为占位，部分依赖真实搜索/操作的用例可预期失败，但提参相关断言应通过。
 
 ### 验收标准
@@ -112,8 +112,8 @@
 2. **后端过滤与排序（post_filter_and_rank）**  
    - 在拿到仿真 API 返回的列表后，按设计文档第八章实现：  
      - **floor_pref**：硬过滤，支持“共N层”映射（总层数≤6 可视为低层）。  
-     - **tag_requirements**：硬过滤，房源 `tags` 必须包含全部指定标签。  
-     - **tag_preferences**：软加分，含属性标签映射（有电梯、精装修、简装、豪华、朝向、高层/低层/中层、整租/合租等），按设计 8.2 逻辑加分。  
+     - **13 个标签类直接参数**（pet_policy、viewing_method、required_nearby 等）：硬过滤，房源 `tags` 须包含对应值，按设计 8.1。  
+     - **tag_preferences**：软加分，含属性标签映射（有电梯、精装修、朝南、高层/低层、整租/合租等），按设计 8.2 逻辑加分。  
      - **payment_method / deposit_type / no_agent_fee**：按设计 8.3 做 tag 硬过滤（对应房源 tags）。  
      - **subway_line**：按设计 8.4 包含匹配。  
    - 排序：支持 `sort_by`（price/area/subway）与 `sort_order`（asc/desc），与文档一致；结合 tag_preferences 加分后的综合排序需正确。
@@ -141,7 +141,7 @@
 | # | 验收项 | 标准 |
 |---|--------|------|
 | 1 | 工具调用 100% 符合 interface_simulate | 所有请求的 URL、方法、headers（X-User-ID）、query、body 与 interface_simulate 及 OpenAPI 一致；无未文档化参数或错误枚举。 |
-| 2 | 过滤与排序符合设计 | post_filter_and_rank 实现设计 8.0～8.4；tag_requirements 硬过滤、tag_preferences 加分、floor_pref/subway_line/payment/deposit/no_agent_fee 行为正确。 |
+| 2 | 过滤与排序符合设计 | post_filter_and_rank 实现设计 8.0～8.4；13 个直接参数→tags 硬过滤、tag_preferences 加分、floor_pref/subway_line/payment/deposit/no_agent_fee 行为正确。 |
 | 3 | 租/退/下架通过 API 完成 | 用户确认租/退/下架时，必调对应 POST；mock 状态正确更新。 |
 | 4 | E2E 全量通过 | `run_e2e.ps1` 默认（或指定范围）运行通过；包含提参正确性与查询/操作结果正确性的断言。 |
 | 5 | 查询结果正确 | 针对若干典型场景（如价格+户型+标签、地标附近、地铁线、平台比价）：返回列表与 mock 数据及过滤/排序逻辑一致，无漏筛、错筛或排序错误。 |

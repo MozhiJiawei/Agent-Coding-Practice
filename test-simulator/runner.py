@@ -164,7 +164,7 @@ def _tool_call_args(response: dict, expected: Any) -> tuple[bool, str]:
     """验证指定工具被调用，且参数精确匹配：实际 args 的键必须与 contains 完全一致。
 
     expected 为 ToolCallArgsExpect.model_dump()，含 tool 和 contains 两个字段。
-    location/decoration 的值仍按现有规则做模糊等价；tag_requirements/tag_preferences 按无序集合+标签归一化比较；bedrooms 规范化后比较。
+    location/decoration 的值仍按现有规则做模糊等价；tag_preferences、required_nearby、required_utilities 按无序集合+标签归一化比较；bedrooms 规范化后比较。
     """
     if not isinstance(expected, dict):
         return (False, "tool_call_args: invalid expected config")
@@ -200,7 +200,7 @@ def _tool_call_args(response: dict, expected: Any) -> tuple[bool, str]:
             act_norm = _dec_norm.get(actual_val, actual_val)
             if exp_norm != act_norm:
                 mismatches.append(f"{key}: 期望 {expected_val!r}, 实际 {actual_val!r}")
-        elif key in ("tag_requirements", "tag_preferences") and isinstance(expected_val, list) and isinstance(actual_val, list):
+        elif key in ("tag_preferences", "required_nearby", "required_utilities") and isinstance(expected_val, list) and isinstance(actual_val, list):
             if not _tag_list_equivalent(expected_val, actual_val):
                 mismatches.append(f"{key}: 期望 {expected_val!r}, 实际 {actual_val!r}")
         elif key == "bedrooms" and expected_val is not None and actual_val is not None:

@@ -193,11 +193,72 @@
           "description": "押金偏好。「押一付一」→押一，「可以押二」→押二"
         },
 
-        "tag_requirements": {
-          "type": "array",
-          "items": {"type": "string"},
-          "description": "必须匹配的标签（硬约束，不匹配则排除）。从用户明确需求中提取，值必须从标签参考表中选择。示例：「要能养猫」→[\"可养猫\"]；「附近有公园」→[\"近公园\"]；「要24小时保安」→[\"24小时保安\"]；「有车库车位」→[\"车库车位\"]；「包水电费」→[\"包水电费\"]；「房东直租」→[\"房东直租\"]；「提前退租可协商」→[\"提前退租可协商\"]；多条件示例：「能养猫、附近有公园」→[\"可养猫\",\"近公园\"]"
+        "pet_policy": {
+          "type": "string",
+          "enum": ["可养猫", "可养狗", "可养宠物", "不可养宠物", "仅限小型犬", "可养宠物需宠物押金"],
+          "description": "宠物政策（硬约束）。「要能养猫」→可养猫，「能养狗」→可养狗，「不能养宠物」→不可养宠物"
         },
+        "viewing_method": {
+          "type": "string",
+          "enum": ["仅线下看房", "仅线上VR看房", "仅线上AR看房", "仅线上图片看房", "线下+线上"],
+          "description": "看房方式（硬约束）。「只能线下看」→仅线下看房，「VR看房」→仅线上VR看房"
+        },
+        "viewing_time": {
+          "type": "string",
+          "enum": ["全天可看房", "仅周末看房", "仅工作日看房", "工作日9-18点", "工作日14-18点", "工作日9-12点", "周末9-18点", "周末14-18点", "周末9-12点"],
+          "description": "看房时间（硬约束）。「只能周末看」→仅周末看房，「工作日14-18点」→工作日14-18点"
+        },
+        "lease_flexibility": {
+          "type": "string",
+          "enum": ["可月租", "可租2个月", "可租3个月", "可租4个月", "可租5个月", "可半年租", "可年租", "仅接受年租"],
+          "description": "租期灵活性（硬约束）。「可月租/短租」→可月租，「可半年租」→可半年租，「只接受年租」→仅接受年租"
+        },
+        "required_utilities": {
+          "type": "array",
+          "items": {"type": "string", "enum": ["包水电费", "免水电费", "免宽带费", "包宽带", "包物业费", "免物业费", "包车位", "免车位费", "包取暖费", "免取暖费"]},
+          "description": "必须包含的费用项（硬约束，房源 tags 须全部匹配）。「包水电」→[\"包水电费\"]；「包水电和宽带」→[\"包水电费\",\"包宽带\"]"
+        },
+        "termination_sublet": {
+          "type": "string",
+          "enum": ["提前退租可协商", "提前退租扣押金", "经同意可转租", "不可转租"],
+          "description": "退租/转租政策（硬约束）。「提前退租可协商」→提前退租可协商，「可转租」→经同意可转租"
+        },
+        "parking_type": {
+          "type": "string",
+          "enum": ["车库车位", "露天车位", "无车位"],
+          "description": "车位类型（硬约束）。「要车库车位」→车库车位，「无车位也行」→无车位"
+        },
+        "security_requirement": {
+          "type": "string",
+          "enum": ["24小时保安", "门禁刷卡", "门禁形同虚设", "无门禁"],
+          "description": "安保/门禁要求（硬约束）。「要24小时保安」→24小时保安，「门禁刷卡」→门禁刷卡"
+        },
+        "property_management": {
+          "type": "string",
+          "enum": ["物业管理到位", "物业管理差"],
+          "description": "物业管理要求（硬约束）"
+        },
+        "environment_preference": {
+          "type": "string",
+          "enum": ["绿化好环境佳", "绿化少环境一般"],
+          "description": "小区环境偏好（硬约束）"
+        },
+        "required_nearby": {
+          "type": "array",
+          "items": {"type": "string", "enum": ["近公园", "近学校", "近菜市场", "近银行", "近医院", "近餐饮", "近健身房", "近警察局", "近商超", "近加油站"]},
+          "description": "必须有的周边配套（硬约束，房源 tags 须全部匹配）。「附近有公园」→[\"近公园\"]；「近公园和医院」→[\"近公园\",\"近医院\"]"
+        },
+        "house_feature": {
+          "type": "string",
+          "enum": ["采光好", "南北通透", "高性价比"],
+          "description": "房屋特点（硬约束）。「采光好」→采光好，「南北通透」→南北通透"
+        },
+        "landlord_contract": {
+          "type": "string",
+          "enum": ["合同规范条款清晰", "合同不规范", "房东好沟通", "房东不配合", "房东难联系"],
+          "description": "合同/房东相关要求（硬约束）"
+        },
+
         "tag_preferences": {
           "type": "array",
           "items": {"type": "string"},
@@ -210,20 +271,18 @@
 }
 ```
 
-#### 标签参考表（tag_requirements / tag_preferences 可用值）
+#### 标签参考表（仅 tag_preferences 可用值）
 
+硬约束（宠物/看房方式/看房时间/租期/费用包含/退租转租/车位/安保/物业/绿化/周边配套/房屋特点/合同房东）已改为上述直接参数，勿放入 tag_preferences。以下仅用于**软偏好** tag_preferences。
 
 | 类别                            | 可用标签值                                                                                                      |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | **宠物**                        | `可养猫`、`可养狗`、`可养宠物`、`不可养宠物`、`仅限小型犬`、`可养宠物需宠物押金`                                                             |
-| **付款周期**                      | `月付`、`季付`、`半年付`、`年付`                                                                                       |
-| **押金**                        | `押一`、`押二`、`押三`                                                                                             |
-| **中介/房源**                     | `房东直租`、`收中介费`                                                                                              |
 | **合同/房东**                     | `合同规范条款清晰`、`合同不规范`、`房东好沟通`、`房东不配合`、`房东难联系`                                                                 |
 | **看房方式**                      | `仅线下看房`、`仅线上VR看房`、`仅线上AR看房`、`仅线上图片看房`、`线下+线上`                                                              |
 | **看房时间**                      | `全天可看房`、`仅周末看房`、`仅工作日看房`、`工作日9-18点`、`工作日14-18点`、`工作日9-12点`、`周末9-18点`、`周末14-18点`、`周末9-12点`                  |
 | **租期**                        | `可月租`、`可租2个月`、`可租3个月`、`可租4个月`、`可租5个月`、`可半年租`、`可年租`、`仅接受年租`                                                 |
-| **费用包含**                      | `包水电费`、`免水电费`、`水电费另付`、`免宽带费`、`包宽带`、`网费另付`、`包物业费`、`免物业费`、`物业费另付`、`包车位`、`免车位费`、`车位费另付`、`包取暖费`、`免取暖费`、`取暖费另付` |
+| **费用包含**                      | `包水电费`、`免水电费`、`免宽带费`、`包宽带`、`包物业费`、`免物业费`、`包车位`、`免车位费`、`包取暖费`、`免取暖费` 等                             |
 | **退租/转租**                     | `提前退租可协商`、`提前退租扣押金`、`经同意可转租`、`不可转租`                                                                        |
 | **小区管理**                      | `车库车位`、`露天车位`、`无车位`、`24小时保安`、`门禁刷卡`、`门禁形同虚设`、`无门禁`、`物业管理到位`、`物业管理差`、`绿化好环境佳`、`绿化少环境一般`                     |
 | **周边配套**                      | `近公园`、`近学校`、`近菜市场`、`近银行`、`近医院`、`近餐饮`、`近健身房`、`近警察局`、`近商超`、`近加油站`                                            |
@@ -347,64 +406,57 @@
 ### 5.1 核心搜索场景（API 硬约束）
 
 
-| 用例场景    | 提取参数                    | 示例                                             |
-| ------- | ----------------------- | ---------------------------------------------- |
-| 按行政区    | `location`              | 「海淀区的房子」→ `location:["海淀"]`                    |
-| 按商圈     | `location`              | 「望京商圈」→ `location:["望京"]`                      |
-| 按地标     | `location`              | 「国贸附近」→ `location:["国贸附近"]`                    |
-| 按地铁站    | `location`              | 「双合站附近」→ `location:["双合站"]`                    |
-| 按小区名    | `location`              | 「建清园南区」→ `location:["建清园南区"]`                  |
-| 按价格     | `min_price`/`max_price` | 「3000-6000」→ `min_price:3000, max_price:6000`  |
-| 按预算     | `max_price`             | 「预算5000」→ `max_price:5000`                     |
-| 按预算（约数） | `min_price`/`max_price` | 「3000左右」→ `min_price:2500, max_price:3500`     |
-| 按户型     | `bedrooms`              | 「两居室」→ `bedrooms:"2"`                          |
-| 多户型     | `bedrooms`              | 「两居或三居」→ `bedrooms:"2,3"`                      |
-| 整租/合租   | `rental_type`           | 「整租/一个人住」→ `rental_type:"整租"`                  |
-| 装修      | `decoration`            | 「精装修」→ `decoration:"精装"`                       |
-| 电梯      | `elevator`              | 「要电梯/老人腿脚不便」→ `elevator:true`                  |
-| 面积      | `min_area`/`max_area`   | 「60平以上」→ `min_area:60`                         |
-| 近地铁     | `max_subway_dist`       | 「近地铁」→ `max_subway_dist:800`                   |
-| 地铁距离    | `max_subway_dist`       | 「500米内」→ `max_subway_dist:500`                 |
+| 用例场景    | 提取参数                    | 示例                                                     |
+| ------- | ----------------------- | ------------------------------------------------------ |
+| 按行政区    | `location`              | 「海淀区的房子」→ `location:["海淀"]`                            |
+| 按商圈     | `location`              | 「望京商圈」→ `location:["望京"]`                              |
+| 按地标     | `location`              | 「国贸附近」→ `location:["国贸附近"]`                            |
+| 按地铁站    | `location`              | 「双合站附近」→ `location:["双合站"]`                            |
+| 按小区名    | `location`              | 「建清园南区」→ `location:["建清园南区"]`                          |
+| 按价格     | `min_price`/`max_price` | 「3000-6000」→ `min_price:3000, max_price:6000`          |
+| 按预算     | `max_price`             | 「预算5000」→ `max_price:5000`                             |
+| 按预算（约数） | `min_price`/`max_price` | 「3000左右」→ `min_price:2500, max_price:3500`             |
+| 按户型     | `bedrooms`              | 「两居室」→ `bedrooms:"2"`                                  |
+| 多户型     | `bedrooms`              | 「两居或三居」→ `bedrooms:"2,3"`                              |
+| 整租/合租   | `rental_type`           | 「整租/一个人住」→ `rental_type:"整租"`                          |
+| 装修      | `decoration`            | 「精装修」→ `decoration:"精装"`                               |
+| 电梯      | `elevator`              | 「要电梯/老人腿脚不便」→ `elevator:true`                          |
+| 面积      | `min_area`/`max_area`   | 「60平以上」→ `min_area:60`                                 |
+| 近地铁     | `max_subway_dist`       | 「近地铁」→ `max_subway_dist:800`                           |
+| 地铁距离    | `max_subway_dist`       | 「500米内」→ `max_subway_dist:500`                         |
 | 地铁线路    | `subway_line`           | 「13号线沿线」→ `subway_line:"13号线"`（包含匹配，也命中换乘站如「13号线/昌平线」） |
-| 水电类型    | `utilities_type`        | 「民水民电」→ `utilities_type:"民水民电"`                |
-| 平台      | `listing_platform`      | 「58同城上的」→ `listing_platform:"58同城"`            |
-| 入住日期    | `available_before`      | 「3月10号前」→ `available_before:"2026-03-10"`      |
-| 通勤      | `max_commute_minutes`   | 「通勤30分钟」→ `max_commute_minutes:30`             |
-| 安静      | `noise_preference`      | 「安静/不吵/隔音好」→ `noise_preference:"安静"`           |
-| 朝向      | `orientation`           | 「朝南/南北通透」→ `orientation:"朝南"` 或 `"南北"`         |
-| 楼层      | `floor_pref`            | 「高楼层/高层」→ `floor_pref:"高层"`                    |
-| 排序      | `sort_by`/`sort_order`  | 「按价格从低到高」→ `sort_by:"price", sort_order:"asc"` |
-| 物业类型    | `property_type`         | 「住宅」→ `property_type:"住宅"`                     |
+| 水电类型    | `utilities_type`        | 「民水民电」→ `utilities_type:"民水民电"`                        |
+| 平台      | `listing_platform`      | 「58同城上的」→ `listing_platform:"58同城"`                    |
+| 入住日期    | `available_before`      | 「3月10号前」→ `available_before:"2026-03-10"`              |
+| 通勤      | `max_commute_minutes`   | 「通勤30分钟」→ `max_commute_minutes:30`                     |
+| 安静      | `noise_preference`      | 「安静/不吵/隔音好」→ `noise_preference:"安静"`                   |
+| 朝向      | `orientation`           | 「朝南/南北通透」→ `orientation:"朝南"` 或 `"南北"`                 |
+| 楼层      | `floor_pref`            | 「高楼层/高层」→ `floor_pref:"高层"`                            |
+| 排序      | `sort_by`/`sort_order`  | 「按价格从低到高」→ `sort_by:"price", sort_order:"asc"`         |
+| 物业类型    | `property_type`         | 「住宅」→ `property_type:"住宅"`                             |
 
 
-### 5.2 标签类场景（tag_requirements / tag_preferences）
+### 5.2 硬约束标签类场景（直接参数）
 
+付款周期/押金/免中介见 5.3 独立字段场景。以下为其余标签类硬约束 → 直接参数映射。
 
-| 用例场景   | 提取为 tag_requirements                             | 用例编号示例                                                                                                                  |
-| ------ | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| 养宠物    | `["可养猫"]` / `["可养狗"]` / `["可养宠物"]` / `["仅限小型犬"]` | c2,c27,c29,c31,c34,c54,c63,c65,c73,c84,c90,c113,c114,c121                                                               |
-| 月付     | `["月付"]`                                         | c3,c6,c8,c19,c20,c25,c27,c35,c37,c38,c40,c41,c46,c47,c60,c61,c62,c75,c87,c97,c126,c129                                  |
-| 押金     | `["押一"]` / `["押二"]`                              | c8,c34,c35,c40,c42,c62,c80,c85,c97,c123,c128,c129                                                                       |
-| 房东直租   | `["房东直租"]`                                       | c3,c6,c25,c36,c41,c61,c86,c90,c108,c109                                                                                 |
-| 无中介    | `["房东直租"]`（数据中无「无中介」标签，统一用「房东直租」） | c22,c25,c36,c41,c46,c61                                                                                                 |
-| 看房方式   | `["仅线上VR看房"]` / `["仅线下看房"]` 等                    | c2,c9,c44,c51,c55,c66,c70,c106,c107,c117,c118                                                                           |
-| 看房时间   | `["仅周末看房"]` / `["工作日14-18点"]` 等                  | c9,c13,c18,c27,c28,c40,c51,c54,c65,c85,c90,c106,c107,c114,c117,c118                                                     |
-| 租期     | `["可月租"]` / `["可租3个月"]` / `["可半年租"]`             | c4,c38,c58,c68,c75,c94,c104,c115                                                                                        |
-| 包水电费   | `["包水电费"]` / `["免水电费"]`                          | c5,c50,c66,c86,c120                                                                                                     |
-| 包宽带    | `["免宽带费"]` / `["包宽带"]`                           | c5,c20,c28,c43,c49,c85,c122,c129                                                                                        |
-| 包物业费   | `["包物业费"]` / `["免物业费"]`                          | c9,c13,c51,c71,c85                                                                                                      |
-| 车位     | `["车库车位"]` / `["包车位"]` / `["免车位费"]`              | c9,c18,c28,c72,c85,c91,c94,c99,c102,c114,c119                                                                           |
-| 提前退租   | `["提前退租可协商"]`                                    | c10,c44,c80                                                                                                             |
-| 附近配套   | `["近公园"]` / `["近医院"]` / `["近学校"]` 等              | c2,c9,c12,c14,c16,c17,c18,c19,c26,c27,c29,c30,c31,c59,c64,c65,c71,c76,c81,c82,c84,c85,c93,c102,c105,c110,c114,c116,c129 |
-| 24小时保安 | `["24小时保安"]`                                     | c27,c28,c83,c118,c129                                                                                                   |
-| 门禁     | `["门禁刷卡"]`                                       | c83,c124                                                                                                                |
-| 物业管理   | `["物业管理到位"]`                                     | c91,c113                                                                                                                |
-| 绿化环境   | `["绿化好环境佳"]`                                     | c17,c26,c114                                                                                                            |
-| 房东好沟通  | `["房东好沟通"]`                                      | c39,c40,c65,c92                                                                                                         |
-| 采光好    | `["采光好"]`                                        | c35,c98                                                                                                                 |
-| 南北通透   | `["南北通透"]`                                       | c44                                                                                                                     |
-| 近餐饮    | `["近餐饮"]`                                        | c7,c18,c20,c27,c28,c30,c82                                                                                              |
-| 近健身房   | `["近健身房"]`                                       | c17,c20,c28,c32,c110                                                                                                    |
+| 用例场景   | 提取参数 | 用例编号示例 |
+| ------ | ---- | ------ |
+| 养宠物    | `pet_policy: "可养猫"` / `"可养狗"` / `"可养宠物"` / `"仅限小型犬"` | c2,c27,c29,c31,c34,c54,c63,c65,c73,c84,c90,c113,c114,c121 |
+| 看房方式   | `viewing_method: "仅线上VR看房"` / `"仅线下看房"` 等 | c2,c9,c44,c51,c55,c66,c70,c106,c107,c117,c118 |
+| 看房时间   | `viewing_time: "仅周末看房"` / `"工作日14-18点"` 等 | c9,c13,c18,c27,c28,c40,c51,c54,c65,c85,c90,c106,c107,c114,c117,c118 |
+| 租期     | `lease_flexibility: "可月租"` / `"可租3个月"` / `"可半年租"` | c4,c38,c58,c68,c75,c94,c104,c115 |
+| 包水电费/包宽带等 | `required_utilities: ["包水电费"]` / `["免宽带费","包宽带"]` 等 | c5,c20,c28,c43,c49,c50,c66,c85,c86,c120,c122,c129 |
+| 车位     | `parking_type: "车库车位"` 或 `required_utilities` 含 包车位/免车位费 | c9,c18,c28,c72,c85,c91,c94,c99,c102,c114,c119 |
+| 提前退租   | `termination_sublet: "提前退租可协商"` | c10,c44,c80 |
+| 附近配套   | `required_nearby: ["近公园"]` / `["近医院","近学校"]` 等 | c2,c9,c12,c14,c16,c17,c18,c19,c26,c27,c29,c30,c31,c59,c64,c65,c71,c76,c81,c82,c84,c85,c93,c102,c105,c110,c114,c116,c129 |
+| 24小时保安 | `security_requirement: "24小时保安"` | c27,c28,c83,c118,c129 |
+| 门禁     | `security_requirement: "门禁刷卡"` | c83,c124 |
+| 物业管理   | `property_management: "物业管理到位"` | c91,c113 |
+| 绿化环境   | `environment_preference: "绿化好环境佳"` | c17,c26,c114 |
+| 房东好沟通  | `landlord_contract: "房东好沟通"` | c39,c40,c65,c92 |
+| 采光好/南北通透 | `house_feature: "采光好"` / `"南北通透"` | c35,c44,c98 |
+| 近餐饮/近健身房 | `required_nearby: ["近餐饮"]` / `["近健身房"]` | c7,c17,c18,c20,c27,c28,c30,c32,c82,c110 |
 
 
 ### 5.3 独立字段场景
@@ -451,12 +503,13 @@
 **核心原则**：所有直接字段均为硬约束，软偏好统一走 `tag_preferences` 数组。
 
 ```
-明确/肯定表达 → 硬约束字段 或 tag_requirements
+明确/肯定表达 → 硬约束字段（含 pet_policy、viewing_method、required_nearby 等直接参数）
   「要精装」→ decoration:"精装"
   「必须有电梯」→ elevator:true
   「只要整租」→ rental_type:"整租"
-  「能养猫」→ tag_requirements:["可养猫"]
+  「能养猫」→ pet_policy:"可养猫"
   「月付」→ payment_method:"月付"
+  「附近有公园」→ required_nearby:["近公园"]
 
 模糊/期望表达 → tag_preferences（不设直接字段，避免硬过滤导致结果为零）
   「最好精装」→ tag_preferences:["精装修"]
@@ -472,37 +525,37 @@
 ### 6.2 常见隐含意图提取
 
 
-| 用户表达           | 提取参数                                              |
-| -------------- | ------------------------------------------------- |
-| 一个人住/自己住/不合租   | `rental_type: "整租"`                               |
-| 合租/找室友/室友      | `rental_type: "合租"`                               |
-| 单间             | `rental_type: "合租", bedrooms: "1"`                |
-| 老人腿脚不便/不想爬楼    | `elevator: true`                                  |
-| 近地铁/交通方便/地铁方便  | `max_subway_dist: 800`                            |
-| 走路10分钟到地铁      | `max_subway_dist: 800`                            |
-| 走路5分钟到地铁       | `max_subway_dist: 400`                            |
-| 地铁可达           | `max_subway_dist: 1000`                           |
-| 地铁1公里/两公里      | `max_subway_dist: 1000` / `2000`                  |
-| 安静/不吵/隔音好/睡眠浅  | `noise_preference: "安静"`                          |
-| 采光好/阳光/明亮      | `tag_requirements:["采光好"]` 或 `orientation: "朝南"`  |
-| 南北通透/通风好       | `tag_requirements:["南北通透"]` 或 `orientation: "南北"` |
-| 空房/自己带家具       | `decoration: "空房"`                                |
-| XX左右（价格）       | `min_price: XX*0.8, max_price: XX*1.2`（上下浮动20%）   |
-| 拎包入住           | `decoration: "精装"` 或 `decoration: "豪华"`           |
-| 预算紧/手头紧        | 仅根据实际给出的数字设置 max_price                            |
-| 3000左右         | `min_price: 2500, max_price: 3500`                |
-| 3000以内/不超过3000 | `max_price: 3000`                                 |
-| 短租/住几个月        | `tag_requirements` 中加对应租期标签                       |
-| 可月租/短租         | `tag_requirements:["可月租"]`                        |
-| 附近有公园/遛狗       | `tag_requirements:["近公园"]`                        |
-| 附近有商场/超市       | `tag_requirements:["近商超"]`                        |
-| 附近有餐馆/吃饭       | `tag_requirements:["近餐饮"]`                        |
-| 附近有医院          | `tag_requirements:["近医院"]`                        |
-| 附近有学校          | `tag_requirements:["近学校"]`                        |
-| 附近有健身房         | `tag_requirements:["近健身房"]`                       |
-| 婚房/新婚          | `decoration: "精装"` 或 `decoration: "豪华"`           |
-| 三个人住各一间        | `bedrooms: "3", rental_type: "整租"`                |
-| 每人N元/人均N元     | `max_price: N × 合租人数`（如「每人两千，两人合租」→ `max_price: 4000`） |
+| 用户表达           | 提取参数                                                   |
+| -------------- | ------------------------------------------------------ |
+| 一个人住/自己住/不合租   | `rental_type: "整租"`                                    |
+| 合租/找室友/室友      | `rental_type: "合租"`                                    |
+| 单间             | `rental_type: "合租", bedrooms: "1"`                     |
+| 老人腿脚不便/不想爬楼    | `elevator: true`                                       |
+| 近地铁/交通方便/地铁方便  | `max_subway_dist: 800`                                 |
+| 走路10分钟到地铁      | `max_subway_dist: 800`                                 |
+| 走路5分钟到地铁       | `max_subway_dist: 400`                                 |
+| 地铁可达           | `max_subway_dist: 1000`                                |
+| 地铁1公里/两公里      | `max_subway_dist: 1000` / `2000`                       |
+| 安静/不吵/隔音好/睡眠浅  | `noise_preference: "安静"`                               |
+| 采光好/阳光/明亮      | `house_feature: "采光好"` 或 `orientation: "朝南"`       |
+| 南北通透/通风好       | `house_feature: "南北通透"` 或 `orientation: "南北"`      |
+| 空房/自己带家具       | `decoration: "空房"`                                     |
+| XX左右（价格）       | `min_price: XX*0.8, max_price: XX*1.2`（上下浮动20%）        |
+| 拎包入住           | `decoration: "精装"` 或 `decoration: "豪华"`                |
+| 预算紧/手头紧        | 仅根据实际给出的数字设置 max_price                                 |
+| 3000左右         | `min_price: 2500, max_price: 3500`                     |
+| 3000以内/不超过3000 | `max_price: 3000`                                      |
+| 短租/住几个月        | `lease_flexibility: "可月租"` 等对应租期参数                            |
+| 可月租/短租         | `lease_flexibility: "可月租"`                             |
+| 附近有公园/遛狗       | `required_nearby: ["近公园"]`                             |
+| 附近有商场/超市       | `required_nearby: ["近商超"]`                             |
+| 附近有餐馆/吃饭       | `required_nearby: ["近餐饮"]`                             |
+| 附近有医院          | `required_nearby: ["近医院"]`                             |
+| 附近有学校          | `required_nearby: ["近学校"]`                             |
+| 附近有健身房         | `required_nearby: ["近健身房"]`                            |
+| 婚房/新婚          | `decoration: "精装"` 或 `decoration: "豪华"`                |
+| 三个人住各一间        | `bedrooms: "3", rental_type: "整租"`                     |
+| 每人N元/人均N元      | `max_price: N × 合租人数`（如「每人两千，两人合租」→ `max_price: 4000`） |
 
 
 ### 6.3 价格「左右」处理约定
@@ -532,30 +585,28 @@ v1 中 `soft_preferences` 覆盖的场景，在 v2 中统一通过 `tag_preferen
 - 「要精装，最好有电梯」→ `decoration: "精装"` + `tag_preferences: ["有电梯"]`
 - 「必须近地铁，最好朝南」→ `max_subway_dist: 800` + `tag_preferences: ["朝南"]`
 
-### 6.5 tag_requirements vs tag_preferences 使用规则
+### 6.5 硬约束 vs tag_preferences 使用规则
 
 ```
 用户语气     → 使用字段
 ─────────────────────────────
-「要/必须/得/需要」  → tag_requirements（硬约束）
+「要/必须/得/需要」  → 直接参数（硬约束，含 pet_policy、required_nearby、viewing_method 等）
 「最好/希望/如果有」 → tag_preferences（软偏好）
 ```
 
 **示例**：
 
-- 「要能养猫」→ `tag_requirements: ["可养猫"]`
+- 「要能养猫」→ `pet_policy: "可养猫"`
 - 「最好有公园」→ `tag_preferences: ["近公园"]`
-- 「月付，近地铁」→ `tag_requirements: ["月付"]`, `max_subway_dist: 800`
+- 「月付，近地铁」→ `payment_method: "月付"`, `max_subway_dist: 800`
 
 ### 6.6 payment_method / deposit_type / no_agent_fee 与 tag 的关系
 
-这三个独立字段同时也会自动映射为 tag 进行匹配：
+这三个独立字段在过滤时自动映射为 tag 匹配（见 8.3）。提参时**仅**使用独立字段，不要用 tag_preferences 表示付款/押金/房东直租：
 
-- `payment_method: "月付"` → 自动匹配 tags 含 `月付` 的房源
-- `deposit_type: "押一"` → 自动匹配 tags 含 `押一` 的房源
-- `no_agent_fee: true` → 自动匹配 tags 含 `房东直租` 的房源
-
-因此 LLM 可以选择用独立字段 **或** tag_requirements，效果一致。推荐对于付款/押金/中介用独立字段（更语义化），对于其他标签用 tag_requirements/tag_preferences。
+- `payment_method: "月付"` → 过滤时匹配房源 tags 含 `月付`
+- `deposit_type: "押一"` → 过滤时匹配房源 tags 含 `押一`
+- `no_agent_fee: true` → 过滤时匹配房源 tags 含 `房东直租`
 
 ---
 
@@ -597,9 +648,23 @@ class UserPreferences(BaseModel):
     payment_method: Optional[str] = None
     deposit_type: Optional[str] = None
 
-    # ── 标签匹配 ──
-    tag_requirements: list[str] = []     # 硬约束标签（不匹配则排除）
-    tag_preferences: list[str] = []      # 软偏好标签（匹配加分，不排除）
+    # ── 硬约束标签类（直接参数，过滤时匹配房源 tags）──
+    pet_policy: Optional[str] = None
+    viewing_method: Optional[str] = None
+    viewing_time: Optional[str] = None
+    lease_flexibility: Optional[str] = None
+    required_utilities: Optional[list[str]] = None
+    termination_sublet: Optional[str] = None
+    parking_type: Optional[str] = None
+    security_requirement: Optional[str] = None
+    property_management: Optional[str] = None
+    environment_preference: Optional[str] = None
+    required_nearby: Optional[list[str]] = None
+    house_feature: Optional[str] = None
+    landlord_contract: Optional[str] = None
+
+    # ── 软偏好标签 ──
+    tag_preferences: list[str] = []      # 匹配加分，不排除
 
     # ── 上下文记忆 ──
     mentioned_house_ids: list[str] = []
@@ -631,13 +696,24 @@ if prefs.floor_pref:
         continue
 ```
 
-### 8.1 tag_requirements 硬过滤
+### 8.1 新增直接参数 → tags 硬过滤
+
+以下单值参数：房源 `tags` 须包含该值，否则排除。数组参数 `required_utilities`、`required_nearby`：须包含全部指定值。
 
 ```python
-if prefs.tag_requirements:
-    house_tags = set(item.get("tags", []))
-    if not all(tag in house_tags for tag in prefs.tag_requirements):
-        continue
+house_tags = set(item.get("tags", []))
+# 单值参数
+for field in ("pet_policy", "viewing_method", "viewing_time", "lease_flexibility",
+              "termination_sublet", "parking_type", "security_requirement",
+              "property_management", "environment_preference", "house_feature", "landlord_contract"):
+    val = getattr(prefs, field, None)
+    if val is not None and val not in house_tags:
+        continue  # 不匹配则排除
+# 数组参数（须全部匹配）
+if prefs.required_utilities and not all(t in house_tags for t in prefs.required_utilities):
+    continue
+if prefs.required_nearby and not all(t in house_tags for t in prefs.required_nearby):
+    continue
 ```
 
 ### 8.2 tag_preferences 加分（含属性标签映射）
@@ -719,8 +795,9 @@ if prefs.subway_line:
 | 维度                     | v1（当前）                   | v2（新设计）                            |
 | ---------------------- | ------------------------ | ---------------------------------- |
 | 工具数                    | 5                        | 5（不变）                              |
-| update_preferences 参数数 | 20                       | 26（+6）                             |
-| 标签偏好支持                 | 无                        | tag_requirements + tag_preferences |
+| update_preferences 参数数 | 20                       | 39（原 26 + 13 个标签类直接参数）             |
+| 硬约束标签类                 | 无                        | 13 个直接参数（pet_policy、viewing_method 等） |
+| 软偏好                    | 无                        | tag_preferences                      |
 | 付款/押金                  | 无                        | payment_method + deposit_type      |
 | 免中介                    | 有 no_agent_fee 但未在工具定义暴露 | 暴露为正式参数                            |
 | 楼层偏好                   | 仅在 soft_preferences 内    | 提升为独立硬约束参数 floor_pref              |
@@ -738,11 +815,11 @@ if prefs.subway_line:
 
 | 优先级 | 变更项                                        | 影响范围              |
 | --- | ------------------------------------------ | ----------------- |
-| P0  | TOOLS 定义更新（新增 6 个参数，移除 soft_preferences）   | tools.py TOOLS 列表 |
-| P0  | UserPreferences 新增字段 + 移除 soft_preferences | tools.py 数据模型     |
-| P0  | post_filter_and_rank 增加标签过滤 + 属性标签映射加分     | tools.py 过滤逻辑     |
-| P0  | update_preferences 函数处理新参数 + 移除 soft 合并逻辑  | tools.py 合并逻辑     |
-| P1  | system prompt 更新（提参规则、标签表、移除 soft 相关指导）    | main.py / prompt  |
-| P2  | 测试用例对齐验证（ev32 等用例的 soft_preferences 断言需调整） | test_cases.yaml   |
+| P0  | TOOLS 定义更新（移除 tag_requirements，新增 13 个标签类直接参数） | tools.py TOOLS 列表 |
+| P0  | UserPreferences 移除 tag_requirements，新增 13 个字段 | tools.py 数据模型     |
+| P0  | post_filter_and_rank 新增 8.1 直接参数→tags 硬过滤 + 8.2 tag_preferences 加分 | tools.py 过滤逻辑     |
+| P0  | update_preferences 合并逻辑：移除 tag_requirements，支持 13 个新参数 | tools.py 合并逻辑     |
+| P1  | system prompt 更新（硬约束用直接参数、tag_preferences 规则）    | agent.py / prompt  |
+| P2  | 测试用例对齐（tag_requirements 改为对应直接参数） | test_cases.yaml   |
 
 

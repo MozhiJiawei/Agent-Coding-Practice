@@ -46,18 +46,20 @@
 
 以下字段**不**作为 by_platform / nearby / by_community 的 query 参数传入，而是在拿到 API 返回的列表后，在**后端过滤与排序（post_filter_and_rank）**中使用：
 
-- **tag_requirements**：硬过滤，房源 `tags` 必须包含全部指定标签。
-- **tag_preferences**：软加分，匹配则加分排序，不匹配不排除；含属性标签映射（有电梯、精装修、朝南、高层/低层、整租/合租等），见设计文档第八章。
+- **硬约束标签类（13 个直接参数）**：pet_policy、viewing_method、viewing_time、lease_flexibility、required_utilities、termination_sublet、parking_type、security_requirement、property_management、environment_preference、required_nearby、house_feature、landlord_contract。过滤时要求房源 `tags` 包含对应值（数组参数须全部包含），见设计文档 8.1。
+- **tag_preferences**：软加分，匹配则加分排序，不匹配不排除；含属性标签映射（有电梯、精装修、朝南、高层/低层、整租/合租等），见设计文档 8.2。
+
+提参时硬约束一律用上述直接参数，不要用 tag 数组表示。
 
 ### 1.4 payment_method / deposit_type / no_agent_fee
 
-这三个独立字段在仿真 API 的 by_platform 中**无直接 query 参数**，通过**标签（tag）匹配**实现：
+这三个独立字段在仿真 API 的 by_platform 中**无直接 query 参数**，通过**标签（tag）匹配**实现；提参时**仅**使用独立字段，不通过 tag 数组传递：
 
 - `payment_method`（月付/季付/半年付/年付）→ 过滤/匹配房源 `tags` 中含对应付款标签的房源。
 - `deposit_type`（押一/押二/押三）→ 过滤/匹配房源 `tags` 中含对应押金标签的房源。
 - `no_agent_fee: true` → 过滤/匹配房源 `tags` 中含「房东直租」的房源（数据中无「无中介」标签，用「房东直租」）。
 
-实现时在 post_filter_and_rank（或等价逻辑）中按设计文档 8.3 做 tag 硬过滤。
+实现时在 post_filter_and_rank 中按设计文档 8.3 做 tag 硬过滤。
 
 ---
 

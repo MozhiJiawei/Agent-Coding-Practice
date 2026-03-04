@@ -78,7 +78,6 @@ class TestUserPreferencesModel:
         assert fresh_prefs.max_price is None
         assert fresh_prefs.mentioned_house_ids == []
         assert fresh_prefs.current_focus_house_id is None
-        assert fresh_prefs.tag_requirements == []
         assert fresh_prefs.tag_preferences == []
 
     def test_hard_constraint_fields_settable(self):
@@ -130,13 +129,13 @@ class TestUserPreferencesModel:
         assert prefs.payment_method == "月付"
         assert prefs.deposit_type == "押一"
 
-    def test_tag_requirements_tag_preferences_settable(self):
-        """tag_requirements / tag_preferences 可设置且默认为空列表"""
-        prefs = UserPreferences(tag_requirements=["可养猫"], tag_preferences=["有电梯"])
-        assert prefs.tag_requirements == ["可养猫"]
+    def test_tag_class_direct_params_and_tag_preferences_settable(self):
+        """标签类直接参数（如 pet_policy、required_nearby）与 tag_preferences 可设置"""
+        prefs = UserPreferences(pet_policy="可养猫", required_nearby=["近公园"], tag_preferences=["有电梯"])
+        assert prefs.pet_policy == "可养猫"
+        assert prefs.required_nearby == ["近公园"]
         assert prefs.tag_preferences == ["有电梯"]
         empty = UserPreferences()
-        assert empty.tag_requirements == []
         assert empty.tag_preferences == []
 
     def test_context_memory_fields_default(self, fresh_prefs):
@@ -544,14 +543,14 @@ class TestUpdatePreferences:
         assert isinstance(result, dict)
 
     @pytest.mark.anyio
-    async def test_tag_requirements_tag_preferences_merge_append(self, rental_client, fresh_prefs):
-        """tag_requirements / tag_preferences 增量追加去重"""
-        await update_preferences(rental_client, fresh_prefs, tag_requirements=["可养猫"])
-        assert fresh_prefs.tag_requirements == ["可养猫"]
+    async def test_tag_class_params_and_tag_preferences_merge(self, rental_client, fresh_prefs):
+        """标签类直接参数覆盖、tag_preferences 增量追加去重"""
+        await update_preferences(rental_client, fresh_prefs, pet_policy="可养猫")
+        assert fresh_prefs.pet_policy == "可养猫"
         await update_preferences(rental_client, fresh_prefs, tag_preferences=["有电梯"])
         assert fresh_prefs.tag_preferences == ["有电梯"]
-        await update_preferences(rental_client, fresh_prefs, tag_requirements=["近公园"])
-        assert set(fresh_prefs.tag_requirements) == {"可养猫", "近公园"}
+        await update_preferences(rental_client, fresh_prefs, required_nearby=["近公园"])
+        assert fresh_prefs.required_nearby == ["近公园"]
         await update_preferences(rental_client, fresh_prefs, tag_preferences=["有电梯", "精装修"])
         assert set(fresh_prefs.tag_preferences) == {"有电梯", "精装修"}
 
