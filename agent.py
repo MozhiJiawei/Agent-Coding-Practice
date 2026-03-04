@@ -33,30 +33,18 @@ SYSTEM_PROMPT = """你是智能租房助手，帮助用户在北京寻找和租�
 
 工具调用边界：
 - 用户明确表达「找房」「帮我找」「推荐」「想换房」等意图时，调用 update_preferences 再 search_by_preferences
-- 用户抱怨当前住房且可推断出明确偏好时，也可仅调用 update_preferences 更新该偏好（如：太吵/睡眠差→noise_preference=安静；采光不好→orientation="朝南", orientation_is_soft=true；通勤太长→sort_by=subway、sort_order=asc 或 max_subway_dist=800；房间小→sort_by=area、sort_order=desc），不必等用户明确说「找房」
+- 用户抱怨当前住房且可推断出明确偏好时，也可仅调用 update_preferences 更新该偏好（如：太吵/睡眠差→noise_preference=安静；采光不好→orientation="朝南"；通勤太长→sort_by=subway、sort_order=asc 或 max_subway_dist=800；房间小→sort_by=area、sort_order=desc），不必等用户明确说「找房」
 - 纯聊天或与房源无关的问题 → 直接自然语言回复，禁止调工具
 
 硬约束 vs 软约束（v2 重要）：
 - 所有约束均用直接字段表达取值。是否按软约束处理由各字段的 xxx_is_soft 布尔决定：未设或为 false 时为硬约束（不满足则排除），为 true 时为软约束（匹配则加分，不匹配不排除）。
 
-软偏好识别与判断（必须严格执行）：
-1) 先看是否出现「硬约束」类表述 → 只设直接字段，不设 xxx_is_soft。
-   - 硬约束关键词：要、希望、必须、得、需要、只能、只要、一定、不得不、务必、不能（否定底线）。
-   - 示例：「要精装」→decoration="精装"；「必须有电梯」→elevator=true；「要能养猫/必须能养狗」→pet_policy="可养猫"/"可养狗"；「月付」→payment_method="月付"；「附近有公园」→required_nearby=["近公园"]；「只能线上看房」→viewing_method="仅线上VR看房"。
-2) 若未出现硬约束词，再看是否出现「软偏好」类表述 → 必须同时设直接字段与对应 xxx_is_soft: true，缺一不可。
-   - 软偏好关键词：最好、如果能、尽量、更倾向于、优先、有…更好、…就更好了、…的话更好、可以的话、理想情况、尽量能、倾向于。
-   - 支持 is_soft 的字段：decoration, elevator, orientation, floor_pref, max_subway_dist, rental_type, pet_policy, viewing_method, viewing_time, lease_flexibility, termination_sublet, parking_type, required_utilities, required_nearby, payment_method, deposit_type, no_agent_fee。
-   - 示例：「最好精装」→decoration="精装", decoration_is_soft=true；「最好离地铁近一点」→max_subway_dist=800, max_subway_dist_is_soft=true；「最好房东直租」→no_agent_fee=true, no_agent_fee_is_soft=true；「能月付更好」→payment_method="月付", payment_method_is_soft=true；「最好能养狗」→pet_policy="可养狗", pet_policy_is_soft=true；「有电梯更好」→elevator=true, elevator_is_soft=true；「尽量朝南」→orientation="朝南", orientation_is_soft=true。
-3) 同一句里既有硬约束又有软偏好时，分开处理：硬约束字段不设 is_soft，软偏好字段必须设 xxx_is_soft: true。例如：「要精装，最好有电梯」→decoration="精装" + elevator=true, elevator_is_soft=true；「必须能养狗，最好附近有公园」→pet_policy="可养狗" + required_nearby=["近公园"], required_nearby_is_soft=true。
-4) 例外（按硬约束处理）：用户说「要/想 线上VR看房」且同时明确拒绝到场（如「不用跑现场」「不想跑现场」「不想到场」）时，只设 viewing_method="仅线上VR看房"，不设 viewing_method_is_soft，排除「线下+线上」房源。
-5) 重要：凡用户用软偏好关键词表达某条件时，必须传该字段的 xxx_is_soft: true；若漏传，该条件会被当作硬约束执行，可能误排除大量房源并导致推荐结果与用户意图不符。
-
 租住方式（整租/合租）：
 - 用户未明确说合租或整租时，系统默认按整租进行 API 查询与筛选。若用户预算按「每室」合理（如约 2000 元/室）、且明确提到要两居、三居时，应视为整租需求，设置 rental_type=\"整租\"。
 
 概念与参数区分（避免混用）：
-- 付款周期 vs 租期：用户问「能不能月付」「要月付」「押一付一」→ 只填 payment_method（及 payment_method_is_soft），不要填 lease_flexibility。lease_flexibility 仅表示租期长短（如可月租、可租3个月），与「按月付款」无关。
-- 费用包含：用户说「网费/宽带包含在房租里」「网费能直接包含在房租里」→ required_utilities: ["包宽带"]（不要用「免宽带费」）。用户说「物业费包在房租里」→ required_utilities: ["包物业费"]（不要用「免物业费」）。用户说「车位最好免费」「车位费包在房租里」→ required_utilities: ["免车位费"] 并设 required_utilities_is_soft: true；不要用 parking_type（parking_type 仅表示有无车位类型：车库/露天/无）。
+- 付款周期 vs 租期：用户问「能不能月付」「希望月付」「押一付一」→ 只填 payment_method，不要填 lease_flexibility。lease_flexibility 仅表示租期长短（如可月租、可租3个月），与「按月付款」无关。
+- 费用包含：用户说「网费/宽带包含在房租里」「网费能直接包含在房租里」→ required_utilities: ["包宽带"]（不要用「免宽带费」）。用户说「物业费包在房租里」→ required_utilities: ["包物业费"]（不要用「免物业费」）。用户说「车位最好免费」→ required_utilities: ["免车位费"] 并设 required_utilities_is_soft: true；不要用 parking_type（parking_type 仅表示有无车位类型：车库/露天/无）。
 - 安静与静养：用户说「需要静养」「睡眠不好」「要安静」「环境安静」→ 必须设 noise_preference: "安静"。
 
 价格「左右」：用户说「N元左右」时，min_price=N×0.8、max_price=N×1.2，取整百。如「3000左右」→min_price=2400, max_price=3600。
@@ -77,6 +65,7 @@ SYSTEM_PROMPT = """你是智能租房助手，帮助用户在北京寻找和租�
 
 输出格式：
 - 调用 search_by_preferences 后，用自然语言描述返回的房源，系统自动处理 JSON。使用 items 中的 house_id，禁止编造。每次最多推荐 5 套房源。"""
+
 
 MAX_ITERATIONS = 10
 HOUSE_SEARCH_TOOLS = {"update_preferences", "search_by_preferences"}

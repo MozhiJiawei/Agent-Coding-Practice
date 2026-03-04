@@ -676,7 +676,7 @@ TOOLS: list[dict] = [
         "type": "function",
         "function": {
             "name": "update_preferences",
-            "description": "提取或更新用户的租房偏好，仅合并偏好不搜索。调用后必须再调用 search_by_preferences 获取匹配房源。每轮只传本轮新增/变更的字段；用户说「最好/如果能/尽量」等软偏好时，除设主字段外必须同时设对应 xxx_is_soft: true；用户说「希望/要/必须」等硬约束时只设主字段，不设 xxx_is_soft。数组类（如 required_nearby）追加时只传本轮新增项。",
+            "description": "提取或更新用户的租房偏好，仅合并偏好不搜索。调用后必须再调用 search_by_preferences 获取匹配房源。每轮只传本轮新增/变更的字段；用户说「最好、如果能、尽量、更倾向于、优先、有…更好、…就更好了、…的话更好、可以的话、理想情况、尽量能、倾向于」时，除设主字段外必须同时设对应 xxx_is_soft: true。数组类（如 required_nearby）追加时只传本轮新增项。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -772,7 +772,7 @@ TOOLS: list[dict] = [
                     "sort_by": {
                         "type": "string",
                         "enum": ["price", "area", "subway"],
-                        "description": "排序字段。「按价格排」→price，「按面积排」→area，「按地铁距离排」→subway"
+                        "description": "排序字段。「按价格排」→price，「按面积排」→area，「按地铁距离排，近地铁」→subway"
                     },
                     "sort_order": {
                         "type": "string",
@@ -786,7 +786,7 @@ TOOLS: list[dict] = [
                     "payment_method": {
                         "type": "string",
                         "enum": ["月付", "季付", "半年付", "年付"],
-                        "description": "付款周期偏好。「月付/按月付/能不能月付/要月付」→月付；「季付」→季付。用户问付款方式、月付时用本字段，不要用 lease_flexibility（租期长短）。与 xxx_is_soft 成对使用时可表示「最好能月付」"
+                        "description": "付款周期偏好。「月付/按月付/能不能月付/希望月付」→月付；「季付」→季付。用户问付款方式、月付时用本字段，不要用 lease_flexibility（租期长短）。"
                     },
                     "deposit_type": {
                         "type": "string",
@@ -826,7 +826,7 @@ TOOLS: list[dict] = [
                     "parking_type": {
                         "type": "string",
                         "enum": ["车库车位", "露天车位", "无车位"],
-                        "description": "车位有无及类型（硬约束）。仅表示要车库/露天/无车位。若用户说「有车位且最好免费」「车位费包在房租里」应用 required_utilities: [\"免车位费\"] 并设 required_utilities_is_soft，不要用本字段"
+                        "description": "车位有无及类型（硬约束）。仅表示要车库/露天/无车位。"
                     },
                     "security_requirement": {
                         "type": "string",
@@ -858,11 +858,10 @@ TOOLS: list[dict] = [
                         "enum": ["合同规范条款清晰", "合同不规范", "房东好沟通", "房东不配合", "房东难联系"],
                         "description": "合同/房东相关要求（硬约束）"
                     },
-                    "decoration_is_soft": {"type": "boolean", "description": "true=本轮回该维度为软约束（匹配加分，不匹配不排除）。仅当用户说「最好/如果能/如果有」等软偏好时设为 true；用户说「希望/要/必须」时为硬约束，不设 true"},
-                    "elevator_is_soft": {"type": "boolean", "description": "同上，对应 elevator"},
-                    "orientation_is_soft": {"type": "boolean", "description": "同上，对应 orientation"},
-                    "floor_pref_is_soft": {"type": "boolean", "description": "同上，对应 floor_pref"},
-                    "max_subway_dist_is_soft": {"type": "boolean", "description": "同上，对应 max_subway_dist"},
+                    "decoration_is_soft": {"type": "boolean", "description": "true=本轮回该维度为软约束（匹配加分，不匹配不排除）。仅当用户说「最好、如果能、尽量、更倾向于、优及先、有…更好、…就更好了、…的话更好、可以的话、理想情况、尽量能、倾向于」时设为 true，用户语气肯定时，如提及「要、希望、想、必须、得、需要、只能、只要、一定、不得不、务必、不能（否定底线）」时设为false"},
+                    "elevator_is_soft": {"type": "boolean", "description": "true=本轮回该维度为软约束（匹配加分，不匹配不排除）。仅当用户说「最好、如果能、尽量、更倾向于、优及先、有…更好、…就更好了、…的话更好、可以的话、理想情况、尽量能、倾向于」时设为 true，用户语气肯定时，如提及「要、希望、想、必须、得、需要、只能、只要、一定、不得不、务必、不能（否定底线）」时设为false，对应 elevator"},
+                    "orientation_is_soft": {"type": "boolean", "description": "true=本轮回该维度为软约束（匹配加分，不匹配不排除）。仅当用户说「最好、如果能、尽量、更倾向于、优及先、有…更好、…就更好了、…的话更好、可以的话、理想情况、尽量能、倾向于」时设为 true，用户语气肯定时，如提及「要、希望、想、必须、得、需要、只能、只要、一定、不得不、务必、不能（否定底线）」时设为false，对应 orientation"},
+                    "floor_pref_is_soft": {"type": "boolean", "description": "true=本轮回该维度为软约束（匹配加分，不匹配不排除）。仅当用户说「最好、如果能、尽量、更倾向于、优及先、有…更好、…就更好了、…的话更好、可以的话、理想情况、尽量能、倾向于」时设为 true，用户语气肯定时，如提及「要、希望、想、必须、得、需要、只能、只要、一定、不得不、务必、不能（否定底线）」时设为false，对应 floor_pref"},
                     "rental_type_is_soft": {"type": "boolean", "description": "同上，对应 rental_type"},
                     "pet_policy_is_soft": {"type": "boolean", "description": "同上，对应 pet_policy"},
                     "viewing_method_is_soft": {"type": "boolean", "description": "同上，对应 viewing_method"},
