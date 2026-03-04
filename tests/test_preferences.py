@@ -78,6 +78,8 @@ class TestUserPreferencesModel:
         assert fresh_prefs.max_price is None
         assert fresh_prefs.mentioned_house_ids == []
         assert fresh_prefs.current_focus_house_id is None
+        assert fresh_prefs.tag_requirements == []
+        assert fresh_prefs.tag_preferences == []
 
     def test_hard_constraint_fields_settable(self):
         prefs = UserPreferences(
@@ -111,19 +113,31 @@ class TestUserPreferencesModel:
         assert prefs.available_before == "2026-04-01"
         assert prefs.max_commute_minutes == 30
 
-    def test_soft_preference_fields_settable(self):
+    def test_independent_preference_fields_settable(self):
+        """独立偏好字段（含 deposit_type）可设置"""
         prefs = UserPreferences(
             noise_preference="安静",
             orientation="朝南",
             floor_pref="高层",
             no_agent_fee=True,
             payment_method="月付",
+            deposit_type="押一",
         )
         assert prefs.noise_preference == "安静"
         assert prefs.orientation == "朝南"
         assert prefs.floor_pref == "高层"
         assert prefs.no_agent_fee is True
         assert prefs.payment_method == "月付"
+        assert prefs.deposit_type == "押一"
+
+    def test_tag_requirements_tag_preferences_settable(self):
+        """tag_requirements / tag_preferences 可设置且默认为空列表"""
+        prefs = UserPreferences(tag_requirements=["可养猫"], tag_preferences=["有电梯"])
+        assert prefs.tag_requirements == ["可养猫"]
+        assert prefs.tag_preferences == ["有电梯"]
+        empty = UserPreferences()
+        assert empty.tag_requirements == []
+        assert empty.tag_preferences == []
 
     def test_context_memory_fields_default(self, fresh_prefs):
         assert fresh_prefs.mentioned_house_ids == []
@@ -528,6 +542,18 @@ class TestUpdatePreferences:
         """空调用不报错"""
         result = await update_preferences(rental_client, fresh_prefs)
         assert isinstance(result, dict)
+
+    @pytest.mark.anyio
+    async def test_tag_requirements_tag_preferences_merge_append(self, rental_client, fresh_prefs):
+        """tag_requirements / tag_preferences 增量追加去重"""
+        await update_preferences(rental_client, fresh_prefs, tag_requirements=["可养猫"])
+        assert fresh_prefs.tag_requirements == ["可养猫"]
+        await update_preferences(rental_client, fresh_prefs, tag_preferences=["有电梯"])
+        assert fresh_prefs.tag_preferences == ["有电梯"]
+        await update_preferences(rental_client, fresh_prefs, tag_requirements=["近公园"])
+        assert set(fresh_prefs.tag_requirements) == {"可养猫", "近公园"}
+        await update_preferences(rental_client, fresh_prefs, tag_preferences=["有电梯", "精装修"])
+        assert set(fresh_prefs.tag_preferences) == {"有电梯", "精装修"}
 
 
 # ─────────────────────────────────────────────

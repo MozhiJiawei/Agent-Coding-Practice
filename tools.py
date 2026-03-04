@@ -24,44 +24,76 @@ AREA_TO_DISTRICT: dict[str, str] = {}
 # 模块级地标名称集合，由 build_landmark_names 填充（启动时由 main.py 调用）
 LANDMARK_NAMES: set[str] = set()
 
+# 标签参考表（与 intent_interface_design_v2 4.1 一致，供 prompt 与过滤使用）
+TAG_REFERENCE: dict[str, list[str]] = {
+    "宠物": ["可养猫", "可养狗", "可养宠物", "不可养宠物", "仅限小型犬", "可养宠物需宠物押金"],
+    "付款周期": ["月付", "季付", "半年付", "年付"],
+    "押金": ["押一", "押二", "押三"],
+    "中介/房源": ["房东直租", "收中介费"],
+    "合同/房东": ["合同规范条款清晰", "合同不规范", "房东好沟通", "房东不配合", "房东难联系"],
+    "看房方式": ["仅线下看房", "仅线上VR看房", "仅线上AR看房", "仅线上图片看房", "线下+线上"],
+    "看房时间": [
+        "全天可看房", "仅周末看房", "仅工作日看房", "工作日9-18点", "工作日14-18点",
+        "工作日9-12点", "周末9-18点", "周末14-18点", "周末9-12点",
+    ],
+    "租期": ["可月租", "可租2个月", "可租3个月", "可租4个月", "可租5个月", "可半年租", "可年租", "仅接受年租"],
+    "费用包含": [
+        "包水电费", "免水电费", "水电费另付", "免宽带费", "包宽带", "网费另付",
+        "包物业费", "免物业费", "物业费另付", "包车位", "免车位费", "车位费另付",
+        "包取暖费", "免取暖费", "取暖费另付",
+    ],
+    "退租/转租": ["提前退租可协商", "提前退租扣押金", "经同意可转租", "不可转租"],
+    "小区管理": [
+        "车库车位", "露天车位", "无车位", "24小时保安", "门禁刷卡", "门禁形同虚设",
+        "无门禁", "物业管理到位", "物业管理差", "绿化好环境佳", "绿化少环境一般",
+    ],
+    "周边配套": ["近公园", "近学校", "近菜市场", "近银行", "近医院", "近餐饮", "近健身房", "近警察局", "近商超", "近加油站"],
+    "房屋特点": ["采光好", "南北通透", "高性价比"],
+    "属性标签（仅用于 tag_preferences）": [
+        "有电梯", "精装修", "简装", "豪华装修", "朝南", "朝北", "朝东", "朝西", "西北",
+        "高层", "低层", "整租", "合租",
+    ],
+}
+
 
 class UserPreferences(BaseModel):
-    # ── 位置（LLM 输入统一字段） ──
+    # ── 位置 ──
     location: Optional[list[str]] = None
     clear_location: bool = False
-
-    # ── 内部字段（代码路由后写入，LLM 不直接设置） ──
     districts: Optional[list[str]] = None
     areas: Optional[list[str]] = None
     landmark_queries: Optional[list[str]] = None
 
-    # ── 硬约束 ──
+    # ── API 硬约束 ──
     min_price: Optional[int] = None
     max_price: Optional[int] = None
     bedrooms: Optional[str] = None
     rental_type: Optional[str] = None
     decoration: Optional[str] = None
     elevator: Optional[bool] = None
+    orientation: Optional[str] = None
+    floor_pref: Optional[str] = None
     min_area: Optional[int] = None
     max_area: Optional[int] = None
-    utilities_type: Optional[str] = None
+    max_subway_dist: Optional[int] = None
     subway_line: Optional[str] = None
-    max_subway_dist: Optional[int] = None  # 到最近地铁站最大距离（米），近地铁默认 800
+    utilities_type: Optional[str] = None
+    property_type: Optional[str] = None
     listing_platform: Optional[str] = None
     available_before: Optional[str] = None
     max_commute_minutes: Optional[int] = None
-
-    # ── 软偏好 ──
     noise_preference: Optional[str] = None
-    orientation: Optional[str] = None
-    floor_pref: Optional[str] = None
-    sort_by: Optional[str] = None  # price / area / subway
-    sort_order: Optional[str] = None  # asc / desc
+    sort_by: Optional[str] = None
+    sort_order: Optional[str] = None
+
+    # ── 独立偏好字段 ──
     no_agent_fee: Optional[bool] = None
     payment_method: Optional[str] = None
+    deposit_type: Optional[str] = None
 
-    # ── 模糊软偏好（「更好」「尽量」「最好」等表达，不作为 API 硬过滤，仅用于加分排序） ──
-    soft_preferences: Optional[dict] = None
+    # ── 标签匹配 ──
+    tag_requirements: list[str] = []
+    tag_preferences: list[str] = []
 
     # ── 上下文记忆 ──
     mentioned_house_ids: list[str] = []
@@ -254,12 +286,7 @@ def post_filter_and_rank(items: list[dict], prefs: UserPreferences, *, is_landma
     加分项（来自 prefs 直接字段）：
       - orientation 匹配 +10；floor_pref 匹配 +5
 
-    加分项（来自 soft_preferences，用户说「更好/最好/尽量/优先」等非强制表达）：
-      - elevator     +5   （有电梯加分）
-      - decoration   分档  （达到或超过偏好等级 +10；低一档 +3；低两档及以下 0）
-      - rental_type  +8   （匹配偏好的租赁方式）
-      - orientation  +10  （朝向偏好，与直接字段合并）
-      - floor_pref   +5   （楼层偏好，与直接字段合并）
+    tag_requirements / tag_preferences 的过滤与加分在迭代三实现。
     """
     scored: list[tuple[int, dict]] = []
     for item in items:
@@ -330,46 +357,6 @@ def post_filter_and_rank(items: list[dict], prefs: UserPreferences, *, is_landma
             if prefs.floor_pref in item.get("floor", ""):
                 score += 5
 
-        # ── soft_preferences 加分 ─────────────────────────────────────────────
-        if prefs.soft_preferences:
-            sp = prefs.soft_preferences
-
-            # 电梯软偏好：有电梯 +5
-            if sp.get("elevator") and item.get("elevator"):
-                score += 5
-
-            # 装修等级软偏好：达到或超过偏好等级 +10，低一档 +3，低两档及以下 0
-            soft_dec_raw = sp.get("decoration")
-            if soft_dec_raw:
-                soft_dec = _DEC_NORM.get(str(soft_dec_raw), str(soft_dec_raw))
-                pref_level = _DEC_LEVEL.get(soft_dec, 0)
-                item_dec_raw = item.get("decoration", "")
-                item_dec = _DEC_NORM.get(str(item_dec_raw), str(item_dec_raw))
-                act_level = _DEC_LEVEL.get(item_dec, 0)
-                if pref_level > 0:
-                    gap = pref_level - act_level
-                    if gap <= 0:
-                        score += 10
-                    elif gap == 1:
-                        score += 3
-
-            # 租赁方式软偏好：匹配偏好方式（整租/合租）+8
-            soft_rental = sp.get("rental_type")
-            if soft_rental and item.get("rental_type") == soft_rental:
-                score += 8
-
-            # 朝向软偏好（与直接字段合并）
-            soft_ori = sp.get("orientation")
-            if soft_ori:
-                target = str(soft_ori).replace("朝", "")
-                if target in item.get("orientation", ""):
-                    score += 10
-
-            # 楼层软偏好（与直接字段合并）
-            soft_floor = sp.get("floor_pref")
-            if soft_floor and soft_floor in item.get("floor", ""):
-                score += 5
-
         scored.append((score, item))
 
     scored.sort(key=lambda x: -x[0])
@@ -394,15 +381,6 @@ async def update_preferences(
 
     调用后需再调用 search_by_preferences 获取匹配房源。
     """
-    # 处理 soft_preferences：合并到 session（不作为 API 硬过滤，仅用于加分排序）
-    new_soft = kwargs.pop("soft_preferences", None)
-    if new_soft and isinstance(new_soft, dict):
-        if session_prefs.soft_preferences is None:
-            session_prefs.soft_preferences = {}
-        session_prefs.soft_preferences.update(
-            {k: v for k, v in new_soft.items() if v is not None}
-        )
-
     # 处理 clear_location：清除历史位置相关字段
     clear = kwargs.pop("clear_location", False)
 
@@ -461,13 +439,29 @@ async def update_preferences(
         session_prefs.areas = new_areas if new_areas else None
         session_prefs.landmark_queries = new_landmarks if new_landmarks else None
 
+    # 合并 tag_requirements / tag_preferences（追加去重）
+    new_tag_req = kwargs.pop("tag_requirements", None)
+    if new_tag_req and isinstance(new_tag_req, list):
+        seen = set(session_prefs.tag_requirements)
+        for t in new_tag_req:
+            if isinstance(t, str) and t and t not in seen:
+                seen.add(t)
+                session_prefs.tag_requirements.append(t)
+    new_tag_pref = kwargs.pop("tag_preferences", None)
+    if new_tag_pref and isinstance(new_tag_pref, list):
+        seen = set(session_prefs.tag_preferences)
+        for t in new_tag_pref:
+            if isinstance(t, str) and t and t not in seen:
+                seen.add(t)
+                session_prefs.tag_preferences.append(t)
+
     # 合并其余偏好字段（只更新传入的非 None 字段）
     updatable_fields = {
         "min_price", "max_price", "bedrooms", "rental_type", "decoration",
         "elevator", "min_area", "max_area", "utilities_type", "subway_line",
         "max_subway_dist", "listing_platform", "available_before", "max_commute_minutes",
         "noise_preference", "orientation", "floor_pref", "no_agent_fee", "payment_method",
-        "sort_by", "sort_order",
+        "deposit_type", "property_type", "sort_by", "sort_order",
     }
     for field, value in kwargs.items():
         if field in updatable_fields and value is not None:
@@ -552,52 +546,138 @@ async def search_by_preferences(
     }
 
 
-# ── Story 8.1: 4 工具体系 TOOLS 列表 ────────────────────────────────────────
+# ── Story 8.1: 5 工具体系 TOOLS 列表（意图接口 v2）────────────────────────────────
 TOOLS: list[dict] = [
     {
         "type": "function",
         "function": {
             "name": "update_preferences",
-            "description": "提取或更新用户的租房偏好。仅合并偏好，不搜索房源。调用后需再调用 search_by_preferences 获取匹配房源。每轮只需提取本轮新增/变更的偏好，系统自动与历史偏好合并。当用户说「想换个安静一点的房子，帮我找找」等（偏好+找房意图）时，必须先调用本工具传入该偏好（如 noise_preference=\"安静\"）再调用 search_by_preferences。",
+            "description": "提取或更新用户的租房偏好，仅合并偏好不搜索。调用后必须再调用 search_by_preferences 获取匹配房源。每轮只提取本轮新增/变更的偏好。",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "location": {
-                        "type": "array", "items": {"type": "string"},
-                        "description": "用户提到的位置（行政区/商圈/地标均可），如 ['望京']、['海淀']、['国贸附近']"
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "用户提到的位置，行政区/商圈/地标/地铁站/小区名均可。示例：[\"海淀\"]、[\"望京\"]、[\"国贸附近\"]、[\"百子湾\"]、[\"西二旗站\"]、[\"建清园南区\"]。多位置用数组：[\"朝阳\",\"海淀\"]"
                     },
                     "clear_location": {
                         "type": "boolean",
-                        "description": "true=清除之前的位置偏好（用于'换XX看看'场景）"
+                        "description": "true=清除之前的位置（用于「换XX看看」「改到XX」场景），默认 false"
                     },
-                    "min_price": {"type": "integer", "description": "最低月租金（元）"},
-                    "max_price": {"type": "integer", "description": "最高月租金（元）"},
-                    "bedrooms": {"type": "string", "description": "卧室数，如 '2' 或 '2,3'"},
-                    "rental_type": {"type": "string", "description": "整租 或 合租（硬约束：用户明确说「只要整租」「必须整租」时使用；若用户说「最好整租/整租优先/合租也行」等模糊表达，请改用 soft_preferences={\"rental_type\": \"整租\"}）"},
-                    "decoration": {"type": "string", "description": "装修类型：精装/简装/豪华/毛坯。用户把装修作为明确条件时传此硬约束，例如「精装两居」「东城精装两居」「要精装」「精装的」「只要精装」「必须精装」→ decoration=\"精装\"。仅当用户说「精装最好/最好精装/简装也行」等软化表达时改用 soft_preferences={\"decoration\": \"精装\"}，不传本字段。"},
-                    "elevator": {"type": "boolean", "description": "是否必须有电梯（硬约束：「必须有电梯」「要求电梯」时使用；若用户说「有电梯更好」等模糊表达，请改用 soft_preferences={\"elevator\": true}）"},
-                    "min_area": {"type": "integer", "description": "最小面积（平米）"},
-                    "max_area": {"type": "integer", "description": "最大面积（平米）"},
-                    "max_subway_dist": {"type": "integer", "description": "到最近地铁站的最大距离（米）。用户说「近地铁」「地铁方便」等未给具体数字时默认 800；用户说「离地铁 500 米以内」时传 500。"},
-                    "subway_line": {"type": "string", "description": "地铁线路，如 13号线"},
-                    "utilities_type": {"type": "string", "description": "水电类型，如 民水民电"},
-                    "listing_platform": {"type": "string", "description": "挂牌平台：链家/安居客/58同城"},
-                    "available_before": {"type": "string", "description": "可入住日期上限，YYYY-MM-DD"},
-                    "max_commute_minutes": {"type": "integer", "description": "到西二旗通勤上限（分钟）"},
-                    "noise_preference": {"type": "string", "description": "噪音偏好，如 安静"},
-                    "orientation": {"type": "string", "description": "朝向偏好，如 朝南"},
-                    "sort_by": {"type": "string", "description": "排序字段：price/area/subway"},
-                    "sort_order": {"type": "string", "description": "排序方向：asc/desc"},
-                    "soft_preferences": {
-                        "type": "object",
-                        "description": "软偏好：用户说「XX更好」「最好XX」「尽量XX」「如果有XX就好了」「XX优先/XX也行」等模糊表达时使用，不作为搜索硬过滤条件，仅对结果加分排序，避免因非核心条件导致结果为零。出现在此字段的属性禁止同时出现在硬约束字段中。示例：「有电梯更好」→ {\"elevator\": true}；「精装最好，简装也行」→ {\"decoration\": \"精装\"}；「最好整租」→ {\"rental_type\": \"整租\"}；「最好朝南」→ {\"orientation\": \"朝南\"}",
-                        "properties": {
-                            "elevator": {"type": "boolean", "description": "有电梯加分 +5"},
-                            "decoration": {"type": "string", "description": "装修偏好等级（精装/简装/豪华/毛坯）：达到或超过偏好等级 +10，低一档 +3"},
-                            "rental_type": {"type": "string", "description": "整租/合租 偏好，匹配加分 +8"},
-                            "orientation": {"type": "string", "description": "朝向偏好，如 朝南，匹配 +10"},
-                            "floor_pref": {"type": "string", "description": "楼层偏好，如 低层/高层，匹配 +5"}
-                        }
+                    "min_price": {
+                        "type": "integer",
+                        "description": "最低月租金（元）。「3000以上」→ min_price=3000"
+                    },
+                    "max_price": {
+                        "type": "integer",
+                        "description": "最高月租金（元）。「预算5000」「5000以内」→ max_price=5000；「3000左右」→ min_price=2500, max_price=3500"
+                    },
+                    "bedrooms": {
+                        "type": "string",
+                        "description": "卧室数，字符串格式。「两居室」→\"2\"，「两居或三居」→\"2,3\"，「一居」→\"1\"。合租单间也传\"1\""
+                    },
+                    "rental_type": {
+                        "type": "string",
+                        "enum": ["整租", "合租"],
+                        "description": "整租或合租。「一个人住/自己住」→整租；「合租/找室友/有室友」→合租；「单间」→合租"
+                    },
+                    "decoration": {
+                        "type": "string",
+                        "enum": ["精装", "简装", "豪华", "毛坯", "空房"],
+                        "description": "装修类型。「精装修/精装」→精装，「空房/自己带家具」→空房，「毛坯」→毛坯"
+                    },
+                    "elevator": {
+                        "type": "boolean",
+                        "description": "是否要求有电梯。「有电梯/要电梯/老人腿脚不便」→true"
+                    },
+                    "orientation": {
+                        "type": "string",
+                        "enum": ["朝南", "朝北", "朝东", "朝西", "南北", "东西", "西北"],
+                        "description": "朝向。「朝南/采光好」→朝南，「南北通透」→南北，「西北」→西北"
+                    },
+                    "floor_pref": {
+                        "type": "string",
+                        "enum": ["低层", "中层", "高层"],
+                        "description": "楼层偏好。「低楼层/一楼」→低层，「高层/视野好」→高层"
+                    },
+                    "min_area": {
+                        "type": "integer",
+                        "description": "最小面积（㎡）。「60平以上」→60"
+                    },
+                    "max_area": {
+                        "type": "integer",
+                        "description": "最大面积（㎡）"
+                    },
+                    "max_subway_dist": {
+                        "type": "integer",
+                        "description": "到最近地铁站最大距离（米）。「近地铁/交通方便」→800；「地铁500米内」→500；「地铁1公里」→1000；「走路10分钟」→800"
+                    },
+                    "subway_line": {
+                        "type": "string",
+                        "description": "地铁线路，使用包含匹配（如「13号线」也会匹配「13号线/昌平线」换乘站）。「13号线沿线」→\"13号线\""
+                    },
+                    "utilities_type": {
+                        "type": "string",
+                        "enum": ["民水民电", "商水商电"],
+                        "description": "水电类型"
+                    },
+                    "property_type": {
+                        "type": "string",
+                        "enum": ["住宅", "公寓"],
+                        "description": "物业类型"
+                    },
+                    "listing_platform": {
+                        "type": "string",
+                        "enum": ["链家", "安居客", "58同城"],
+                        "description": "指定挂牌平台。用户说「在链家上找」→\"链家\""
+                    },
+                    "available_before": {
+                        "type": "string",
+                        "description": "可入住日期上限，YYYY-MM-DD。「3月份入住」→\"2026-03-01\"；「3月10号前入住」→\"2026-03-10\""
+                    },
+                    "max_commute_minutes": {
+                        "type": "integer",
+                        "description": "到西二旗通勤上限（分钟）。「通勤30分钟内」→30"
+                    },
+                    "noise_preference": {
+                        "type": "string",
+                        "enum": ["安静"],
+                        "description": "噪音偏好。「安静/不要吵/隔音好/睡眠浅」→\"安静\""
+                    },
+                    "sort_by": {
+                        "type": "string",
+                        "enum": ["price", "area", "subway"],
+                        "description": "排序字段。「按价格排」→price，「按面积排」→area，「按地铁距离排」→subway"
+                    },
+                    "sort_order": {
+                        "type": "string",
+                        "enum": ["asc", "desc"],
+                        "description": "排序方向。「从低到高/从近到远/从便宜到贵」→asc，「从高到低/从大到小」→desc"
+                    },
+                    "no_agent_fee": {
+                        "type": "boolean",
+                        "description": "true=用户要求免中介费/不想交中介费/房东直租。false 不传"
+                    },
+                    "payment_method": {
+                        "type": "string",
+                        "enum": ["月付", "季付", "半年付", "年付"],
+                        "description": "付款周期偏好。「月付/按月付」→月付，「季付」→季付"
+                    },
+                    "deposit_type": {
+                        "type": "string",
+                        "enum": ["押一", "押二", "押三"],
+                        "description": "押金偏好。「押一付一」→押一，「可以押二」→押二"
+                    },
+                    "tag_requirements": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "必须匹配的标签（硬约束，不匹配则排除）。从用户明确需求中提取，值必须从标签参考表中选择。示例：「要能养猫」→[\"可养猫\"]；「附近有公园」→[\"近公园\"]；「要24小时保安」→[\"24小时保安\"]；「有车库车位」→[\"车库车位\"]；「包水电费」→[\"包水电费\"]；「房东直租」→[\"房东直租\"]；「提前退租可协商」→[\"提前退租可协商\"]；多条件示例：「能养猫、附近有公园」→[\"可养猫\",\"近公园\"]"
+                    },
+                    "tag_preferences": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "偏好的标签（软约束，匹配则加分排序，不匹配不排除）。用户说「最好/希望/如果有就好/XX更好/尽量」时使用。可用值包括标签参考表中的所有标签，以及房源属性标签：有电梯、精装修、简装、豪华装修、朝南、南北通透、高层、低层、整租、合租。示例：「最好有电梯」→[\"有电梯\"]；「精装最好」→[\"精装修\"]；「最好朝南」→[\"朝南\"]；「有公园更好」→[\"近公园\"]；「最好高层」→[\"高层\"]；多条件示例：「最好精装、有电梯更好」→[\"精装修\",\"有电梯\"]"
                     }
                 },
                 "required": []
