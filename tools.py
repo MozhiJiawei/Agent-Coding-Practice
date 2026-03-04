@@ -311,8 +311,9 @@ def build_search_params(prefs: UserPreferences) -> dict:
     ]:
         if v is not None:
             params[k] = v
-    if "rental_type" not in soft and prefs.rental_type is not None:
-        params["rental_type"] = prefs.rental_type
+    # 未指定租住方式时默认整租
+    if "rental_type" not in soft:
+        params["rental_type"] = prefs.rental_type or "整租"
     if "decoration" not in soft and prefs.decoration is not None:
         params["decoration"] = prefs.decoration
     if "orientation" not in soft and prefs.orientation is not None:
@@ -449,8 +450,11 @@ def post_filter_and_rank(items: list[dict], prefs: UserPreferences) -> list[dict
                 want = [int(x.strip()) for x in prefs.bedrooms.split(",") if x.strip().isdigit()]
                 if want and h.get("bedrooms") not in want:
                     continue
-            if prefs.rental_type and "rental_type" not in soft and h.get("rental_type") != prefs.rental_type:
-                continue
+            # 未指定租住方式时默认按整租过滤
+            if "rental_type" not in soft:
+                effective_rental = prefs.rental_type or "整租"
+                if h.get("rental_type") != effective_rental:
+                    continue
             if prefs.decoration and "decoration" not in soft:
                 if _normalize_decoration(h.get("decoration")) != _normalize_decoration(prefs.decoration):
                     continue
@@ -700,7 +704,7 @@ TOOLS: list[dict] = [
                     "rental_type": {
                         "type": "string",
                         "enum": ["整租", "合租"],
-                        "description": "整租或合租。「一个人住/自己住」→整租；「合租/找室友/有室友」→合租；「单间」→合租"
+                        "description": "整租或合租。未明确说明时默认整租；若预算约2000/室且用户提到两居、三居→视为整租；「一个人住/自己住」→整租；「合租/找室友/有室友」→合租；「单间」→合租"
                     },
                     "decoration": {
                         "type": "string",
