@@ -6,6 +6,25 @@ from pydantic import BaseModel
 
 from logger import log_event
 
+# 用于 TOOL_API_RESPONSE 日志：过大列表只保留前 N 条并记录总数，便于分析又控制日志体积
+def _response_for_log(response: dict, max_items: int = 20) -> dict:
+    if not isinstance(response, dict):
+        return {"_raw": str(response)[:500]}
+    out = {}
+    for k, v in response.items():
+        if k == "items" and isinstance(v, list):
+            if len(v) > max_items:
+                out["items"] = v[:max_items]
+                out["_items_truncated"] = True
+                out["_total_items"] = len(v)
+            else:
+                out["items"] = v
+        elif isinstance(v, dict):
+            out[k] = _response_for_log(v, max_items)
+        else:
+            out[k] = v
+    return out
+
 # 模块顶层常量（必须在模块加载时读取一次）
 # 支持环境变量覆盖，与 debug_init_houses.py 一致；tools 不创建 client，client 由 main 传入且已设置 trust_env=False 不走代理
 RENTAL_API_BASE = os.environ.get("RENTAL_API_BASE", "http://7.225.29.223:8080")
@@ -560,6 +579,10 @@ async def search_by_preferences(
             for r in results:
                 if isinstance(r, Exception):
                     log_event("TOOL_API_CALL", "", {"error": str(r)})
+                    log_event("TOOL_API_RESPONSE", "", {
+                        "api": "/api/houses/by_platform",
+                        "response": {"error": str(r)},
+                    })
                     per_platform.append([])
                     continue
                 if "error" not in r:
@@ -603,6 +626,10 @@ async def search_by_preferences(
                 near_per_platform: list[list[dict]] = []
                 for nr in near_results:
                     if isinstance(nr, Exception):
+                        log_event("TOOL_API_RESPONSE", "", {
+                            "api": "/api/houses/nearby",
+                            "response": {"error": str(nr)},
+                        })
                         near_per_platform.append([])
                         continue
                     data = nr.get("data", nr)
@@ -957,9 +984,19 @@ async def search_houses(client: httpx.AsyncClient, **kwargs) -> dict:
             all_items.extend(next_inner.get("items", []))
             page += 1
 
-        return {"total": total, "items": all_items}
+        ret = {"total": total, "items": all_items}
+        log_event("TOOL_API_RESPONSE", "", {
+            "api": "/api/houses/by_platform",
+            "response": _response_for_log(ret),
+        })
+        return ret
     except Exception as e:
-        return {"error": f"search_houses failed: {str(e)}"}
+        err_resp = {"error": f"search_houses failed: {str(e)}"}
+        log_event("TOOL_API_RESPONSE", "", {
+            "api": "/api/houses/by_platform",
+            "response": err_resp,
+        })
+        return err_resp
 
 
 # ── Task 3: get_house_detail ────────────────────────────────────────────────
@@ -972,9 +1009,19 @@ async def get_house_detail(client: httpx.AsyncClient, **kwargs) -> dict:
         })
         resp = await client.get(f"/api/houses/{house_id}", headers=_get_headers())
         resp.raise_for_status()
-        return resp.json()
+        result = resp.json()
+        log_event("TOOL_API_RESPONSE", "", {
+            "api": f"/api/houses/{house_id}",
+            "response": result,
+        })
+        return result
     except Exception as e:
-        return {"error": f"get_house_detail failed: {str(e)}"}
+        err_resp = {"error": f"get_house_detail failed: {str(e)}"}
+        log_event("TOOL_API_RESPONSE", "", {
+            "api": f"/api/houses/{house_id}",
+            "response": err_resp,
+        })
+        return err_resp
 
 
 # ── Task 4: search_landmark ─────────────────────────────────────────────────
@@ -996,9 +1043,19 @@ async def search_landmark(client: httpx.AsyncClient, **kwargs) -> dict:
         # 地标接口不需要 X-User-ID
         resp = await client.get("/api/landmarks/search", params=params)
         resp.raise_for_status()
-        return resp.json()
+        result = resp.json()
+        log_event("TOOL_API_RESPONSE", "", {
+            "api": "/api/landmarks/search",
+            "response": _response_for_log(result),
+        })
+        return result
     except Exception as e:
-        return {"error": f"search_landmark failed: {str(e)}"}
+        err_resp = {"error": f"search_landmark failed: {str(e)}"}
+        log_event("TOOL_API_RESPONSE", "", {
+            "api": "/api/landmarks/search",
+            "response": err_resp,
+        })
+        return err_resp
 
 
 # ── Task 5: search_nearby_landmark ─────────────────────────────────────────
@@ -1015,9 +1072,19 @@ async def search_nearby_landmark(client: httpx.AsyncClient, **kwargs) -> dict:
             headers=_get_headers(),
         )
         resp.raise_for_status()
-        return resp.json()
+        result = resp.json()
+        log_event("TOOL_API_RESPONSE", "", {
+            "api": "/api/houses/nearby",
+            "response": _response_for_log(result),
+        })
+        return result
     except Exception as e:
-        return {"error": f"search_nearby_landmark failed: {str(e)}"}
+        err_resp = {"error": f"search_nearby_landmark failed: {str(e)}"}
+        log_event("TOOL_API_RESPONSE", "", {
+            "api": "/api/houses/nearby",
+            "response": err_resp,
+        })
+        return err_resp
 
 
 # ── Task 6: get_nearby_amenities ────────────────────────────────────────────
@@ -1037,9 +1104,19 @@ async def get_nearby_amenities(client: httpx.AsyncClient, **kwargs) -> dict:
             headers=_get_headers(),
         )
         resp.raise_for_status()
-        return resp.json()
+        result = resp.json()
+        log_event("TOOL_API_RESPONSE", "", {
+            "api": "/api/houses/nearby_landmarks",
+            "response": _response_for_log(result),
+        })
+        return result
     except Exception as e:
-        return {"error": f"get_nearby_amenities failed: {str(e)}"}
+        err_resp = {"error": f"get_nearby_amenities failed: {str(e)}"}
+        log_event("TOOL_API_RESPONSE", "", {
+            "api": "/api/houses/nearby_landmarks",
+            "response": err_resp,
+        })
+        return err_resp
 
 
 # ── Task 7: execute_action ──────────────────────────────────────────────────
@@ -1063,9 +1140,19 @@ async def execute_action(client: httpx.AsyncClient, **kwargs) -> dict:
             headers=_get_headers(),
         )
         resp.raise_for_status()
-        return resp.json()
+        result = resp.json()
+        log_event("TOOL_API_RESPONSE", "", {
+            "api": f"/api/houses/{house_id}/{action}",
+            "response": result,
+        })
+        return result
     except Exception as e:
-        return {"error": f"execute_action failed: {str(e)}"}
+        err_resp = {"error": f"execute_action failed: {str(e)}"}
+        log_event("TOOL_API_RESPONSE", "", {
+            "api": f"/api/houses/{house_id}/{action}",
+            "response": err_resp,
+        })
+        return err_resp
 
 
 # ── get_houses_by_community ─────────────────────────────────────────────────
@@ -1078,9 +1165,19 @@ async def get_houses_by_community(client: httpx.AsyncClient, **kwargs) -> dict:
         })
         resp = await client.get("/api/houses/by_community", params=params, headers=_get_headers())
         resp.raise_for_status()
-        return resp.json()
+        result = resp.json()
+        log_event("TOOL_API_RESPONSE", "", {
+            "api": "/api/houses/by_community",
+            "response": _response_for_log(result),
+        })
+        return result
     except Exception as e:
-        return {"error": f"get_houses_by_community failed: {str(e)}"}
+        err_resp = {"error": f"get_houses_by_community failed: {str(e)}"}
+        log_event("TOOL_API_RESPONSE", "", {
+            "api": "/api/houses/by_community",
+            "response": err_resp,
+        })
+        return err_resp
 
 
 # ── get_house_listings ───────────────────────────────────────────────────────
@@ -1093,9 +1190,19 @@ async def get_house_listings(client: httpx.AsyncClient, **kwargs) -> dict:
         })
         resp = await client.get(f"/api/houses/listings/{house_id}", headers=_get_headers())
         resp.raise_for_status()
-        return resp.json()
+        result = resp.json()
+        log_event("TOOL_API_RESPONSE", "", {
+            "api": f"/api/houses/listings/{house_id}",
+            "response": _response_for_log(result),
+        })
+        return result
     except Exception as e:
-        return {"error": f"get_house_listings failed: {str(e)}"}
+        err_resp = {"error": f"get_house_listings failed: {str(e)}"}
+        log_event("TOOL_API_RESPONSE", "", {
+            "api": f"/api/houses/listings/{house_id}",
+            "response": err_resp,
+        })
+        return err_resp
 
 
 # ── get_all_houses_for_debug：session 初始化时获取全量房屋用于调试 ───────
