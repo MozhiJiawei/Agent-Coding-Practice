@@ -676,7 +676,7 @@ TOOLS: list[dict] = [
         "type": "function",
         "function": {
             "name": "update_preferences",
-            "description": "提取或更新用户的租房偏好，仅合并偏好不搜索。调用后必须再调用 search_by_preferences 获取匹配房源。每轮只传本轮新增/变更的字段；用户说「最好/希望」时，除设主字段外必须同时设对应 xxx_is_soft: true。数组类（如 required_nearby）追加时只传本轮新增项。",
+            "description": "提取或更新用户的租房偏好，仅合并偏好不搜索。调用后必须再调用 search_by_preferences 获取匹配房源。每轮只传本轮新增/变更的字段；用户说「最好/如果能/尽量」等软偏好时，除设主字段外必须同时设对应 xxx_is_soft: true；用户说「希望/要/必须」等硬约束时只设主字段，不设 xxx_is_soft。数组类（如 required_nearby）追加时只传本轮新增项。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -786,7 +786,7 @@ TOOLS: list[dict] = [
                     "payment_method": {
                         "type": "string",
                         "enum": ["月付", "季付", "半年付", "年付"],
-                        "description": "付款周期偏好。「月付/按月付/能不能月付/希望月付」→月付；「季付」→季付。用户问付款方式、月付时用本字段，不要用 lease_flexibility（租期长短）。与 xxx_is_soft 成对使用时可表示「最好能月付」"
+                        "description": "付款周期偏好。「月付/按月付/能不能月付/要月付」→月付；「季付」→季付。用户问付款方式、月付时用本字段，不要用 lease_flexibility（租期长短）。与 xxx_is_soft 成对使用时可表示「最好能月付」"
                     },
                     "deposit_type": {
                         "type": "string",
@@ -858,7 +858,7 @@ TOOLS: list[dict] = [
                         "enum": ["合同规范条款清晰", "合同不规范", "房东好沟通", "房东不配合", "房东难联系"],
                         "description": "合同/房东相关要求（硬约束）"
                     },
-                    "decoration_is_soft": {"type": "boolean", "description": "true=本轮回该维度为软约束（匹配加分，不匹配不排除）。仅当用户说「最好/希望/如果有」时设为 true"},
+                    "decoration_is_soft": {"type": "boolean", "description": "true=本轮回该维度为软约束（匹配加分，不匹配不排除）。仅当用户说「最好/如果能/如果有」等软偏好时设为 true；用户说「希望/要/必须」时为硬约束，不设 true"},
                     "elevator_is_soft": {"type": "boolean", "description": "同上，对应 elevator"},
                     "orientation_is_soft": {"type": "boolean", "description": "同上，对应 orientation"},
                     "floor_pref_is_soft": {"type": "boolean", "description": "同上，对应 floor_pref"},
