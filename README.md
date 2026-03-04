@@ -4,8 +4,19 @@
 
 ## 启动服务
 
+**主 Agent（PowerShell）：**
+
 ```powershell
-$env:USER_ID = "<你的工号>"; uvicorn main:app --host 0.0.0.0 --port 8191
+$env:USER_ID = "<你的工号>"
+uvicorn main:app --host 0.0.0.0 --port 8191
+```
+
+**仅启动 test-simulator（Model Proxy + Mock Rental + Dashboard，不跑用例）：**
+
+```powershell
+Set-Location test-simulator
+python -m main
+# 服务就绪后 Ctrl+C 停止；手动测试时 Dashboard: http://localhost:8877/
 ```
 
 ## 端到端验证
@@ -57,36 +68,45 @@ E2E 脚本自动拉起 test-simulator（Model Proxy + Mock Rental + Dashboard）
 ### Mock 模式（本地直接运行）
 
 ```powershell
-cd test-simulator
-python -m pytest tests/test_monk_vs_real_parity.py -v `
-  --parity-report=mock_data/monk_vs_real_test_results.txt
+Set-Location test-simulator
+python -m pytest tests/test_monk_vs_real_parity.py -v --parity-report=mock_data/monk_vs_real_test_results.txt
 ```
 
 ### 真实服务器模式（内网验证）
 
 ```powershell
-cd test-simulator
+Set-Location test-simulator
 $env:RENTAL_API_BASE = "http://真实服务器地址:8080"
 $env:USER_ID = "<你的工号>"
-python -m pytest tests/test_monk_vs_real_parity.py -v `
-  --parity-report=mock_data/real_server_test_results.txt
+python -m pytest tests/test_monk_vs_real_parity.py -v --parity-report=mock_data/real_server_test_results.txt
+```
+
+### 双端一致性模式（同时请求 Mock 与内网 API，严格比对响应）
+
+内网环境下一轮测试中同时打 Mock 与真实 API，逐请求校验响应完全一致：
+
+```powershell
+Set-Location test-simulator
+$env:PARITY_DUAL = "1"
+$env:RENTAL_API_BASE = "http://内网地址:8080"
+$env:USER_ID = "<你的工号>"
+python -m pytest tests/test_monk_vs_real_parity.py -v --parity-report=mock_data/parity_dual_results.txt
 ```
 
 ### 使用完整数据集（final-test.yaml）
 
 ```powershell
-cd test-simulator
+Set-Location test-simulator
 $env:PARITY_USE_FINAL_TEST = "1"
-python -m pytest tests/test_monk_vs_real_parity.py -v `
-  --parity-report=mock_data/monk_vs_real_test_results.txt
+python -m pytest tests/test_monk_vs_real_parity.py -v --parity-report=mock_data/monk_vs_real_test_results.txt
 ```
 
 也可指定任意 fixture 文件：
 
 ```powershell
+Set-Location test-simulator
 $env:PARITY_FIXTURE_PATH = "mock_data/EV-06.yaml"
-python -m pytest tests/test_monk_vs_real_parity.py -v `
-  --parity-report=mock_data/monk_vs_real_test_results.txt
+python -m pytest tests/test_monk_vs_real_parity.py -v --parity-report=mock_data/monk_vs_real_test_results.txt
 ```
 
 报告输出示例（`mock_data/monk_vs_real_test_results.txt`）：

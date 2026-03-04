@@ -10,12 +10,16 @@ Monk vs 真实服务器行为一致性测试（test-simulator）。
 内网真实服务器（同一套用例）:
   RENTAL_API_BASE=http://真实地址 USER_ID=xxx pytest tests/test_monk_vs_real_parity.py -v --parity-report=mock_data/real_server_test_results.txt
 
+内网双端一致性（同时请求 mock 与内网 API，严格校验响应完全一致）:
+  PARITY_DUAL=1 RENTAL_API_BASE=http://内网地址 USER_ID=xxx pytest tests/test_monk_vs_real_parity.py -v --parity-report=mock_data/parity_dual_results.txt
+
 使用 final-test.yaml 做完整数据一致性验证（数据量大、耗时长）:
   PARITY_USE_FINAL_TEST=1 pytest tests/test_monk_vs_real_parity.py -v --parity-report=...
   或 PARITY_FIXTURE_PATH=path/to/final-test.yaml pytest ...
 """
 from __future__ import annotations
 
+import contextvars
 import os
 import sys
 from datetime import datetime
@@ -41,6 +45,12 @@ from mock_rental import create_mock_rental_app
 PARITY_FAILURES: list[dict] = []
 PARITY_RUNS: list[str] = []  # 每跑一个用例 append case_id，用于统计总数
 PARITY_REPORT_META: dict = {}
+# 双端模式：Mock 与内网 API 响应不一致时记录（mock_rental 行为须与内网 API 完全一致）
+PARITY_DUAL_FAILURES: list[dict] = []
+
+# 双端模式：PARITY_DUAL=1 且已设置 RENTAL_API_BASE 时，每次请求同时发往 mock 与 real 并严格比较响应
+_PARITY_DUAL = os.environ.get("PARITY_DUAL") == "1" and bool(os.environ.get("RENTAL_API_BASE"))
+_current_parity_case_id: contextvars.ContextVar[str] = contextvars.ContextVar("parity_case_id", default="")
 
 # 可选：使用 final-test.yaml 做完整一致性验证（内网或本地有大文件时）
 _PARITY_FIXTURE_PATH = os.environ.get("PARITY_FIXTURE_PATH", "")
@@ -144,6 +154,96 @@ def _params_summary(**kwargs) -> str:
     return ", ".join(parts[:5]) + ("..." if len(parts) > 5 else "")
 
 
+def record_parity_start(case_id: str) -> None:
+    """每个用例开头调用：记录 case_id 并供双端模式失败时关联用例。"""
+    PARITY_RUNS.append(case_id)
+    _current_parity_case_id.set(case_id)
+
+
+def _response_json_strict_equal(mock_body: dict, real_body: dict) -> tuple[bool, str]:
+    """严格比较两段 JSON 响应是否完全一致（mock_rental 行为须与内网 API 完全一致）。"""
+    if type(mock_body) != type(real_body):
+        return False, f"type mismatch: {type(mock_body).__name__} vs {type(real_body).__name__}"
+    if isinstance(mock_body, dict):
+        mock_keys = set(mock_body.keys())
+        real_keys = set(real_body.keys())
+        if mock_keys != real_keys:
+            only_mock = mock_keys - real_keys
+            only_real = real_keys - mock_keys
+            return False, f"keys differ: only_in_mock={only_mock!r}, only_in_real={only_real!r}"
+        for k in mock_keys:
+            ok, msg = _response_json_strict_equal(mock_body[k], real_body[k])
+            if not ok:
+                return False, f".{k}: {msg}"
+        return True, ""
+    if isinstance(mock_body, list):
+        if len(mock_body) != len(real_body):
+            return False, f"list length {len(mock_body)} vs {len(real_body)}"
+        for i, (a, b) in enumerate(zip(mock_body, real_body)):
+            ok, msg = _response_json_strict_equal(a, b)
+            if not ok:
+                return False, f"[{i}]: {msg}"
+        return True, ""
+    if mock_body != real_body:
+        return False, f"value {mock_body!r} != {real_body!r}"
+    return True, ""
+
+
+class DualClient:
+    """双端 Client：每次 get/post 同时发往 mock 与内网 API，严格比较响应后返回 mock 端结果。"""
+
+    def __init__(self, client_mock: httpx.AsyncClient, client_real: httpx.AsyncClient) -> None:
+        self._mock = client_mock
+        self._real = client_real
+
+    async def get(self, url: str, **kwargs) -> httpx.Response:
+        resp_mock = await self._mock.get(url, **kwargs)
+        resp_real = await self._real.get(url, **kwargs)
+        self._compare(resp_mock, resp_real, "GET", url, kwargs)
+        return resp_mock
+
+    async def post(self, url: str, **kwargs) -> httpx.Response:
+        resp_mock = await self._mock.post(url, **kwargs)
+        resp_real = await self._real.post(url, **kwargs)
+        self._compare(resp_mock, resp_real, "POST", url, kwargs)
+        return resp_mock
+
+    def _compare(
+        self,
+        resp_mock: httpx.Response,
+        resp_real: httpx.Response,
+        method: str,
+        url: str,
+        kwargs: dict,
+    ) -> None:
+        try:
+            mock_json = resp_mock.json()
+        except Exception as e:
+            mock_json = {"_parse_error": str(e)}
+        try:
+            real_json = resp_real.json()
+        except Exception as e:
+            real_json = {"_parse_error": str(e)}
+        ok, msg = _response_json_strict_equal(mock_json, real_json)
+        if not ok:
+            case_id = _current_parity_case_id.get() or "unknown"
+            summary = _params_summary(**kwargs.get("params") or kwargs.get("json") or {})
+            reason = f"Mock vs Real 响应不一致: {msg}"
+            PARITY_DUAL_FAILURES.append({
+                "case_id": case_id,
+                "api_name": f"{method} {url}",
+                "params_summary": summary,
+                "reason": reason,
+                "mock_status": resp_mock.status_code,
+                "real_status": resp_real.status_code,
+            })
+            raise AssertionError(reason)
+
+    async def aclose(self) -> None:
+        await self._mock.aclose()
+        await self._real.aclose()
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -174,7 +274,12 @@ async def _app_lifespan(app):
 @pytest_asyncio.fixture
 async def client(_app_lifespan, app, base_url):
     real_server = os.environ.get("RENTAL_API_BASE")
-    if real_server:
+    if _PARITY_DUAL and real_server:
+        transport = httpx.ASGITransport(app=app)
+        client_mock = httpx.AsyncClient(transport=transport, base_url=base_url, timeout=30.0, trust_env=False)
+        client_real = httpx.AsyncClient(base_url=real_server, timeout=30.0, trust_env=False)
+        c = DualClient(client_mock, client_real)
+    elif real_server:
         c = httpx.AsyncClient(base_url=real_server, timeout=30.0, trust_env=False)
     else:
         transport = httpx.ASGITransport(app=app)
@@ -186,6 +291,7 @@ async def client(_app_lifespan, app, base_url):
     PARITY_REPORT_META["timestamp"] = datetime.now().isoformat()
     PARITY_REPORT_META["base_url"] = real_server or base_url
     PARITY_REPORT_META["fixture_source"] = _FIXTURE_SOURCE_LABEL
+    PARITY_REPORT_META["parity_dual"] = _PARITY_DUAL
 
 
 # ---------------------------------------------------------------------------
@@ -213,7 +319,7 @@ class TestInitHouses:
     @pytest.mark.asyncio
     async def test_init_houses_returns_ok(self, client):
         case_id = "init_houses_returns_ok"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await init_houses(client)
             assert "error" not in r, r.get("error", "")
@@ -228,7 +334,7 @@ class TestInitHouses:
         """rent → init → 验证房源恢复 available"""
         house_id = fixtures["houses"][0]["house_id"]
         case_id = "init_houses_resets_state"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             await execute_action(client, action="rent", house_id=house_id, listing_platform="安居客")
             r = await init_houses(client)
@@ -248,7 +354,7 @@ class TestSearchHouses:
     @pytest.mark.asyncio
     async def test_search_houses_no_params(self, client):
         case_id = "search_houses_no_params"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client)
             assert "error" not in r, r.get("error", "")
@@ -260,7 +366,7 @@ class TestSearchHouses:
     @pytest.mark.asyncio
     async def test_search_houses_district_haidian(self, client):
         case_id = "search_houses_district_haidian"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, district="海淀")
             assert "error" not in r, r.get("error", "")
@@ -274,7 +380,7 @@ class TestSearchHouses:
     @pytest.mark.asyncio
     async def test_search_houses_district_chaoyang(self, client):
         case_id = "search_houses_district_chaoyang"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, district="朝阳")
             assert "error" not in r, r.get("error", "")
@@ -286,7 +392,7 @@ class TestSearchHouses:
     @pytest.mark.asyncio
     async def test_search_houses_max_price(self, client):
         case_id = "search_houses_max_price"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, district="海淀", max_price=5000)
             assert "error" not in r, r.get("error", "")
@@ -300,7 +406,7 @@ class TestSearchHouses:
     @pytest.mark.asyncio
     async def test_search_houses_bedrooms_listing_platform(self, client):
         case_id = "search_houses_bedrooms_platform"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, district="海淀", bedrooms="2", listing_platform="链家")
             assert "error" not in r, r.get("error", "")
@@ -312,7 +418,7 @@ class TestSearchHouses:
     @pytest.mark.asyncio
     async def test_search_houses_sort_by_price(self, client):
         case_id = "search_houses_sort_price"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, district="海淀", sort_by="price", sort_order="asc")
             assert "error" not in r, r.get("error", "")
@@ -327,7 +433,7 @@ class TestSearchHouses:
     async def test_search_houses_area(self, client, fixtures):
         area = fixtures["houses"][0].get("area", "上地")
         case_id = "search_houses_area"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, area=area)
             assert "error" not in r, r.get("error", "")
@@ -341,7 +447,7 @@ class TestSearchHouses:
     @pytest.mark.asyncio
     async def test_search_houses_min_price(self, client):
         case_id = "search_houses_min_price"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, min_price=4000)
             assert "error" not in r, r.get("error", "")
@@ -355,7 +461,7 @@ class TestSearchHouses:
     @pytest.mark.asyncio
     async def test_search_houses_price_range(self, client):
         case_id = "search_houses_price_range"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, min_price=3000, max_price=4000)
             assert "error" not in r, r.get("error", "")
@@ -370,7 +476,7 @@ class TestSearchHouses:
     @pytest.mark.asyncio
     async def test_search_houses_rental_type(self, client):
         case_id = "search_houses_rental_type"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, rental_type="整租")
             assert "error" not in r, r.get("error", "")
@@ -384,7 +490,7 @@ class TestSearchHouses:
     @pytest.mark.asyncio
     async def test_search_houses_decoration(self, client):
         case_id = "search_houses_decoration"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, decoration="精装")
             assert "error" not in r, r.get("error", "")
@@ -399,7 +505,7 @@ class TestSearchHouses:
     async def test_search_houses_decoration_normalized(self, client):
         """Mock 服务器应将 '精装修' 归一化为 '精装' 进行匹配"""
         case_id = "search_houses_decoration_normalized"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, decoration="精装修")
             assert "error" not in r, r.get("error", "")
@@ -413,7 +519,7 @@ class TestSearchHouses:
     @pytest.mark.asyncio
     async def test_search_houses_elevator_true(self, client):
         case_id = "search_houses_elevator_true"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, elevator="true")
             assert "error" not in r, r.get("error", "")
@@ -427,7 +533,7 @@ class TestSearchHouses:
     @pytest.mark.asyncio
     async def test_search_houses_elevator_false(self, client):
         case_id = "search_houses_elevator_false"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, elevator="false")
             assert "error" not in r, r.get("error", "")
@@ -441,7 +547,7 @@ class TestSearchHouses:
     @pytest.mark.asyncio
     async def test_search_houses_orientation(self, client):
         case_id = "search_houses_orientation"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, orientation="朝南")
             assert "error" not in r, r.get("error", "")
@@ -455,7 +561,7 @@ class TestSearchHouses:
     @pytest.mark.asyncio
     async def test_search_houses_min_area(self, client):
         case_id = "search_houses_min_area"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, min_area=60)
             assert "error" not in r, r.get("error", "")
@@ -469,7 +575,7 @@ class TestSearchHouses:
     @pytest.mark.asyncio
     async def test_search_houses_max_area(self, client):
         case_id = "search_houses_max_area"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, max_area=50)
             assert "error" not in r, r.get("error", "")
@@ -483,7 +589,7 @@ class TestSearchHouses:
     @pytest.mark.asyncio
     async def test_search_houses_subway_line(self, client):
         case_id = "search_houses_subway_line"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, subway_line="13号线")
             assert "error" not in r, r.get("error", "")
@@ -495,7 +601,7 @@ class TestSearchHouses:
     @pytest.mark.asyncio
     async def test_search_houses_max_subway_dist(self, client):
         case_id = "search_houses_max_subway_dist"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, max_subway_dist=400)
             assert "error" not in r, r.get("error", "")
@@ -510,7 +616,7 @@ class TestSearchHouses:
     async def test_search_houses_subway_station(self, client, fixtures):
         station = fixtures["houses"][0].get("subway_station", "上地站")
         case_id = "search_houses_subway_station"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, subway_station=station)
             assert "error" not in r, r.get("error", "")
@@ -524,7 +630,7 @@ class TestSearchHouses:
     @pytest.mark.asyncio
     async def test_search_houses_commute_max(self, client):
         case_id = "search_houses_commute_max"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, commute_to_xierqi_max=20)
             assert "error" not in r, r.get("error", "")
@@ -538,7 +644,7 @@ class TestSearchHouses:
     @pytest.mark.asyncio
     async def test_search_houses_property_type(self, client):
         case_id = "search_houses_property_type"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, property_type="住宅")
             assert "error" not in r, r.get("error", "")
@@ -552,7 +658,7 @@ class TestSearchHouses:
     @pytest.mark.asyncio
     async def test_search_houses_utilities_type(self, client):
         case_id = "search_houses_utilities_type"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, utilities_type="民水民电")
             assert "error" not in r, r.get("error", "")
@@ -566,7 +672,7 @@ class TestSearchHouses:
     @pytest.mark.asyncio
     async def test_search_houses_available_before(self, client):
         case_id = "search_houses_available_before"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, available_from_before="2026-03-10")
             assert "error" not in r, r.get("error", "")
@@ -580,7 +686,7 @@ class TestSearchHouses:
     @pytest.mark.asyncio
     async def test_search_houses_multi_district(self, client):
         case_id = "search_houses_multi_district"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, district="海淀,朝阳")
             assert "error" not in r, r.get("error", "")
@@ -594,7 +700,7 @@ class TestSearchHouses:
     @pytest.mark.asyncio
     async def test_search_houses_multi_bedrooms(self, client):
         case_id = "search_houses_multi_bedrooms"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, bedrooms="1,2")
             assert "error" not in r, r.get("error", "")
@@ -608,7 +714,7 @@ class TestSearchHouses:
     @pytest.mark.asyncio
     async def test_search_houses_sort_by_area_asc(self, client):
         case_id = "search_houses_sort_area_asc"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, sort_by="area", sort_order="asc")
             assert "error" not in r, r.get("error", "")
@@ -623,7 +729,7 @@ class TestSearchHouses:
     @pytest.mark.asyncio
     async def test_search_houses_sort_price_desc(self, client):
         case_id = "search_houses_sort_price_desc"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, sort_by="price", sort_order="desc")
             assert "error" not in r, r.get("error", "")
@@ -638,7 +744,7 @@ class TestSearchHouses:
     @pytest.mark.asyncio
     async def test_search_houses_sort_by_subway(self, client):
         case_id = "search_houses_sort_subway"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, sort_by="subway", sort_order="asc")
             assert "error" not in r, r.get("error", "")
@@ -654,7 +760,7 @@ class TestSearchHouses:
     async def test_search_houses_auto_pagination(self, client):
         """page_size=1 时 tools.py 自动翻页，结果应包含所有匹配项"""
         case_id = "search_houses_auto_pagination"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, page_size=1)
             assert "error" not in r, r.get("error", "")
@@ -670,7 +776,7 @@ class TestSearchHouses:
     async def test_search_houses_platform_lianjia(self, client):
         """指定链家平台，验证返回的 listing_platform"""
         case_id = "search_houses_platform_lianjia"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, listing_platform="链家")
             assert "error" not in r, r.get("error", "")
@@ -685,7 +791,7 @@ class TestSearchHouses:
     async def test_search_houses_platform_58(self, client):
         """指定 58 同城平台"""
         case_id = "search_houses_platform_58"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(client, listing_platform="58同城")
             assert "error" not in r, r.get("error", "")
@@ -699,7 +805,7 @@ class TestSearchHouses:
     async def test_search_houses_combined_filters(self, client):
         """多条件组合过滤"""
         case_id = "search_houses_combined"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_houses(
                 client,
@@ -729,7 +835,7 @@ class TestGetHouseDetail:
     async def test_get_house_detail_exists(self, client, fixtures):
         house_id = fixtures["houses"][0]["house_id"]
         case_id = "get_house_detail_exists"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await get_house_detail(client, house_id=house_id)
             assert "error" not in r, r.get("error", "")
@@ -742,7 +848,7 @@ class TestGetHouseDetail:
     @pytest.mark.asyncio
     async def test_get_house_detail_not_found(self, client):
         case_id = "get_house_detail_404"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await get_house_detail(client, house_id="HF_NONEXISTENT")
             assert "error" in r or r.get("code") != 0
@@ -755,7 +861,7 @@ class TestGetHouseDetail:
         """验证返回的详情包含关键字段"""
         house_id = fixtures["houses"][0]["house_id"]
         case_id = "get_house_detail_response_fields"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await get_house_detail(client, house_id=house_id)
             assert "error" not in r, r.get("error", "")
@@ -776,7 +882,7 @@ class TestSearchLandmark:
     async def test_search_landmark_q(self, client, fixtures):
         name = fixtures["landmarks"][0]["name"]
         case_id = "search_landmark_q"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_landmark(client, query=name)
             assert "error" not in r, r.get("error", "")
@@ -790,7 +896,7 @@ class TestSearchLandmark:
     @pytest.mark.asyncio
     async def test_search_landmark_with_category_district(self, client):
         case_id = "search_landmark_category_district"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_landmark(client, query="站", category="subway", district="海淀")
             assert "error" not in r, r.get("error", "")
@@ -805,7 +911,7 @@ class TestSearchLandmark:
     async def test_search_landmark_no_results(self, client):
         """不存在的关键词应返回空列表而非报错"""
         case_id = "search_landmark_no_results"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_landmark(client, query="完全不存在的地标XYZ")
             assert "error" not in r, r.get("error", "")
@@ -826,7 +932,7 @@ class TestSearchNearbyLandmark:
         lm = fixtures["landmarks"][0]
         lid = lm["id"]
         case_id = "search_nearby_landmark_by_id"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_nearby_landmark(client, landmark_id=lid, max_distance=2000)
             assert "error" not in r, r.get("error", "")
@@ -841,7 +947,7 @@ class TestSearchNearbyLandmark:
     async def test_search_nearby_landmark_by_name(self, client, fixtures):
         name = fixtures["landmarks"][0]["name"]
         case_id = "search_nearby_landmark_by_name"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_nearby_landmark(client, landmark_id=name, max_distance=5000, listing_platform="安居客")
             assert "error" not in r, r.get("error", "")
@@ -856,7 +962,7 @@ class TestSearchNearbyLandmark:
     async def test_search_nearby_landmark_not_found(self, client):
         """不存在的地标应返回 404 / error"""
         case_id = "search_nearby_landmark_not_found"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_nearby_landmark(client, landmark_id="NONEXISTENT_LM")
             assert "error" in r or r.get("code") != 0
@@ -869,7 +975,7 @@ class TestSearchNearbyLandmark:
         """极小搜索半径（10m），验证距离过滤生效"""
         lm = fixtures["landmarks"][0]
         case_id = "search_nearby_landmark_small_radius"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_nearby_landmark(client, landmark_id=lm["id"], max_distance=10)
             assert "error" not in r, r.get("error", "")
@@ -887,7 +993,7 @@ class TestSearchNearbyLandmark:
         """验证返回结果包含 distance_to_landmark 字段且按距离排序"""
         lm = fixtures["landmarks"][0]
         case_id = "search_nearby_landmark_distance_sorted"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_nearby_landmark(client, landmark_id=lm["id"], max_distance=5000)
             assert "error" not in r, r.get("error", "")
@@ -905,7 +1011,7 @@ class TestSearchNearbyLandmark:
         """指定平台，验证 listing_platform 一致"""
         lm = fixtures["landmarks"][0]
         case_id = "search_nearby_landmark_platform"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await search_nearby_landmark(client, landmark_id=lm["id"], max_distance=5000, listing_platform="链家")
             assert "error" not in r, r.get("error", "")
@@ -926,7 +1032,7 @@ class TestGetNearbyAmenities:
     async def test_get_nearby_amenities_community(self, client, fixtures):
         community = fixtures["houses"][0]["community"]
         case_id = "get_nearby_amenities_community"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await get_nearby_amenities(client, community=community, max_distance_m=1000)
             assert "error" not in r, r.get("error", "")
@@ -941,7 +1047,7 @@ class TestGetNearbyAmenities:
     async def test_get_nearby_amenities_with_type(self, client, fixtures):
         community = fixtures["houses"][0]["community"]
         case_id = "get_nearby_amenities_type"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await get_nearby_amenities(client, community=community, type="park", max_distance_m=3000)
             assert "error" not in r, r.get("error", "")
@@ -953,7 +1059,7 @@ class TestGetNearbyAmenities:
     async def test_get_nearby_amenities_nonexistent_community(self, client):
         """不存在的小区应返回空列表而非报错"""
         case_id = "get_nearby_amenities_nonexistent"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await get_nearby_amenities(client, community="完全不存在的小区XYZ")
             assert "error" not in r, r.get("error", "")
@@ -968,7 +1074,7 @@ class TestGetNearbyAmenities:
         """大搜索半径，验证距离排序"""
         community = fixtures["houses"][0]["community"]
         case_id = "get_nearby_amenities_large_dist"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await get_nearby_amenities(client, community=community, max_distance_m=10000)
             assert "error" not in r, r.get("error", "")
@@ -990,7 +1096,7 @@ class TestGetHousesByCommunity:
     async def test_get_houses_by_community(self, client, fixtures):
         community = fixtures["houses"][0]["community"]
         case_id = "get_houses_by_community"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await get_houses_by_community(client, community=community)
             assert "error" not in r, r.get("error", "")
@@ -1004,7 +1110,7 @@ class TestGetHousesByCommunity:
     async def test_get_houses_by_community_platform_page(self, client, fixtures):
         community = fixtures["houses"][0]["community"]
         case_id = "get_houses_by_community_platform_page"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await get_houses_by_community(client, community=community, listing_platform="58同城", page=1, page_size=5)
             assert "error" not in r, r.get("error", "")
@@ -1018,7 +1124,7 @@ class TestGetHousesByCommunity:
     async def test_get_houses_by_community_nonexistent(self, client):
         """不存在的小区应返回空列表"""
         case_id = "get_houses_by_community_nonexistent"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await get_houses_by_community(client, community="完全不存在的小区XYZ")
             assert "error" not in r, r.get("error", "")
@@ -1037,7 +1143,7 @@ class TestGetHouseListings:
     async def test_get_house_listings_exists(self, client, fixtures):
         house_id = fixtures["houses"][0]["house_id"]
         case_id = "get_house_listings_exists"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await get_house_listings(client, house_id=house_id)
             assert "error" not in r, r.get("error", "")
@@ -1051,7 +1157,7 @@ class TestGetHouseListings:
     @pytest.mark.asyncio
     async def test_get_house_listings_not_found(self, client):
         case_id = "get_house_listings_404"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await get_house_listings(client, house_id="HF_NONE")
             assert "error" in r or r.get("code") != 0
@@ -1064,7 +1170,7 @@ class TestGetHouseListings:
         """验证返回 3 个平台的挂牌记录"""
         house_id = fixtures["houses"][0]["house_id"]
         case_id = "get_house_listings_all_platforms"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await get_house_listings(client, house_id=house_id)
             assert "error" not in r, r.get("error", "")
@@ -1087,7 +1193,7 @@ class TestExecuteAction:
     async def test_execute_action_rent(self, client, fixtures):
         house_id = fixtures["houses"][0]["house_id"]
         case_id = "execute_action_rent"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await execute_action(client, action="rent", house_id=house_id, listing_platform="安居客")
             assert "error" not in r, r.get("error", "")
@@ -1099,7 +1205,7 @@ class TestExecuteAction:
     async def test_execute_action_terminate(self, client, fixtures):
         house_id = fixtures["houses"][0]["house_id"]
         case_id = "execute_action_terminate"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await execute_action(client, action="terminate", house_id=house_id, listing_platform="链家")
             assert "error" not in r, r.get("error", "")
@@ -1111,7 +1217,7 @@ class TestExecuteAction:
     async def test_execute_action_offline(self, client, fixtures):
         house_id = fixtures["houses"][1]["house_id"]
         case_id = "execute_action_offline"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await execute_action(client, action="offline", house_id=house_id, listing_platform="58同城")
             assert "error" not in r, r.get("error", "")
@@ -1122,7 +1228,7 @@ class TestExecuteAction:
     @pytest.mark.asyncio
     async def test_execute_action_invalid_returns_error(self, client):
         case_id = "execute_action_invalid"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await execute_action(client, action="invalid_action", house_id="HF_001", listing_platform="安居客")
             assert "error" in r and "unknown action" in r.get("error", "").lower()
@@ -1134,7 +1240,7 @@ class TestExecuteAction:
     async def test_execute_action_house_not_found(self, client):
         """对不存在的房源执行操作应返回 404 / error"""
         case_id = "execute_action_house_not_found"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await execute_action(client, action="rent", house_id="HF_NONEXISTENT", listing_platform="安居客")
             assert "error" in r or r.get("code") != 0
@@ -1147,7 +1253,7 @@ class TestExecuteAction:
         """租房后验证状态变更，再恢复"""
         house_id = fixtures["houses"][0]["house_id"]
         case_id = "execute_action_rent_verify"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await execute_action(client, action="rent", house_id=house_id, listing_platform="安居客")
             assert "error" not in r, r.get("error", "")
@@ -1167,7 +1273,7 @@ class TestGetAllForDebug:
     @pytest.mark.asyncio
     async def test_get_all_landmarks_for_debug(self, client):
         case_id = "get_all_landmarks_for_debug"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await get_all_landmarks_for_debug(client)
             assert "error" not in r, r.get("error", "")
@@ -1179,7 +1285,7 @@ class TestGetAllForDebug:
     @pytest.mark.asyncio
     async def test_get_all_houses_for_debug(self, client):
         case_id = "get_all_houses_for_debug"
-        PARITY_RUNS.append(case_id)
+        record_parity_start(case_id)
         try:
             r = await get_all_houses_for_debug(client)
             assert isinstance(r, dict)
