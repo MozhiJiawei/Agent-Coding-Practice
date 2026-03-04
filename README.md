@@ -50,6 +50,57 @@ E2E 脚本自动拉起 test-simulator（Model Proxy + Mock Rental + Dashboard）
 .\tests\e2e\run_e2e.ps1 -UserId "EMP002" -ModelProxyPort 8988 -MockRentalPort 8180 -DashboardPort 8977 -AgentPort 8291
 ```
 
+## Mock vs 真实服务器一致性测试
+
+验证 Mock 服务器与真实服务器的 API 行为是否一致，覆盖全部 11 个 API 函数及 22 个筛选参数组合（共 65 个用例）。失败用例及原因写入报告文件，便于离线对比。
+
+### Mock 模式（本地直接运行）
+
+```powershell
+cd test-simulator
+python -m pytest tests/test_monk_vs_real_parity.py -v `
+  --parity-report=mock_data/monk_vs_real_test_results.txt
+```
+
+### 真实服务器模式（内网验证）
+
+```powershell
+cd test-simulator
+$env:RENTAL_API_BASE = "http://真实服务器地址:8080"
+$env:USER_ID = "<你的工号>"
+python -m pytest tests/test_monk_vs_real_parity.py -v `
+  --parity-report=mock_data/real_server_test_results.txt
+```
+
+### 使用完整数据集（final-test.yaml）
+
+```powershell
+cd test-simulator
+$env:PARITY_USE_FINAL_TEST = "1"
+python -m pytest tests/test_monk_vs_real_parity.py -v `
+  --parity-report=mock_data/monk_vs_real_test_results.txt
+```
+
+也可指定任意 fixture 文件：
+
+```powershell
+$env:PARITY_FIXTURE_PATH = "mock_data/EV-06.yaml"
+python -m pytest tests/test_monk_vs_real_parity.py -v `
+  --parity-report=mock_data/monk_vs_real_test_results.txt
+```
+
+报告输出示例（`mock_data/monk_vs_real_test_results.txt`）：
+
+```
+============================================================
+Monk vs Real Server 一致性测试结果
+============================================================
+总用例数: 65
+通过: 65
+失败: 0
+============================================================
+```
+
 ## Smoke Test
 
 ```powershell
