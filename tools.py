@@ -49,7 +49,7 @@ TAG_REFERENCE: dict[str, list[str]] = {
     ],
     "周边配套": ["近公园", "近学校", "近菜市场", "近银行", "近医院", "近餐饮", "近健身房", "近警察局", "近商超", "近加油站"],
     "房屋特点": ["采光好", "南北通透", "高性价比"],
-    "属性标签（仅用于 tag_preferences）": [
+    "属性标签（软约束时用直接参数 decoration/elevator/orientation/floor_pref/rental_type）": [
         "有电梯", "精装修", "简装", "豪华装修", "朝南", "朝北", "朝东", "朝西", "西北",
         "高层", "低层", "整租", "合租",
     ],
@@ -106,8 +106,8 @@ class UserPreferences(BaseModel):
     house_feature: Optional[str] = None
     landlord_contract: Optional[str] = None
 
-    # ── 软偏好标签 ──
-    tag_preferences: list[str] = []
+    # ── 软约束标识（字段名列表，列表中的字段按软约束处理：匹配加分，不匹配不排除）──
+    soft_constraint_keys: list[str] = []
 
     # ── 上下文记忆 ──
     mentioned_house_ids: list[str] = []
@@ -300,10 +300,11 @@ def post_filter_and_rank(items: list[dict], prefs: UserPreferences, *, is_landma
     加分项（来自 prefs 直接字段）：
       - orientation 匹配 +10；floor_pref 匹配 +5
 
-    直接参数→tags 硬过滤（8.1/8.3）、tag_preferences 加分（8.2）见下方。
+    直接参数→tags 硬过滤（8.1/8.3，仅当字段不在 soft_constraint_keys 时）、soft_constraint_keys 加分（8.2）见下方。
     """
     scored: list[tuple[int, dict]] = []
-    # 单值标签类参数（过滤时要求房源 tags 包含该值）
+    soft_keys = set(prefs.soft_constraint_keys or [])
+    # 单值标签类参数（过滤时要求房源 tags 包含该值，除非该字段在 soft_keys 中）
     _TAG_HARD_FIELDS = (
         "pet_policy", "viewing_method", "viewing_time", "lease_flexibility",
         "termination_sublet", "parking_type", "security_requirement",
@@ -317,35 +318,36 @@ def post_filter_and_rank(items: list[dict], prefs: UserPreferences, *, is_landma
             if item.get("hidden_noise_level") != "安静":
                 continue
 
-        # 硬过滤：朝向（所有路径统一处理，不走 API 精确匹配）
-        # "朝南"→"南"，子串匹配可同时命中"朝南"和"南北"（南北通透）
-        if prefs.orientation:
+        # 硬过滤：朝向（仅当 orientation 不在 soft_keys 时）
+        if prefs.orientation and "orientation" not in soft_keys:
             ori_target = prefs.orientation.replace("朝", "")
             if ori_target not in (item.get("orientation") or ""):
                 continue
 
-        # ── 直接参数 → tags 硬过滤（8.3 + 8.1）──────────────────────────────────
+        # ── 直接参数 → tags 硬过滤（8.3 + 8.1），仅当字段不在 soft_keys 时 ──
         house_tags = set(item.get("tags") or [])
-        if prefs.payment_method is not None and prefs.payment_method not in house_tags:
+        if "payment_method" not in soft_keys and prefs.payment_method is not None and prefs.payment_method not in house_tags:
             continue
-        if prefs.deposit_type is not None and prefs.deposit_type not in house_tags:
+        if "deposit_type" not in soft_keys and prefs.deposit_type is not None and prefs.deposit_type not in house_tags:
             continue
-        if prefs.no_agent_fee is True and "房东直租" not in house_tags:
+        if "no_agent_fee" not in soft_keys and prefs.no_agent_fee is True and "房东直租" not in house_tags:
             continue
         skip_tag = False
         for field in _TAG_HARD_FIELDS:
+            if field in soft_keys:
+                continue
             val = getattr(prefs, field, None)
             if val is not None and val not in house_tags:
                 skip_tag = True
                 break
         if skip_tag:
             continue
-        if prefs.required_utilities and not all(t in house_tags for t in prefs.required_utilities):
+        if "required_utilities" not in soft_keys and prefs.required_utilities and not all(t in house_tags for t in prefs.required_utilities):
             continue
-        if prefs.required_nearby and not all(t in house_tags for t in prefs.required_nearby):
+        if "required_nearby" not in soft_keys and prefs.required_nearby and not all(t in house_tags for t in prefs.required_nearby):
             continue
 
-        # ── 地标搜索补充硬过滤（nearby API 不支持这些参数） ──────────────────
+        # ── 地标搜索补充硬过滤（仅当对应字段不在 soft_keys 时）──────────────────
         if is_landmark_search:
             if prefs.min_price is not None and (item.get("price") or 0) < prefs.min_price:
                 continue
@@ -355,14 +357,14 @@ def post_filter_and_rank(items: list[dict], prefs: UserPreferences, *, is_landma
                 allowed = {int(b) for b in str(prefs.bedrooms).split(",") if b.strip().isdigit()}
                 if allowed and item.get("bedrooms") not in allowed:
                     continue
-            if prefs.rental_type is not None and item.get("rental_type") != prefs.rental_type:
+            if "rental_type" not in soft_keys and prefs.rental_type is not None and item.get("rental_type") != prefs.rental_type:
                 continue
-            if prefs.decoration is not None:
+            if "decoration" not in soft_keys and prefs.decoration is not None:
                 exp_dec = _DEC_NORM.get(prefs.decoration, prefs.decoration)
                 act_dec = _DEC_NORM.get(item.get("decoration", ""), item.get("decoration", ""))
                 if exp_dec and act_dec and exp_dec != act_dec:
                     continue
-            if prefs.elevator is True and not item.get("elevator"):
+            if "elevator" not in soft_keys and prefs.elevator is True and not item.get("elevator"):
                 continue
             if prefs.min_area is not None and (item.get("area_sqm") or 0) < prefs.min_area:
                 continue
@@ -387,7 +389,7 @@ def post_filter_and_rank(items: list[dict], prefs: UserPreferences, *, is_landma
                 if prefs.subway_line not in subway_info:
                     continue
 
-        # 朝向偏好（加分）
+        # 朝向偏好（硬约束时已过滤，此处加分；软约束时仅加分）
         if prefs.orientation:
             target = prefs.orientation.replace("朝", "")
             if target in item.get("orientation", ""):
@@ -398,43 +400,55 @@ def post_filter_and_rank(items: list[dict], prefs: UserPreferences, *, is_landma
             if prefs.floor_pref in item.get("floor", ""):
                 score += 5
 
-        # tag_preferences 加分（8.2，含属性标签映射）
-        if prefs.tag_preferences:
-            for tag in prefs.tag_preferences:
-                if tag in house_tags:
+        # soft_constraint_keys 对应字段的软加分（8.2，按字段名 + 取值驱动）
+        for field in soft_keys:
+            val = getattr(prefs, field, None)
+            if val is None:
+                continue
+            if field == "decoration":
+                exp_dec = _DEC_NORM.get(val, val)
+                act_dec = _DEC_NORM.get(item.get("decoration", ""), item.get("decoration", ""))
+                if exp_dec and act_dec and exp_dec == act_dec:
                     score += 5
-                    continue
-                if tag == "有电梯" and item.get("elevator"):
+            elif field == "elevator" and item.get("elevator") == val:
+                score += 5
+            elif field == "orientation":
+                ori_target = str(val).replace("朝", "")
+                if ori_target in (item.get("orientation") or ""):
+                    score += 10
+            elif field == "floor_pref":
+                floor_val = item.get("floor") or ""
+                if val in floor_val:
                     score += 5
-                elif tag == "精装修" and item.get("decoration") == "精装":
+                elif floor_val.startswith("共") and val == "低层":
+                    try:
+                        total = int(floor_val.replace("共", "").replace("层", ""))
+                        if total <= 6:
+                            score += 5
+                    except ValueError:
+                        pass
+            elif field == "max_subway_dist" and isinstance(val, (int, float)):
+                dist = item.get("subway_distance")
+                if dist is not None and int(dist) <= int(val):
                     score += 5
-                elif tag == "简装" and item.get("decoration") == "简装":
-                    score += 5
-                elif tag == "豪华装修" and item.get("decoration") == "豪华":
-                    score += 5
-                elif tag in ("朝南", "朝北", "朝东", "朝西", "南北", "东西", "西北"):
-                    ori_val = item.get("orientation") or ""
-                    if tag in ("南北", "东西"):
-                        ori_ok = tag in ori_val
-                    else:
-                        ori_ok = tag.replace("朝", "") in ori_val
-                    if ori_ok:
-                        score += 10
-                elif tag in ("高层", "中层", "低层"):
-                    floor_val = item.get("floor") or ""
-                    if tag in floor_val:
+            elif field == "rental_type" and item.get("rental_type") == val:
+                score += 8
+            elif field in _TAG_HARD_FIELDS and val in house_tags:
+                score += 5
+            elif field == "required_utilities" and isinstance(val, list):
+                for t in val:
+                    if t in house_tags:
                         score += 5
-                    elif floor_val.startswith("共") and tag == "低层":
-                        try:
-                            total = int(floor_val.replace("共", "").replace("层", ""))
-                            if total <= 6:
-                                score += 5
-                        except ValueError:
-                            pass
-                elif tag == "整租" and item.get("rental_type") == "整租":
-                    score += 8
-                elif tag == "合租" and item.get("rental_type") == "合租":
-                    score += 8
+            elif field == "required_nearby" and isinstance(val, list):
+                for t in val:
+                    if t in house_tags:
+                        score += 5
+            elif field == "payment_method" and val in house_tags:
+                score += 5
+            elif field == "deposit_type" and val in house_tags:
+                score += 5
+            elif field == "no_agent_fee" and val and "房东直租" in house_tags:
+                score += 5
 
         scored.append((score, item))
 
@@ -518,14 +532,25 @@ async def update_preferences(
         session_prefs.areas = new_areas if new_areas else None
         session_prefs.landmark_queries = new_landmarks if new_landmarks else None
 
-    # 合并 tag_preferences（追加去重）
-    new_tag_pref = kwargs.pop("tag_preferences", None)
-    if new_tag_pref and isinstance(new_tag_pref, list):
-        seen = set(session_prefs.tag_preferences)
-        for t in new_tag_pref:
-            if isinstance(t, str) and t and t not in seen:
-                seen.add(t)
-                session_prefs.tag_preferences.append(t)
+    # 根据本轮回传入的 xxx_is_soft 推导 soft_constraint_keys（并集去重）
+    _SOFT_ALLOWED = frozenset({
+        "decoration", "elevator", "orientation", "floor_pref", "max_subway_dist", "rental_type",
+        "pet_policy", "viewing_method", "viewing_time", "lease_flexibility",
+        "termination_sublet", "parking_type", "security_requirement", "property_management",
+        "environment_preference", "house_feature", "landlord_contract",
+        "required_utilities", "required_nearby", "payment_method", "deposit_type", "no_agent_fee",
+    })
+    _IS_SOFT_SUFFIX = "_is_soft"
+    seen = set(session_prefs.soft_constraint_keys)
+    for key in list(kwargs.keys()):
+        if key.endswith(_IS_SOFT_SUFFIX) and kwargs[key] is True:
+            field = key[: -len(_IS_SOFT_SUFFIX)]
+            if field in _SOFT_ALLOWED and field not in seen:
+                seen.add(field)
+                session_prefs.soft_constraint_keys.append(field)
+    for key in list(kwargs.keys()):
+        if key.endswith(_IS_SOFT_SUFFIX):
+            kwargs.pop(key, None)
 
     # 合并其余偏好字段（只更新传入的非 None 字段）
     updatable_fields = {
@@ -628,7 +653,7 @@ TOOLS: list[dict] = [
         "type": "function",
         "function": {
             "name": "update_preferences",
-            "description": "提取或更新用户的租房偏好，仅合并偏好不搜索。调用后必须再调用 search_by_preferences 获取匹配房源。每轮只提取本轮新增/变更的偏好。",
+            "description": "提取或更新用户的租房偏好，仅合并偏好不搜索。调用后必须再调用 search_by_preferences 获取匹配房源。每轮只传本轮新增/变更的字段；用户说「最好/希望」时，除设主字段外必须同时设对应 xxx_is_soft: true。数组类（如 required_nearby）追加时只传本轮新增项。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -719,7 +744,7 @@ TOOLS: list[dict] = [
                     "noise_preference": {
                         "type": "string",
                         "enum": ["安静"],
-                        "description": "噪音偏好。「安静/不要吵/隔音好/睡眠浅」→\"安静\""
+                        "description": "噪音偏好。「安静/不要吵/隔音好/睡眠浅/需要静养/睡眠不好/要安静」→必须设\"安静\""
                     },
                     "sort_by": {
                         "type": "string",
@@ -738,7 +763,7 @@ TOOLS: list[dict] = [
                     "payment_method": {
                         "type": "string",
                         "enum": ["月付", "季付", "半年付", "年付"],
-                        "description": "付款周期偏好。「月付/按月付」→月付，「季付」→季付"
+                        "description": "付款周期偏好。「月付/按月付/能不能月付/希望月付」→月付；「季付」→季付。用户问付款方式、月付时用本字段，不要用 lease_flexibility（租期长短）。与 xxx_is_soft 成对使用时可表示「最好能月付」"
                     },
                     "deposit_type": {
                         "type": "string",
@@ -763,12 +788,12 @@ TOOLS: list[dict] = [
                     "lease_flexibility": {
                         "type": "string",
                         "enum": ["可月租", "可租2个月", "可租3个月", "可租4个月", "可租5个月", "可半年租", "可年租", "仅接受年租"],
-                        "description": "租期灵活性（硬约束）"
+                        "description": "租期长短灵活性（硬约束）。「可短租/可月租/最多租3个月」→可月租/可租3个月等。与付款周期 payment_method（月付/季付）区分：用户说「月付」时用 payment_method，不要用本字段"
                     },
                     "required_utilities": {
                         "type": "array",
                         "items": {"type": "string", "enum": ["包水电费", "免水电费", "免宽带费", "包宽带", "包物业费", "免物业费", "包车位", "免车位费", "包取暖费", "免取暖费"]},
-                        "description": "必须包含的费用项（硬约束，房源 tags 须全部匹配）"
+                        "description": "必须包含的费用项（硬约束，房源 tags 须全部匹配）。「网费/宽带包含在房租里」→[\"包宽带\"]；「物业费包在房租里」→[\"包物业费\"]；「车位费包含/免费车位」→[\"免车位费\"]。注意：「包」表示含在租金内，「免」表示不另收费；用户说包含在房租里时用「包宽带」「包物业费」，不要用免宽带费/免物业费"
                     },
                     "termination_sublet": {
                         "type": "string",
@@ -778,7 +803,7 @@ TOOLS: list[dict] = [
                     "parking_type": {
                         "type": "string",
                         "enum": ["车库车位", "露天车位", "无车位"],
-                        "description": "车位类型（硬约束）"
+                        "description": "车位有无及类型（硬约束）。仅表示要车库/露天/无车位。若用户说「有车位且最好免费」「车位费包在房租里」应用 required_utilities: [\"免车位费\"] 并设 required_utilities_is_soft，不要用本字段"
                     },
                     "security_requirement": {
                         "type": "string",
@@ -810,11 +835,28 @@ TOOLS: list[dict] = [
                         "enum": ["合同规范条款清晰", "合同不规范", "房东好沟通", "房东不配合", "房东难联系"],
                         "description": "合同/房东相关要求（硬约束）"
                     },
-                    "tag_preferences": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "偏好的标签（软约束，匹配则加分排序，不匹配不排除）。用户说「最好/希望/如果有就好/XX更好/尽量」时使用。可用值包括标签参考表中的所有标签，以及房源属性标签：有电梯、精装修、简装、豪华装修、朝南、南北通透、高层、低层、整租、合租。示例：「最好有电梯」→[\"有电梯\"]；「精装最好」→[\"精装修\"]；「最好朝南」→[\"朝南\"]；「有公园更好」→[\"近公园\"]；「最好高层」→[\"高层\"]；多条件示例：「最好精装、有电梯更好」→[\"精装修\",\"有电梯\"]"
-                    }
+                    "decoration_is_soft": {"type": "boolean", "description": "true=本轮回该维度为软约束（匹配加分，不匹配不排除）。仅当用户说「最好/希望/如果有」时设为 true"},
+                    "elevator_is_soft": {"type": "boolean", "description": "同上，对应 elevator"},
+                    "orientation_is_soft": {"type": "boolean", "description": "同上，对应 orientation"},
+                    "floor_pref_is_soft": {"type": "boolean", "description": "同上，对应 floor_pref"},
+                    "max_subway_dist_is_soft": {"type": "boolean", "description": "同上，对应 max_subway_dist"},
+                    "rental_type_is_soft": {"type": "boolean", "description": "同上，对应 rental_type"},
+                    "pet_policy_is_soft": {"type": "boolean", "description": "同上，对应 pet_policy"},
+                    "viewing_method_is_soft": {"type": "boolean", "description": "同上，对应 viewing_method"},
+                    "viewing_time_is_soft": {"type": "boolean", "description": "同上，对应 viewing_time"},
+                    "lease_flexibility_is_soft": {"type": "boolean", "description": "同上，对应 lease_flexibility"},
+                    "termination_sublet_is_soft": {"type": "boolean", "description": "同上，对应 termination_sublet"},
+                    "parking_type_is_soft": {"type": "boolean", "description": "同上，对应 parking_type"},
+                    "security_requirement_is_soft": {"type": "boolean", "description": "同上，对应 security_requirement"},
+                    "property_management_is_soft": {"type": "boolean", "description": "同上，对应 property_management"},
+                    "environment_preference_is_soft": {"type": "boolean", "description": "同上，对应 environment_preference"},
+                    "house_feature_is_soft": {"type": "boolean", "description": "同上，对应 house_feature"},
+                    "landlord_contract_is_soft": {"type": "boolean", "description": "同上，对应 landlord_contract"},
+                    "required_utilities_is_soft": {"type": "boolean", "description": "同上，对应 required_utilities"},
+                    "required_nearby_is_soft": {"type": "boolean", "description": "同上，对应 required_nearby"},
+                    "payment_method_is_soft": {"type": "boolean", "description": "同上，对应 payment_method"},
+                    "deposit_type_is_soft": {"type": "boolean", "description": "同上，对应 deposit_type"},
+                    "no_agent_fee_is_soft": {"type": "boolean", "description": "同上，对应 no_agent_fee"}
                 },
                 "required": []
             }

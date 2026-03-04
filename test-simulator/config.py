@@ -85,7 +85,7 @@ class TokenUsage(BaseModel):
 class CaseResult(BaseModel):
     case_id: str
     case_type: str                                  # "Chat" | "Single" | "Multi"
-    status: Literal["PASS", "FAIL", "ERROR", "TIMEOUT"]
+    status: Literal["PASS", "FAIL", "WARN", "ERROR", "TIMEOUT"]
     duration_ms: int
     rounds: int
     failure_reason: str | None = None

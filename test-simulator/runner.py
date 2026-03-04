@@ -161,15 +161,21 @@ def _tag_list_equivalent(expected: list, actual: list) -> bool:
 
 
 def _tool_call_args(response: dict, expected: Any) -> tuple[bool, str]:
-    """验证指定工具被调用，且参数精确匹配：实际 args 的键必须与 contains 完全一致。
+    """验证指定工具被调用，且参数精确匹配：实际 args 的键必须与 contains 完全一致（不含 *_is_soft 标记键）。
 
     expected 为 ToolCallArgsExpect.model_dump()，含 tool 和 contains 两个字段。
-    location/decoration 的值仍按现有规则做模糊等价；tag_preferences、required_nearby、required_utilities 按无序集合+标签归一化比较；bedrooms 规范化后比较。
+    contains 中以 _is_soft 结尾的键仅作为“软断言”标记，不参与键集合校验（未配置时等价于 false，校验通过）。
+    当某字段配置了 XX_is_soft: true 且该字段识别错误时，视为软失败，用例标为黄灯（WARN）。
+    location/decoration 等值仍按现有规则做模糊等价。
     """
     if not isinstance(expected, dict):
         return (False, "tool_call_args: invalid expected config")
     tool_name = expected.get("tool", "")
     contains = expected.get("contains", {}) or {}
+
+    # 仅用非 _is_soft 的键参与“声明参数”校验，未配置 XX_is_soft 时等价为 false，校验通过
+    expected_keys = {k for k in contains.keys() if not (isinstance(k, str) and k.endswith("_is_soft"))}
+    allowed_keys = set(contains.keys())  # 实际 args 允许的键 = contains 全部，避免 contains 里写了 _is_soft 仍被判为"未声明"
 
     tool_results = response.get("tool_results", [])
     matching = [r for r in tool_results if r.get("tool_name") == tool_name]
@@ -180,40 +186,54 @@ def _tool_call_args(response: dict, expected: Any) -> tuple[bool, str]:
 
     actual_args = matching[0].get("args") or {}
     mismatches: list[str] = []
-    expected_keys = set(contains.keys())
+    soft_mismatches: list[str] = []
     actual_keys = set(actual_args.keys())
-    if actual_keys != expected_keys:
-        extra = actual_keys - expected_keys
-        if extra:
-            mismatches.append(f"存在未在 contains 中声明的参数: {sorted(extra)!r}")
-        missing = expected_keys - actual_keys
-        if missing:
-            mismatches.append(f"缺少参数: {sorted(missing)!r}")
+    extra = actual_keys - allowed_keys
+    missing = expected_keys - actual_keys
+    if extra:
+        mismatches.append(f"存在未在 contains 中声明的参数: {sorted(extra)!r}")
+    if missing:
+        mismatches.append(f"缺少参数: {sorted(missing)!r}")
+
+    def is_soft_key(key: str) -> bool:
+        soft_flag = key + "_is_soft"
+        return bool(contains.get(soft_flag) if isinstance(contains.get(soft_flag), bool) else False)
+
     for key, expected_val in contains.items():
+        if isinstance(key, str) and key.endswith("_is_soft"):
+            continue
         actual_val = actual_args.get(key)
+        mismatch_msg: str | None = None
         if key == "location" and isinstance(expected_val, list) and isinstance(actual_val, list):
             if not _locations_equivalent(expected_val, actual_val):
-                mismatches.append(f"{key}: 期望 {expected_val!r}, 实际 {actual_val!r}")
+                mismatch_msg = f"{key}: 期望 {expected_val!r}, 实际 {actual_val!r}"
         elif key == "decoration" and isinstance(expected_val, str) and isinstance(actual_val, str):
             _dec_norm = {"精装修": "精装", "精修": "精装", "精": "精装", "简装修": "简装", "简修": "简装", "简": "简装"}
             exp_norm = _dec_norm.get(expected_val, expected_val)
             act_norm = _dec_norm.get(actual_val, actual_val)
             if exp_norm != act_norm:
-                mismatches.append(f"{key}: 期望 {expected_val!r}, 实际 {actual_val!r}")
+                mismatch_msg = f"{key}: 期望 {expected_val!r}, 实际 {actual_val!r}"
         elif key in ("tag_preferences", "required_nearby", "required_utilities") and isinstance(expected_val, list) and isinstance(actual_val, list):
             if not _tag_list_equivalent(expected_val, actual_val):
-                mismatches.append(f"{key}: 期望 {expected_val!r}, 实际 {actual_val!r}")
+                mismatch_msg = f"{key}: 期望 {expected_val!r}, 实际 {actual_val!r}"
         elif key == "bedrooms" and expected_val is not None and actual_val is not None:
-            # 规范化：去掉空格后比较，"2,3" 与 "2, 3" 等价
             exp_b = ",".join(str(expected_val).replace(" ", "").split(","))
             act_b = ",".join(str(actual_val).replace(" ", "").split(","))
             if exp_b != act_b:
-                mismatches.append(f"{key}: 期望 {expected_val!r}, 实际 {actual_val!r}")
+                mismatch_msg = f"{key}: 期望 {expected_val!r}, 实际 {actual_val!r}"
         elif actual_val != expected_val:
-            mismatches.append(f"{key}: 期望 {expected_val!r}, 实际 {actual_val!r}")
+            mismatch_msg = f"{key}: 期望 {expected_val!r}, 实际 {actual_val!r}"
+
+        if mismatch_msg:
+            if is_soft_key(key):
+                soft_mismatches.append(mismatch_msg)
+            else:
+                mismatches.append(mismatch_msg)
 
     if mismatches:
         return (False, f"tool_call_args({tool_name}): " + "; ".join(mismatches))
+    if soft_mismatches:
+        return (False, "SOFT: " + f"tool_call_args({tool_name}): " + "; ".join(soft_mismatches))
     return (True, "")
 
 
@@ -292,8 +312,11 @@ def check_assertions(
     response: dict,
     expect: ExpectRules,
     case: TestCase,
-) -> tuple[bool, str]:
-    """按 ExpectRules 逐条调用 ASSERTION_RULES，返回 (passed, failure_reason)。"""
+) -> tuple[bool, str, bool]:
+    """按 ExpectRules 逐条调用 ASSERTION_RULES，返回 (passed, failure_reason, is_soft_fail)。
+
+    当 XX_is_soft 标记字段出现识别错误时，is_soft_fail=True，用例应标为黄灯（WARN）。
+    """
     checks: list[tuple[str, Any]] = []
 
     if expect.has_response is not None:
@@ -305,7 +328,6 @@ def check_assertions(
     if expect.houses_match is not None and expect.houses_match_subset is None:
         checks.append(("houses_match", expect.houses_match))
     if expect.houses_match_subset is not None:
-        # Subset mode: use houses_match list as expected IDs
         subset_ids = expect.houses_match if expect.houses_match else []
         checks.append(("houses_match_subset", subset_ids))
     if expect.house_count_min is not None:
@@ -324,15 +346,17 @@ def check_assertions(
     for rule_name, expected_val in checks:
         fn = ASSERTION_RULES.get(rule_name)
         if fn is None:
-            return (False, f"Unknown assertion rule: {rule_name}")
+            return (False, f"Unknown assertion rule: {rule_name}", False)
         try:
             passed, reason = fn(response, expected_val)
         except Exception as exc:  # noqa: BLE001
-            return (False, f"{rule_name}: unexpected error: {exc}")
+            return (False, f"{rule_name}: unexpected error: {exc}", False)
         if not passed:
-            return (False, reason)
+            is_soft = isinstance(reason, str) and reason.startswith("SOFT: ")
+            clean_reason = reason[6:].lstrip() if is_soft else reason
+            return (False, clean_reason, is_soft)
 
-    return (True, "")
+    return (True, "", False)
 
 
 # ── send_message ───────────────────────────────────────────────────────────────
@@ -433,6 +457,7 @@ async def _execute_case(
     last_body: dict | None = None
     rounds_detail: list[RoundDetail] = []
     failure_items: list[str] = []
+    soft_failure_items: list[str] = []
 
     def make_result(
         status: str,
@@ -480,10 +505,12 @@ async def _execute_case(
             (rexp for rexp in case.round_expects if rexp.round == rounds), None
         )
         if round_expect is not None and body is not None:
-            r_passed, r_reason = check_assertions(body, round_expect.expect, case)
+            r_passed, r_reason, r_soft = check_assertions(body, round_expect.expect, case)
             if not r_passed:
-                failure_items.append(f"[Round {rounds}] {r_reason}")
-                # 记录到本轮 RoundDetail，便于 HTML 与报告按轮展示
+                if r_soft:
+                    soft_failure_items.append(f"[Round {rounds}] {r_reason}")
+                else:
+                    failure_items.append(f"[Round {rounds}] {r_reason}")
                 if rounds_detail:
                     rounds_detail[-1].expect_failure = r_reason
 
@@ -498,6 +525,14 @@ async def _execute_case(
                 failure_reason="\n".join(failure_items),
                 actual_response=last_body.get("response") if last_body else None,
             )
+        if soft_failure_items:
+            return make_result(
+                "WARN",
+                elapsed_ms,
+                rounds,
+                failure_reason="\n".join(soft_failure_items),
+                actual_response=last_body.get("response") if last_body else None,
+            )
         status = "PASS" if last_body is not None else "FAIL"
         return make_result(
             status,
@@ -507,11 +542,25 @@ async def _execute_case(
             actual_response=last_body.get("response") if last_body else None,
         )
 
-    passed, reason = check_assertions(last_body, case.expect, case)
+    passed, reason, is_soft_fail = check_assertions(last_body, case.expect, case)
     if not passed:
-        failure_items.append(f"[Final] {reason}")
-    status = "FAIL" if failure_items else ("PASS" if passed else "FAIL")
-    final_failure_reason = "\n".join(failure_items) if failure_items else (reason if not passed else None)
+        if is_soft_fail:
+            soft_failure_items.append(f"[Final] {reason}")
+        else:
+            failure_items.append(f"[Final] {reason}")
+    # 有硬失败 → FAIL；仅有 XX_is_soft 识别错误 → 黄灯 WARN
+    if failure_items:
+        status = "FAIL"
+        final_failure_reason = "\n".join(failure_items)
+    elif soft_failure_items:
+        status = "WARN"
+        final_failure_reason = "\n".join(soft_failure_items)
+    elif not passed:
+        status = "WARN" if is_soft_fail else "FAIL"
+        final_failure_reason = reason
+    else:
+        status = "PASS"
+        final_failure_reason = None
     return make_result(
         status,
         elapsed_ms,
@@ -554,9 +603,14 @@ def print_case_result(idx: int, total: int, result: CaseResult) -> None:
     idx 语义：并行模式下表示"已完成第 idx 个"，串行模式下表示"第 idx 个用例"。
     """
     duration_s = result.duration_ms / 1000
-    label = "PASS" if result.status == "PASS" else "FAIL"
+    if result.status == "PASS":
+        label = "PASS"
+    elif result.status == "WARN":
+        label = "WARN"
+    else:
+        label = "FAIL"
     print(f"[done {idx}/{total}] {result.case_id} ...... {label}  ({duration_s:.1f}s)")
-    if result.status != "PASS" and result.failure_reason:
+    if result.status not in ("PASS",) and result.failure_reason:
         for line in result.failure_reason.split("\n"):
             print(f"       \u2717 {line}")
 
@@ -670,7 +724,8 @@ def generate_reports(
 
     total = len(results)
     passed = sum(1 for r in results if r.status == "PASS")
-    failed = total - passed
+    failed = sum(1 for r in results if r.status in ("FAIL", "ERROR", "TIMEOUT"))
+    warn = sum(1 for r in results if r.status == "WARN")
     pass_rate = f"{passed / total * 100:.1f}%" if total > 0 else "0.0%"
 
     report_data = {
@@ -684,6 +739,7 @@ def generate_reports(
             "total": total,
             "passed": passed,
             "failed": failed,
+            "warn": warn,
             "pass_rate": pass_rate,
         },
         "cases": [r.model_dump() for r in results],
@@ -703,6 +759,7 @@ def generate_reports(
         f"| Total | {total} |",
         f"| Passed | {passed} |",
         f"| Failed | {failed} |",
+        f"| Warn (yellow) | {warn} |",
         f"| Pass Rate | {pass_rate} |",
         "",
         "## Cases",
@@ -716,7 +773,7 @@ def generate_reports(
             f"| {i} | {r.case_id} | {r.case_type} | {r.status} | {r.duration_ms} | {fr} |"
         )
 
-    md_lines.extend(["", f"## Total: {passed} passed, {failed} failed"])
+    md_lines.extend(["", f"## Total: {passed} passed, {failed} failed, {warn} warn"])
 
     md_path = os.path.join(config.report_dir, f"report-{timestamp_str}.md")
     with open(md_path, "w", encoding="utf-8") as f:

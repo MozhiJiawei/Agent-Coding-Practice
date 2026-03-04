@@ -63,8 +63,8 @@
 **设计原则**：
 
 - 每轮只提取 **本轮新增/变更** 的字段，未提及的字段不传
-- 所有直接字段均为 **硬约束**（不满足则排除），不存在嵌套的软偏好对象
-- 软偏好统一通过 `tag_preferences` 数组表达（匹配则加分，不匹配不排除）
+- 所有约束仍用 **直接字段** 表达取值；硬/软由各字段对应的 **`xxx_is_soft`** 布尔区分：未设或为 false 时按硬约束（不满足则排除），为 true 时按软约束（匹配则加分，不匹配不排除）
+- 用户说「最好/希望/如果有/XX 更好/尽量」时：设对应直接字段的值，并设该字段的 **`xxx_is_soft: true`**；用户说「要/必须/得/需要」时：只设直接字段，不设或设 `xxx_is_soft: false`
 - 消除 `soft_preferences` 嵌套结构，降低 LLM JSON 生成错误率
 
 ```json
@@ -259,11 +259,28 @@
           "description": "合同/房东相关要求（硬约束）"
         },
 
-        "tag_preferences": {
-          "type": "array",
-          "items": {"type": "string"},
-          "description": "偏好的标签（软约束，匹配则加分排序，不匹配不排除）。用户说「最好/希望/如果有就好/XX更好/尽量」时使用。可用值包括标签参考表中的所有标签，以及房源属性标签：有电梯、精装修、简装、豪华装修、朝南、南北通透、高层、低层、整租、合租。示例：「最好有电梯」→[\"有电梯\"]；「精装最好」→[\"精装修\"]；「最好朝南」→[\"朝南\"]；「有公园更好」→[\"近公园\"]；「最好高层」→[\"高层\"]；多条件示例：「最好精装、有电梯更好」→[\"精装修\",\"有电梯\"]"
-        }
+        "decoration_is_soft": { "type": "boolean", "description": "true=本轮回该维度为软约束（匹配加分，不匹配不排除）。仅当用户说「最好/希望/如果有」时设为 true" },
+        "elevator_is_soft": { "type": "boolean", "description": "同上，对应 elevator" },
+        "orientation_is_soft": { "type": "boolean", "description": "同上，对应 orientation" },
+        "floor_pref_is_soft": { "type": "boolean", "description": "同上，对应 floor_pref" },
+        "max_subway_dist_is_soft": { "type": "boolean", "description": "同上，对应 max_subway_dist" },
+        "rental_type_is_soft": { "type": "boolean", "description": "同上，对应 rental_type" },
+        "pet_policy_is_soft": { "type": "boolean", "description": "同上，对应 pet_policy" },
+        "viewing_method_is_soft": { "type": "boolean", "description": "同上，对应 viewing_method" },
+        "viewing_time_is_soft": { "type": "boolean", "description": "同上，对应 viewing_time" },
+        "lease_flexibility_is_soft": { "type": "boolean", "description": "同上，对应 lease_flexibility" },
+        "termination_sublet_is_soft": { "type": "boolean", "description": "同上，对应 termination_sublet" },
+        "parking_type_is_soft": { "type": "boolean", "description": "同上，对应 parking_type" },
+        "security_requirement_is_soft": { "type": "boolean", "description": "同上，对应 security_requirement" },
+        "property_management_is_soft": { "type": "boolean", "description": "同上，对应 property_management" },
+        "environment_preference_is_soft": { "type": "boolean", "description": "同上，对应 environment_preference" },
+        "house_feature_is_soft": { "type": "boolean", "description": "同上，对应 house_feature" },
+        "landlord_contract_is_soft": { "type": "boolean", "description": "同上，对应 landlord_contract" },
+        "required_utilities_is_soft": { "type": "boolean", "description": "同上，对应 required_utilities" },
+        "required_nearby_is_soft": { "type": "boolean", "description": "同上，对应 required_nearby" },
+        "payment_method_is_soft": { "type": "boolean", "description": "同上，对应 payment_method" },
+        "deposit_type_is_soft": { "type": "boolean", "description": "同上，对应 deposit_type" },
+        "no_agent_fee_is_soft": { "type": "boolean", "description": "同上，对应 no_agent_fee" }
       },
       "required": []
     }
@@ -271,23 +288,9 @@
 }
 ```
 
-#### 标签参考表（仅 tag_preferences 可用值）
+#### xxx_is_soft 参数说明
 
-硬约束（宠物/看房方式/看房时间/租期/费用包含/退租转租/车位/安保/物业/绿化/周边配套/房屋特点/合同房东）已改为上述直接参数，勿放入 tag_preferences。以下仅用于**软偏好** tag_preferences。
-
-| 类别                            | 可用标签值                                                                                                      |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **宠物**                        | `可养猫`、`可养狗`、`可养宠物`、`不可养宠物`、`仅限小型犬`、`可养宠物需宠物押金`                                                             |
-| **合同/房东**                     | `合同规范条款清晰`、`合同不规范`、`房东好沟通`、`房东不配合`、`房东难联系`                                                                 |
-| **看房方式**                      | `仅线下看房`、`仅线上VR看房`、`仅线上AR看房`、`仅线上图片看房`、`线下+线上`                                                              |
-| **看房时间**                      | `全天可看房`、`仅周末看房`、`仅工作日看房`、`工作日9-18点`、`工作日14-18点`、`工作日9-12点`、`周末9-18点`、`周末14-18点`、`周末9-12点`                  |
-| **租期**                        | `可月租`、`可租2个月`、`可租3个月`、`可租4个月`、`可租5个月`、`可半年租`、`可年租`、`仅接受年租`                                                 |
-| **费用包含**                      | `包水电费`、`免水电费`、`免宽带费`、`包宽带`、`包物业费`、`免物业费`、`包车位`、`免车位费`、`包取暖费`、`免取暖费` 等                             |
-| **退租/转租**                     | `提前退租可协商`、`提前退租扣押金`、`经同意可转租`、`不可转租`                                                                        |
-| **小区管理**                      | `车库车位`、`露天车位`、`无车位`、`24小时保安`、`门禁刷卡`、`门禁形同虚设`、`无门禁`、`物业管理到位`、`物业管理差`、`绿化好环境佳`、`绿化少环境一般`                     |
-| **周边配套**                      | `近公园`、`近学校`、`近菜市场`、`近银行`、`近医院`、`近餐饮`、`近健身房`、`近警察局`、`近商超`、`近加油站`                                            |
-| **房屋特点**                      | `采光好`、`南北通透`、`高性价比`                                                                                        |
-| **属性标签（仅用于 tag_preferences）** | `有电梯`、`精装修`、`简装`、`豪华装修`、`朝南`、`朝北`、`朝东`、`朝西`、`西北`、`高层`、`低层`、`整租`、`合租`                                       |
+软约束时：设对应直接字段的取值，并设该字段的 `xxx_is_soft: true`。硬约束时：只设直接字段，不传 `xxx_is_soft` 或传 `false`。支持软约束的字段：`decoration`, `elevator`, `orientation`, `floor_pref`, `max_subway_dist`, `rental_type`, `pet_policy`, `viewing_method`, `viewing_time`, `lease_flexibility`, `termination_sublet`, `parking_type`, `security_requirement`, `property_management`, `environment_preference`, `house_feature`, `landlord_contract`, `required_utilities`, `required_nearby`, `payment_method`, `deposit_type`, `no_agent_fee`。示例：「最好精装」→ `decoration: "精装", decoration_is_soft: true`；「要精装，最好有电梯」→ `decoration: "精装", elevator: true, elevator_is_soft: true`；「最好有公园」→ `required_nearby: ["近公园"], required_nearby_is_soft: true`。
 
 
 ---
@@ -500,10 +503,10 @@
 
 ### 6.1 硬约束 vs 软偏好判断规则
 
-**核心原则**：所有直接字段均为硬约束，软偏好统一走 `tag_preferences` 数组。
+**核心原则**：所有约束均用直接字段表达取值；硬/软由各字段的 `xxx_is_soft` 布尔区分。未设或为 false 时按硬约束（不满足则排除）；为 true 时按软约束（匹配则加分，不匹配不排除）。
 
 ```
-明确/肯定表达 → 硬约束字段（含 pet_policy、viewing_method、required_nearby 等直接参数）
+明确/肯定表达 → 只设直接字段，不设 xxx_is_soft 或设为 false
   「要精装」→ decoration:"精装"
   「必须有电梯」→ elevator:true
   「只要整租」→ rental_type:"整租"
@@ -511,16 +514,16 @@
   「月付」→ payment_method:"月付"
   「附近有公园」→ required_nearby:["近公园"]
 
-模糊/期望表达 → tag_preferences（不设直接字段，避免硬过滤导致结果为零）
-  「最好精装」→ tag_preferences:["精装修"]
-  「有电梯更好」→ tag_preferences:["有电梯"]
-  「如果有停车位就好了」→ tag_preferences:["车库车位"]
-  「尽量整租」→ tag_preferences:["整租"]
-  「最好朝南」→ tag_preferences:["朝南"]
-  「高层更好」→ tag_preferences:["高层"]
+模糊/期望表达 → 设直接字段，并设该字段的 xxx_is_soft: true
+  「最好精装」→ decoration:"精装", decoration_is_soft:true
+  「有电梯更好」→ elevator:true, elevator_is_soft:true
+  「如果有停车位就好了」→ parking_type:"车库车位", parking_type_is_soft:true
+  「尽量整租」→ rental_type:"整租", rental_type_is_soft:true
+  「最好朝南」→ orientation:"朝南", orientation_is_soft:true
+  「高层更好」→ floor_pref:"高层", floor_pref_is_soft:true
 ```
 
-**关键**：当用户说「最好XX」时，**不要** 设置对应的硬约束字段（如 `elevator`、`decoration`），而是将其放入 `tag_preferences`。这样可以避免因非核心条件导致搜索结果为零。
+**关键**：当用户说「最好XX」时，既要设置对应的直接字段，也要设该字段的 `xxx_is_soft: true`，这样该条件按软约束处理，避免因非核心条件导致搜索结果为零。
 
 ### 6.2 常见隐含意图提取
 
@@ -567,46 +570,46 @@
 
 ### 6.4 soft_preferences 移除后的迁移规则
 
-v1 中 `soft_preferences` 覆盖的场景，在 v2 中统一通过 `tag_preferences` 处理：
+v1 中 `soft_preferences` 覆盖的场景，在 v2 中统一通过「直接字段 + xxx_is_soft: true」处理：
 
 
-| 用户表达        | v1 做法                                     | v2 做法                      |
-| ----------- | ----------------------------------------- | -------------------------- |
-| 「有电梯更好」     | `soft_preferences: {"elevator": true}`    | `tag_preferences: ["有电梯"]` |
-| 「最好精装」      | `soft_preferences: {"decoration": "精装"}`  | `tag_preferences: ["精装修"]` |
-| 「精装最好，简装也行」 | `soft_preferences: {"decoration": "精装"}`  | `tag_preferences: ["精装修"]` |
-| 「最好整租」      | `soft_preferences: {"rental_type": "整租"}` | `tag_preferences: ["整租"]`  |
-| 「最好朝南」      | `soft_preferences: {"orientation": "朝南"}` | `tag_preferences: ["朝南"]`  |
-| 「高层更好」      | `soft_preferences: {"floor_pref": "高层"}`  | `tag_preferences: ["高层"]`  |
+| 用户表达        | v1 做法                                     | v2 做法                                                       |
+| ----------- | ----------------------------------------- | ----------------------------------------------------------- |
+| 「有电梯更好」     | `soft_preferences: {"elevator": true}`    | `elevator: true, elevator_is_soft: true`                    |
+| 「最好精装」      | `soft_preferences: {"decoration": "精装"}`  | `decoration: "精装", decoration_is_soft: true`               |
+| 「精装最好，简装也行」 | `soft_preferences: {"decoration": "精装"}`  | `decoration: "精装", decoration_is_soft: true`                |
+| 「最好整租」      | `soft_preferences: {"rental_type": "整租"}` | `rental_type: "整租", rental_type_is_soft: true`             |
+| 「最好朝南」      | `soft_preferences: {"orientation": "朝南"}` | `orientation: "朝南", orientation_is_soft: true`            |
+| 「高层更好」      | `soft_preferences: {"floor_pref": "高层"}`  | `floor_pref: "高层", floor_pref_is_soft: true`               |
 
 
-**注意**：当用户同时表达硬约束和软偏好时，硬约束用直接字段，软偏好用 `tag_preferences`，两者互不冲突：
+**注意**：当用户同时表达硬约束和软偏好时，硬约束字段不设 xxx_is_soft，软偏好字段设对应 xxx_is_soft: true：
 
-- 「要精装，最好有电梯」→ `decoration: "精装"` + `tag_preferences: ["有电梯"]`
-- 「必须近地铁，最好朝南」→ `max_subway_dist: 800` + `tag_preferences: ["朝南"]`
+- 「要精装，最好有电梯」→ `decoration: "精装"` + `elevator: true, elevator_is_soft: true`
+- 「必须近地铁，最好朝南」→ `max_subway_dist: 800` + `orientation: "朝南", orientation_is_soft: true`
 
-### 6.5 硬约束 vs tag_preferences 使用规则
+### 6.5 硬约束 vs 软约束（xxx_is_soft）使用规则
 
 ```
-用户语气     → 使用字段
+用户语气     → 使用方式
 ─────────────────────────────
-「要/必须/得/需要」  → 直接参数（硬约束，含 pet_policy、required_nearby、viewing_method 等）
-「最好/希望/如果有」 → tag_preferences（软偏好）
+「要/必须/得/需要」  → 只设直接参数，不设 xxx_is_soft（硬约束）
+「最好/希望/如果有」 → 设直接参数，并设该字段 xxx_is_soft: true（软约束）
 ```
 
 **示例**：
 
 - 「要能养猫」→ `pet_policy: "可养猫"`
-- 「最好有公园」→ `tag_preferences: ["近公园"]`
+- 「最好有公园」→ `required_nearby: ["近公园"], required_nearby_is_soft: true`
 - 「月付，近地铁」→ `payment_method: "月付"`, `max_subway_dist: 800`
 
 ### 6.6 payment_method / deposit_type / no_agent_fee 与 tag 的关系
 
-这三个独立字段在过滤时自动映射为 tag 匹配（见 8.3）。提参时**仅**使用独立字段，不要用 tag_preferences 表示付款/押金/房东直租：
+这三个独立字段在过滤时自动映射为 tag 匹配（见 8.3）。提参时使用独立字段；若用户表达为软偏好（如「最好月付」），可设 `payment_method: "月付", payment_method_is_soft: true`。硬约束时不设 xxx_is_soft：
 
-- `payment_method: "月付"` → 过滤时匹配房源 tags 含 `月付`
-- `deposit_type: "押一"` → 过滤时匹配房源 tags 含 `押一`
-- `no_agent_fee: true` → 过滤时匹配房源 tags 含 `房东直租`
+- `payment_method: "月付"` → 硬约束时过滤匹配房源 tags 含 `月付`；软约束时（payment_method_is_soft: true）匹配则加分
+- `deposit_type: "押一"` → 同上
+- `no_agent_fee: true` → 同上，匹配 tag `房东直租`
 
 ---
 
@@ -663,8 +666,8 @@ class UserPreferences(BaseModel):
     house_feature: Optional[str] = None
     landlord_contract: Optional[str] = None
 
-    # ── 软偏好标签 ──
-    tag_preferences: list[str] = []      # 匹配加分，不排除
+    # ── 软约束标识（内部状态：由合并逻辑根据本轮回传入的 xxx_is_soft 推导；列表中的字段按软约束处理）──
+    soft_constraint_keys: list[str] = []
 
     # ── 上下文记忆 ──
     mentioned_house_ids: list[str] = []
@@ -696,63 +699,43 @@ if prefs.floor_pref:
         continue
 ```
 
-### 8.1 新增直接参数 → tags 硬过滤
+### 8.1 直接参数 → tags 硬过滤（仅当字段不在 soft_constraint_keys 时）
 
-以下单值参数：房源 `tags` 须包含该值，否则排除。数组参数 `required_utilities`、`required_nearby`：须包含全部指定值。
+`prefs.soft_constraint_keys` 由合并逻辑根据本轮回传入的 `xxx_is_soft: true` 推导。以下单值参数：若字段**未**在 `prefs.soft_constraint_keys` 中且该字段有值，则房源 `tags` 须包含该值，否则排除。数组参数 `required_utilities`、`required_nearby` 同理。若字段在 `soft_constraint_keys` 中，不执行本硬过滤，改由 8.2 做软加分。
 
 ```python
 house_tags = set(item.get("tags", []))
-# 单值参数
+soft = set(prefs.soft_constraint_keys or [])
+# 单值标签参数：仅当不在 soft 且有值时硬过滤
 for field in ("pet_policy", "viewing_method", "viewing_time", "lease_flexibility",
               "termination_sublet", "parking_type", "security_requirement",
               "property_management", "environment_preference", "house_feature", "landlord_contract"):
+    if field in soft:
+        continue
     val = getattr(prefs, field, None)
     if val is not None and val not in house_tags:
         continue  # 不匹配则排除
-# 数组参数（须全部匹配）
-if prefs.required_utilities and not all(t in house_tags for t in prefs.required_utilities):
+# 数组参数（须全部匹配，仅当不在 soft 时）
+if "required_utilities" not in soft and prefs.required_utilities and not all(t in house_tags for t in prefs.required_utilities):
     continue
-if prefs.required_nearby and not all(t in house_tags for t in prefs.required_nearby):
+if "required_nearby" not in soft and prefs.required_nearby and not all(t in house_tags for t in prefs.required_nearby):
     continue
 ```
 
-### 8.2 tag_preferences 加分（含属性标签映射）
+同理，orientation、payment_method、deposit_type、no_agent_fee 的硬过滤也仅在对应字段不在 `soft_constraint_keys` 时执行。
 
-```python
-if prefs.tag_preferences:
-    house_tags = set(item.get("tags", []))
-    for tag in prefs.tag_preferences:
-        # 先检查 tags 数组中是否直接匹配
-        if tag in house_tags:
-            score += 5
-            continue
-        # 属性标签映射：检查房源的结构化字段
-        if tag == "有电梯" and item.get("elevator"):
-            score += 5
-        elif tag == "精装修" and item.get("decoration") == "精装":
-            score += 5
-        elif tag == "简装" and item.get("decoration") == "简装":
-            score += 5
-        elif tag == "豪华装修" and item.get("decoration") == "豪华":
-            score += 5
-        elif tag in ("朝南", "朝北", "朝东", "朝西", "南北", "东西", "西北"):
-            ori = tag.replace("朝", "")
-            if ori in (item.get("orientation") or ""):
-                score += 10
-        elif tag in ("高层", "中层", "低层"):
-            floor_val = item.get("floor") or ""
-            # 直接匹配"高层/中层/低层"，或将"共N层"映射为低层（总层数≤6视为低层建筑）
-            if tag in floor_val:
-                score += 5
-            elif floor_val.startswith("共") and tag == "低层":
-                total = int(floor_val.replace("共", "").replace("层", ""))
-                if total <= 6:
-                    score += 5
-        elif tag == "整租" and item.get("rental_type") == "整租":
-            score += 8
-        elif tag == "合租" and item.get("rental_type") == "合租":
-            score += 8
-```
+### 8.2 soft_constraint_keys 对应字段的软加分（按字段名 + 取值驱动）
+
+对每个在 `prefs.soft_constraint_keys` 中且在该字段有取值的字段，按下列规则做「匹配则加分」；不匹配不排除。逻辑与旧版 tag_preferences 的映射等价，改为按字段名分支：
+
+- **decoration**：与 item.decoration 归一化后一致则加分（精装/精装修 等归一）
+- **elevator**：item.elevator == prefs.elevator 则加分
+- **orientation**：朝向子串匹配则加分（如 朝南、南北）
+- **floor_pref**：floor 含该值或「共N层」且低层映射则加分
+- **rental_type**：item.rental_type 一致则加分
+- **pet_policy / viewing_method / viewing_time / lease_flexibility / termination_sublet / parking_type / security_requirement / property_management / environment_preference / house_feature / landlord_contract**：该值在 house_tags 中则加分
+- **required_utilities / required_nearby**：对数组中每个 tag，在 house_tags 则加分（可累加）
+- **payment_method / deposit_type**：对应 tag 在 house_tags 则加分；**no_agent_fee**：`房东直租` 在 house_tags 则加分
 
 ### 8.3 payment_method / deposit_type / no_agent_fee 标签映射
 
@@ -797,13 +780,13 @@ if prefs.subway_line:
 | 工具数                    | 5                        | 5（不变）                              |
 | update_preferences 参数数 | 20                       | 39（原 26 + 13 个标签类直接参数）             |
 | 硬约束标签类                 | 无                        | 13 个直接参数（pet_policy、viewing_method 等） |
-| 软偏好                    | 无                        | tag_preferences                      |
+| 软约束                    | 无                        | 各字段 xxx_is_soft 布尔（合并后内部为 soft_constraint_keys） |
 | 付款/押金                  | 无                        | payment_method + deposit_type      |
 | 免中介                    | 有 no_agent_fee 但未在工具定义暴露 | 暴露为正式参数                            |
 | 楼层偏好                   | 仅在 soft_preferences 内    | 提升为独立硬约束参数 floor_pref              |
 | 物业类型                   | 无                        | 新增 property_type                   |
 | 装修描述                   | 冗长易混淆                    | 简化 + enum 约束                       |
-| soft_preferences       | 嵌套 object（5 个子字段）        | **已移除**，统一由 tag_preferences 承载     |
+| soft_preferences       | 嵌套 object（5 个子字段）        | **已移除**，统一由各字段 xxx_is_soft 标识软约束 |
 | bedrooms               | 描述模糊                     | 明确格式 + 示例                          |
 | 场景覆盖                   | ~60%（不含标签）               | ~100%（含全部标签场景）                     |
 
@@ -817,9 +800,9 @@ if prefs.subway_line:
 | --- | ------------------------------------------ | ----------------- |
 | P0  | TOOLS 定义更新（移除 tag_requirements，新增 13 个标签类直接参数） | tools.py TOOLS 列表 |
 | P0  | UserPreferences 移除 tag_requirements，新增 13 个字段 | tools.py 数据模型     |
-| P0  | post_filter_and_rank 新增 8.1 直接参数→tags 硬过滤 + 8.2 tag_preferences 加分 | tools.py 过滤逻辑     |
-| P0  | update_preferences 合并逻辑：移除 tag_requirements，支持 13 个新参数 | tools.py 合并逻辑     |
-| P1  | system prompt 更新（硬约束用直接参数、tag_preferences 规则）    | agent.py / prompt  |
-| P2  | 测试用例对齐（tag_requirements 改为对应直接参数） | test_cases.yaml   |
+| P0  | post_filter_and_rank 新增 8.1 直接参数→tags 硬过滤（按 soft_constraint_keys 分支）+ 8.2 软加分 | tools.py 过滤逻辑     |
+| P0  | update_preferences 合并逻辑：根据 xxx_is_soft 推导 soft_constraint_keys、13 个标签类参数 | tools.py 合并逻辑     |
+| P1  | system prompt 更新（硬约束 vs 软约束：xxx_is_soft 规则）    | agent.py / prompt  |
+| P2  | 测试用例对齐（tag_preferences 改为直接字段 + xxx_is_soft） | test_cases.yaml   |
 
 

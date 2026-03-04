@@ -383,6 +383,21 @@ class TestToolCallArgs:
         ok, msg = ASSERTION_RULES["tool_call_args"](resp, expect)
         assert ok is True, msg
 
+    def test_pass_when_contains_has_is_soft_key_but_actual_not(self):
+        """用例中配置了 XX_is_soft 时，不要求 actual 含有该键；未配置则等价于 false，校验通过"""
+        expect = {"tool": "update_preferences", "contains": {"decoration": "精装", "decoration_is_soft": True}}
+        resp = self._make_response("update_preferences", {"decoration": "精装"})
+        ok, msg = ASSERTION_RULES["tool_call_args"](resp, expect)
+        assert ok is True, msg
+
+    def test_soft_mismatch_returns_soft_prefix(self):
+        """当 XX_is_soft 标记字段识别错误时，返回 SOFT: 前缀，用例应标为黄灯"""
+        expect = {"tool": "update_preferences", "contains": {"decoration": "精装", "decoration_is_soft": True}}
+        resp = self._make_response("update_preferences", {"decoration": "简装"})
+        ok, msg = ASSERTION_RULES["tool_call_args"](resp, expect)
+        assert ok is False
+        assert msg.startswith("SOFT: ")
+
 
 class TestToolCallChain:
     """tool_call_chain: 验证链式调用顺序"""
@@ -440,7 +455,7 @@ def test_check_assertions_all_pass():
     case = make_case()
     expect = ExpectRules(has_response=True, status_success=True)
     response = {"response": "hi", "status": "success"}
-    passed, reason = check_assertions(response, expect, case)
+    passed, reason, _ = check_assertions(response, expect, case)
     assert passed is True
     assert reason == ""
 
@@ -449,7 +464,7 @@ def test_check_assertions_fail_on_first_failure():
     case = make_case()
     expect = ExpectRules(response_not_empty=True, status_success=True)
     response = {"response": "", "status": "success"}
-    passed, reason = check_assertions(response, expect, case)
+    passed, reason, _ = check_assertions(response, expect, case)
     assert passed is False
     assert "response_not_empty" in reason
 
@@ -458,7 +473,7 @@ def test_check_assertions_no_expect_rules_passes():
     case = make_case()
     expect = ExpectRules()
     response = {"response": "hi", "status": "success"}
-    passed, reason = check_assertions(response, expect, case)
+    passed, reason, _ = check_assertions(response, expect, case)
     assert passed is True
     assert reason == ""
 
@@ -468,7 +483,7 @@ def test_check_assertions_houses_match_exact_mode():
     case = make_case()
     expect = ExpectRules(houses_match=["HF_42", "HF_107"])
     response = make_agent_response(json.dumps({"houses": ["HF_42", "HF_107"]}))
-    passed, reason = check_assertions(response, expect, case)
+    passed, reason, _ = check_assertions(response, expect, case)
     assert passed is True
 
 
@@ -477,7 +492,7 @@ def test_check_assertions_houses_match_subset_mode():
     case = make_case()
     expect = ExpectRules(houses_match=["HF_42"], houses_match_subset=True)
     response = make_agent_response(json.dumps({"houses": ["HF_42", "HF_107"]}))
-    passed, reason = check_assertions(response, expect, case)
+    passed, reason, _ = check_assertions(response, expect, case)
     assert passed is True
 
 
@@ -497,7 +512,7 @@ def test_check_assertions_tool_call_args_location_fuzzy():
             {"tool_name": "update_preferences", "args": {"location": ["海淀区"], "bedrooms": "2"}}
         ],
     }
-    passed, reason = check_assertions(response, expect, case)
+    passed, reason, _ = check_assertions(response, expect, case)
     assert passed is True, reason
 
 
@@ -506,7 +521,7 @@ def test_check_assertions_message_content_pass():
     case = make_case()
     expect = ExpectRules(message_content=["您好", "租房"])
     response = {"response": "您好，我是租房助手，请问需要什么帮助？", "status": "success"}
-    passed, reason = check_assertions(response, expect, case)
+    passed, reason, _ = check_assertions(response, expect, case)
     assert passed is True, reason
 
 
@@ -515,10 +530,30 @@ def test_check_assertions_message_content_fail():
     case = make_case()
     expect = ExpectRules(message_content=["您好", "机票"])
     response = {"response": "您好，我是租房助手。", "status": "success"}
-    passed, reason = check_assertions(response, expect, case)
+    passed, reason, _ = check_assertions(response, expect, case)
     assert passed is False
     assert "message_content" in reason
     assert "机票" in reason
+
+
+def test_check_assertions_soft_fail_returns_is_soft_fail_true():
+    """XX_is_soft 识别错误时，check_assertions 返回 (False, reason, True) 便于标黄灯"""
+    case = make_case()
+    expect = ExpectRules(
+        tool_call_args=ToolCallArgsExpect(
+            tool="update_preferences",
+            contains={"decoration": "精装", "decoration_is_soft": True},
+        )
+    )
+    response = {
+        "response": "ok",
+        "status": "success",
+        "tool_results": [{"tool_name": "update_preferences", "args": {"decoration": "简装"}}],
+    }
+    passed, reason, is_soft_fail = check_assertions(response, expect, case)
+    assert passed is False
+    assert is_soft_fail is True
+    assert "decoration" in reason
 
 
 # ── send_message — AC2 ────────────────────────────────────────────────────────
@@ -771,6 +806,23 @@ def test_print_case_result_timeout_ac10(capsys):
     assert "超时" in out
 
 
+def test_print_case_result_warn_yellow(capsys):
+    """WARN（黄灯）状态显示 WARN 及 failure_reason"""
+    result = CaseResult(
+        case_id="test-warn",
+        case_type="Single",
+        status="WARN",
+        duration_ms=500,
+        rounds=1,
+        failure_reason="tool_call_args(update_preferences): decoration: 期望 '精装', 实际 '简装'",
+    )
+    print_case_result(1, 1, result)
+    out = capsys.readouterr().out
+    assert "WARN" in out
+    assert "✗" in out
+    assert "decoration" in out
+
+
 # ── run_all_cases — Task 5 ────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
@@ -897,6 +949,23 @@ class TestGenerateReports:
         assert summary["failed"] == 1
         assert "pass_rate" in summary
         assert "66" in summary["pass_rate"]  # 66.7%
+
+    def test_json_summary_includes_warn_count(self, tmp_path):
+        """summary 含 warn（黄灯）数量"""
+        config = make_config(report_dir=str(tmp_path))
+        results = make_results(passed=1, failed=0) + [
+            CaseResult(
+                case_id="warn-1", case_type="Single",
+                status="WARN", duration_ms=100, rounds=1,
+                failure_reason="decoration_is_soft mismatch",
+            )
+        ]
+        json_path = generate_reports(results, config, total_duration_ms=2000)
+        with open(json_path, encoding="utf-8") as f:
+            data = json.load(f)
+        assert data["summary"]["warn"] == 1
+        assert data["summary"]["total"] == 2
+        assert data["summary"]["passed"] == 1
 
     def test_json_file_has_cases_array(self, tmp_path):
         """AC4: cases array with full CaseResult data per case"""

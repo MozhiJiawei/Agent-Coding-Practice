@@ -85,6 +85,7 @@ HTML_PAGE = """
     .summary .total { background: #0f3460; }
     .summary .passed { color: #4ade80; }
     .summary .failed { color: #f87171; }
+    .summary .warn { color: #fbbf24; }
     .summary .other { color: #fbbf24; }
     .tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 16px; }
     .tab { padding: 8px 14px; border-radius: 6px; cursor: pointer; border: 1px solid #334155; background: #1e293b; }
@@ -92,6 +93,7 @@ HTML_PAGE = """
     .tab.active { background: #3b82f6; border-color: #3b82f6; }
     .tab.pass { border-left: 3px solid #4ade80; }
     .tab.fail { border-left: 3px solid #f87171; }
+    .tab.warn { border-left: 3px solid #fbbf24; }
     .tab.timeout { border-left: 3px solid #fbbf24; }
     .tab.error { border-left: 3px solid #94a3b8; }
     .panel { display: none; padding: 16px; background: #16213e; border-radius: 8px; }
@@ -120,6 +122,7 @@ HTML_PAGE = """
     <span class="total">Total: <b id="total">0</b></span>
     <span class="passed">Passed: <b id="passed">0</b></span>
     <span class="failed">Failed: <b id="failed">0</b></span>
+    <span class="warn">Warn: <b id="warn">0</b></span>
     <span class="other">Duration: <b id="duration">-</b></span>
   </div>
   <div class="tabs" id="tabs"></div>
@@ -131,6 +134,7 @@ HTML_PAGE = """
     const totalEl = document.getElementById('total');
     const passedEl = document.getElementById('passed');
     const failedEl = document.getElementById('failed');
+    const warnEl = document.getElementById('warn');
     const durationEl = document.getElementById('duration');
 
     function escapeHtml(s) {
@@ -143,6 +147,7 @@ HTML_PAGE = """
     function statusClass(s) {
       if (s === 'PASS') return 'pass';
       if (s === 'FAIL') return 'fail';
+      if (s === 'WARN') return 'warn';
       if (s === 'TIMEOUT') return 'timeout';
       return 'error';
     }
@@ -214,8 +219,10 @@ HTML_PAGE = """
           totalEl.textContent = cases.length;
           const passed = cases.filter(c => c.status === 'PASS').length;
           const failed = cases.filter(c => c.status === 'FAIL').length;
+          const warn = cases.filter(c => c.status === 'WARN').length;
           passedEl.textContent = passed;
           failedEl.textContent = failed;
+          if (warnEl) warnEl.textContent = warn;
           const maxDuration = cases.reduce((a, c) => Math.max(a, c.duration_ms || 0), 0);
           durationEl.textContent = maxDuration ? (maxDuration / 1000).toFixed(1) + 's' : '-';
 
@@ -270,6 +277,7 @@ EXPORT_HTML_TEMPLATE = """<!DOCTYPE html>
     .summary .total { background: #0f3460; }
     .summary .passed { color: #4ade80; }
     .summary .failed { color: #f87171; }
+    .summary .warn { color: #fbbf24; }
     .summary .other { color: #fbbf24; }
     .tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 16px; }
     .tab { padding: 8px 14px; border-radius: 6px; cursor: pointer; border: 1px solid #334155; background: #1e293b; }
@@ -277,6 +285,7 @@ EXPORT_HTML_TEMPLATE = """<!DOCTYPE html>
     .tab.active { background: #3b82f6; border-color: #3b82f6; }
     .tab.pass { border-left: 3px solid #4ade80; }
     .tab.fail { border-left: 3px solid #f87171; }
+    .tab.warn { border-left: 3px solid #fbbf24; }
     .tab.timeout { border-left: 3px solid #fbbf24; }
     .tab.error { border-left: 3px solid #94a3b8; }
     .panel { display: none; padding: 16px; background: #16213e; border-radius: 8px; }
@@ -303,6 +312,7 @@ EXPORT_HTML_TEMPLATE = """<!DOCTYPE html>
     <span class="total">Total: <b id="total">0</b></span>
     <span class="passed">Passed: <b id="passed">0</b></span>
     <span class="failed">Failed: <b id="failed">0</b></span>
+    <span class="warn">Warn: <b id="warn">0</b></span>
     <span class="other">Duration: <b id="duration">-</b></span>
   </div>
   <div class="tabs" id="tabs"></div>
@@ -316,6 +326,7 @@ EXPORT_HTML_TEMPLATE = """<!DOCTYPE html>
     const totalEl = document.getElementById('total');
     const passedEl = document.getElementById('passed');
     const failedEl = document.getElementById('failed');
+    const warnEl = document.getElementById('warn');
     const durationEl = document.getElementById('duration');
 
     function escapeHtml(s) {
@@ -327,6 +338,7 @@ EXPORT_HTML_TEMPLATE = """<!DOCTYPE html>
     function statusClass(s) {
       if (s === 'PASS') return 'pass';
       if (s === 'FAIL') return 'fail';
+      if (s === 'WARN') return 'warn';
       if (s === 'TIMEOUT') return 'timeout';
       return 'error';
     }
@@ -380,8 +392,10 @@ EXPORT_HTML_TEMPLATE = """<!DOCTYPE html>
     totalEl.textContent = cases.length;
     const passed = cases.filter(c => c.status === 'PASS').length;
     const failed = cases.filter(c => c.status === 'FAIL').length;
+    const warn = cases.filter(c => c.status === 'WARN').length;
     passedEl.textContent = passed;
     failedEl.textContent = failed;
+    if (warnEl) warnEl.textContent = warn;
     const maxDuration = cases.reduce((a, c) => Math.max(a, c.duration_ms || 0), 0);
     durationEl.textContent = maxDuration ? (maxDuration / 1000).toFixed(1) + 's' : '-';
     cases.forEach((c, i) => {
