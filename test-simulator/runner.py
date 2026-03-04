@@ -212,6 +212,10 @@ def _tool_call_args(response: dict, expected: Any) -> tuple[bool, str]:
 
     for key, expected_val in contains.items():
         if isinstance(key, str) and key.endswith("_is_soft"):
+            # 校验模型返回的 *_is_soft 与用例期望一致（如 no_agent_fee_is_soft: true）
+            actual_soft = actual_args.get(key)
+            if actual_soft is not None and actual_soft != expected_val:
+                soft_mismatches.append(f"{key}: 期望 {expected_val!r}, 实际 {actual_soft!r}")
             continue
         actual_val = actual_args.get(key)
         mismatch_msg: str | None = None

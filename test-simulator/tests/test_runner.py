@@ -421,6 +421,23 @@ class TestToolCallArgs:
         assert "未在 contains 中声明的参数" in msg
         assert "no_agent_fee_is_soft" in msg or "payment_method_is_soft" in msg
 
+    def test_fail_when_contains_expects_xx_is_soft_true_but_actual_is_false(self):
+        """c3 场景：用例期望 no_agent_fee_is_soft: true，模型返回 false 时应判为 SOFT 失败"""
+        expect = {
+            "tool": "update_preferences",
+            "contains": {"payment_method": "月付", "payment_method_is_soft": True, "no_agent_fee": True, "no_agent_fee_is_soft": True},
+        }
+        resp = self._make_response(
+            "update_preferences",
+            {"payment_method": "月付", "payment_method_is_soft": True, "no_agent_fee": True, "no_agent_fee_is_soft": False},
+        )
+        ok, msg = ASSERTION_RULES["tool_call_args"](resp, expect)
+        assert ok is False, msg
+        assert msg.startswith("SOFT: ")
+        assert "no_agent_fee_is_soft" in msg
+        assert "期望 True" in msg or "True" in msg
+        assert "实际 False" in msg or "False" in msg
+
 
 class TestToolCallChain:
     """tool_call_chain: 验证链式调用顺序"""
