@@ -42,8 +42,4 @@ def log_event(
     with _lock_for(path):
         with open(path, "a", encoding="utf-8") as f:
             f.write(line)
-    # 同时打印到 stdout，便于实时查看（details 过长时截断）
-    details_preview = json.dumps(d, ensure_ascii=False)
-    if len(details_preview) > 200:
-        details_preview = details_preview[:200] + "..."
-    print(f"[{effective_sid or 'global'}] {event_type} {details_preview}")
+

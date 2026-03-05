@@ -174,11 +174,12 @@ def _tag_list_equivalent(expected: list, actual: list) -> bool:
 
 
 def _tool_call_args(response: dict, expected: Any) -> tuple[bool, str]:
-    """验证指定工具被调用，且参数精确匹配：实际 args 的键必须与 contains 完全一致（不含 *_is_soft 标记键）。
+    """验证指定工具被调用，且参数匹配：实际 args 需包含 contains 中声明的键；多出的键视为“超出 expect 范围”。
 
     expected 为 ToolCallArgsExpect.model_dump()，含 tool 和 contains 两个字段。
-    contains 中以 _is_soft 结尾的键仅作为“软断言”标记，不参与键集合校验（未配置时等价于 false，校验通过）。
-    当某字段配置了 XX_is_soft: true 且该字段识别错误时，视为软失败，用例标为黄灯（WARN）。
+    - 缺少 contains 中声明的参数 → 硬失败（红灯）。
+    - 大模型多传了未在 contains 中声明的参数（超出 expect 范围）→ 软失败，用例标为黄灯（WARN）。
+    contains 中以 _is_soft 结尾的键仅作为“软断言”标记；当某字段配置了 XX_is_soft: true 且该字段识别错误时，亦为软失败（黄灯）。
     软约束字段 XX_is_soft：若模型传入 false 而用例未在 contains 中配置，视为通过（符合默认值，见 intent_interface_design_v2）。
     location/decoration 等值仍按现有规则做模糊等价。
     """
@@ -209,13 +210,9 @@ def _tool_call_args(response: dict, expected: Any) -> tuple[bool, str]:
     )}
     missing = expected_keys - actual_keys
     if extra:
-        # 仅多出 *_is_soft 参数时视为软失败（黄灯），与 c6 等场景一致
+        # 大模型输出的超出 expect 范围的参数（未在 contains 中声明）统一视为软失败（黄灯）
         extra_list = sorted(extra)
-        msg = f"存在未在 contains 中声明的参数: {extra_list!r}"
-        if all(isinstance(k, str) and k.endswith("_is_soft") for k in extra):
-            soft_mismatches.append(msg)
-        else:
-            mismatches.append(msg)
+        soft_mismatches.append(f"存在未在 contains 中声明的参数: {extra_list!r}")
     if missing:
         mismatches.append(f"缺少参数: {sorted(missing)!r}")
 

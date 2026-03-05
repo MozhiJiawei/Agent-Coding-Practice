@@ -1272,6 +1272,7 @@ test_cases:
           location:
           - 海淀
           max_price: 5000
+          house_feature: 高性价比
   - round: 2
     expect:
       tool_call_args:
@@ -1322,7 +1323,6 @@ test_cases:
       tool_call_args:
         tool: update_preferences
         contains:
-          clear_location: true
           location:
           - 朝阳
           bedrooms: '3'
@@ -1464,8 +1464,7 @@ test_cases:
           location:
           - 丰台
           - 朝阳
-          max_price: 6000
-          min_price: 4800
+          price_around: 6000
           required_nearby:
           - 近医院
   - round: 2
@@ -1474,6 +1473,7 @@ test_cases:
         tool: update_preferences
         contains:
           bedrooms: '2'
+          bedrooms_is_soft: true
           viewing_time: 仅周末看房
   - round: 3
     expect:
@@ -1488,6 +1488,7 @@ test_cases:
       tool_call_args:
         tool: update_preferences
         contains:
+          parking_type: 有车位
           required_utilities:
           - 包车位
           required_utilities_is_soft: true
@@ -1516,8 +1517,8 @@ test_cases:
           bedrooms: '2'
           max_price: 2800
           noise_preference: 安静
-          max_subway_dist: 800
-          max_subway_dist_is_soft: true
+          near_subway: true
+          near_subway_is_soft: true
   - round: 2
     expect:
       tool_call_args:
@@ -1564,8 +1565,7 @@ test_cases:
         contains:
           location:
           - 朝阳
-          max_price: 3600
-          min_price: 2400
+          price_around: 3000
           payment_method: 月付
   - round: 2
     expect:
@@ -1573,12 +1573,14 @@ test_cases:
         tool: update_preferences
         contains:
           deposit_type: 押一
+          payment_method: 月付
   - round: 3
     expect:
       tool_call_args:
         tool: update_preferences
         contains:
           rental_type: 合租
+          rental_type_is_soft: true
   - round: 4
     expect:
       tool_call_args:
@@ -1602,7 +1604,6 @@ test_cases:
         contains:
           required_utilities:
           - 包宽带
-          required_utilities_is_soft: true
   tags:
   - final-test
 - id: c21

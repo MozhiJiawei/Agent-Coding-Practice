@@ -709,9 +709,8 @@ TOOLS: list[dict] = [
         "type": "function",
         "function": {
             "name": "update_preferences",
-            "description": "更新用户租房偏好并立即按当前偏好搜索，返回匹配的 top 5 房源。找房、推荐、吐槽当前住房（可推断偏好如太吵→安静、采光差→朝南）时均调用本工具，调用即会触发搜索。"
-                           "只有用户吐槽时才对偏好进行推测，否则直接传用户本轮实际表达的内容；"
-                           "软约束：用户语气为「最好/如果能/尽量/优先/有…更好/…就更好了/可以的话/理想情况/倾向于」时，"
+            "description": "更新用户租房偏好（用户最新一轮表达的内容）并立即按当前偏好搜索，返回匹配的 top 5 房源。找房、推荐、吐槽当前住房时均调用本工具，调用即会触发搜索。"
+                           "软约束：用户语气为「最好是/如果能/尽量/优先/有…更好/…就更好了/可以的话/理想情况/倾向于」时，"
                            "设主字段值并同时设 xxx_is_soft: true（匹配加分但不排除）；"
                            "用户语气肯定「要/希望/必须/需要/一定/只能/不能」时为硬约束（不设 xxx_is_soft 或设 false，不满足则排除）。",
             "parameters": {
@@ -773,11 +772,11 @@ TOOLS: list[dict] = [
                     },
                     "price_around": {
                         "type": "integer",
-                        "description": "月租金「XX左右」时传中心值XX(元)，系统转为 min_price=XX*0.8, max_price=XX*1.2"
+                        "description": "月租金/预算/费用/价格「XX左右」时传中心值XX(元)"
                     },
                     "area_around": {
                         "type": "integer",
-                        "description": "面积「XX左右」时传中心值XX(㎡)，系统转为 min_area=XX*0.8, max_area=XX*1.2"
+                        "description": "面积「XX左右」时传中心值XX(㎡)"
                     },
                     "max_subway_dist": {
                         "type": "integer",
@@ -896,7 +895,7 @@ TOOLS: list[dict] = [
                     "required_nearby": {
                         "type": "array",
                         "items": {"type": "string", "enum": ["近公园", "近学校", "近菜市场", "近银行", "近医院", "近餐饮", "近健身房", "近警察局", "近商超", "近加油站"]},
-                        "description": "周边配套(tags须全匹配)"
+                        "description": "周边配套，用户提及时加入"
                     },
                     "tag_preferences": {
                         "type": "array",
