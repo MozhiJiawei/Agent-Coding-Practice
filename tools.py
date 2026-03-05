@@ -214,11 +214,28 @@ async def update_preferences(
     **kwargs,
 ) -> dict:
     """提取并合并用户租房偏好到 session，不执行搜索。调用后需再调用 search_by_preferences 获取匹配房源。"""
+    # Step 0: 语义字段转换（近地铁、XX左右）
+    if kwargs.get("near_subway") is True:
+        session_prefs.sort_by = "subway"
+        session_prefs.sort_order = "asc"
+        if kwargs.get("near_subway_is_soft") is not True:
+            session_prefs.max_subway_dist = 800
+    if kwargs.get("price_around") is not None:
+        x = int(kwargs["price_around"])
+        session_prefs.min_price = int(round(x * 0.8))
+        session_prefs.max_price = int(round(x * 1.2))
+    if kwargs.get("area_around") is not None:
+        x = int(kwargs["area_around"])
+        session_prefs.min_area = int(round(x * 0.8))
+        session_prefs.max_area = int(round(x * 1.2))
+
     # Step 1: xxx_is_soft → soft_constraint_keys
     soft_keys = list(session_prefs.soft_constraint_keys)
     for key, value in kwargs.items():
         if key.endswith("_is_soft"):
             field = key[: -len("_is_soft")]
+            if field == "near_subway":
+                field = "max_subway_dist"  # near_subway 软约束对应不下推/不按距离过滤
             if value is True and field not in soft_keys:
                 soft_keys.append(field)
             elif value is False and field in soft_keys:
@@ -266,7 +283,9 @@ async def update_preferences(
                 session_prefs.landmark_queries.append(q)
 
     # Step 3: 合并其余字段
-    skip = {k for k in kwargs if k.endswith("_is_soft")} | {"location", "clear_location"}
+    skip = {k for k in kwargs if k.endswith("_is_soft")} | {
+        "location", "clear_location", "near_subway", "near_subway_is_soft", "price_around", "area_around",
+    }
     for key, value in kwargs.items():
         if key in skip or key not in _PREFS_SCALAR_KEYS and key not in _PREFS_ARRAY_KEYS:
             continue
@@ -319,7 +338,7 @@ def build_search_params(prefs: UserPreferences) -> dict:
         params["orientation"] = prefs.orientation
     if "elevator" not in soft and prefs.elevator is not None:
         params["elevator"] = "true" if prefs.elevator else "false"
-    if prefs.max_subway_dist is not None:
+    if "max_subway_dist" not in soft and prefs.max_subway_dist is not None:
         params["max_subway_dist"] = prefs.max_subway_dist
     if prefs.sort_by is not None:
         params["sort_by"] = prefs.sort_by
@@ -383,6 +402,12 @@ def _calc_soft_score(house: dict, prefs: UserPreferences) -> int:
                 if t in tags:
                     score += 1
             continue
+        elif field == "parking_type":
+            # 用户意图「有车位」时，露天车位、车库车位都算通过，软过滤加分
+            if val == "有车位":
+                matched = "露天车位" in tags or "车库车位" in tags
+            else:
+                matched = val in tags
         else:
             matched = val in tags
         if matched:
@@ -420,8 +445,13 @@ def post_filter_and_rank(items: list[dict], prefs: UserPreferences) -> list[dict
             if f in soft:
                 continue
             v = getattr(prefs, f, None)
-            if v is not None and v not in house_tags:
-                break
+            if v is not None:
+                if f == "parking_type" and v == "有车位":
+                    # 「有车位」：露天车位、车库车位都算通过
+                    if "露天车位" not in house_tags and "车库车位" not in house_tags:
+                        break
+                elif v not in house_tags:
+                    break
         else:
             if prefs.required_utilities and "required_utilities" not in soft:
                 if not all(t in house_tags for t in prefs.required_utilities):
@@ -457,7 +487,7 @@ def post_filter_and_rank(items: list[dict], prefs: UserPreferences) -> list[dict
                 continue
             if prefs.elevator is not None and "elevator" not in soft and bool(h.get("elevator")) != prefs.elevator:
                 continue
-            if prefs.max_subway_dist is not None:
+            if "max_subway_dist" not in soft and prefs.max_subway_dist is not None:
                 if int(h.get("subway_distance") or 99999) > prefs.max_subway_dist:
                     continue
             filtered.append(h)  # 通过所有硬约束
@@ -671,7 +701,10 @@ TOOLS: list[dict] = [
         "type": "function",
         "function": {
             "name": "update_preferences",
-            "description": "提取或更新用户租房偏好（仅合并不搜索），调用后须再调 search_by_preferences。仅传用户明确提及的字段；语气为「最好/尽量」时设 xxx_is_soft=true。",
+            "description": "只有用户吐槽时才进行推测，否则直接传用户本轮实际表达的内容；"
+                           "软约束：用户语气为「最好/如果能/尽量/优先/有…更好/…就更好了/可以的话/理想情况/倾向于」时，"
+                           "设主字段值并同时设 xxx_is_soft: true（匹配加分但不排除）；"
+                           "用户语气肯定「要/希望/必须/需要/一定/只能/不能」时为硬约束（不设 xxx_is_soft 或设 false，不满足则排除）。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -679,6 +712,7 @@ TOOLS: list[dict] = [
                         "type": "array",
                         "items": {"type": "string"},
                         "description": "位置：行政区/商圈/地标/地铁站/小区名，多位置用数组"
+                                       "行政区集合：朝阳、西城、海淀、东城、丰台、昌平、房山、通州、大兴、顺义"
                     },
                     "clear_location": {
                         "type": "boolean",
@@ -690,7 +724,7 @@ TOOLS: list[dict] = [
                     },
                     "max_price": {
                         "type": "integer",
-                        "description": "最高月租金(元)；左右可按0.8~1.2倍设区间"
+                        "description": "最高月租金(元)；"
                     },
                     "bedrooms": {
                         "type": "string",
@@ -728,9 +762,21 @@ TOOLS: list[dict] = [
                         "type": "integer",
                         "description": "最大面积(㎡)"
                     },
+                    "price_around": {
+                        "type": "integer",
+                        "description": "月租金「XX左右」时传中心值XX(元)，系统转为 min_price=XX*0.8, max_price=XX*1.2"
+                    },
+                    "area_around": {
+                        "type": "integer",
+                        "description": "面积「XX左右」时传中心值XX(㎡)，系统转为 min_area=XX*0.8, max_area=XX*1.2"
+                    },
                     "max_subway_dist": {
                         "type": "integer",
-                        "description": "地铁最大距离(米)，默认800"
+                        "description": "地铁最大距离(米）"
+                    },
+                    "near_subway": {
+                        "type": "boolean",
+                        "description": "true=近地铁,结果按地铁距离从近到远排序"
                     },
                     "subway_line": {
                         "type": "string",
@@ -820,7 +866,7 @@ TOOLS: list[dict] = [
                     },
                     "parking_type": {
                         "type": "string",
-                        "enum": ["车库车位", "露天车位", "无车位"],
+                        "enum": ["有车位", "车库车位", "露天车位", "无车位"],
                         "description": "车位类型(免费车位用 required_utilities)"
                     },
                     "security_requirement": {
@@ -860,6 +906,7 @@ TOOLS: list[dict] = [
                     },
                     "decoration_is_soft": {"type": "boolean", "description": "true=软约束，对应 decoration"},
                     "elevator_is_soft": {"type": "boolean", "description": "true=软约束，对应 elevator"},
+                    "near_subway_is_soft": {"type": "boolean", "description": "true=软约束，对应 near_subway"},
                     "orientation_is_soft": {"type": "boolean", "description": "true=软约束，对应 orientation"},
                     "floor_pref_is_soft": {"type": "boolean", "description": "true=软约束，对应 floor_pref"},
                     "rental_type_is_soft": {"type": "boolean", "description": "true=软约束，对应 rental_type"},

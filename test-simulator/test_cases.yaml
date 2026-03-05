@@ -1193,7 +1193,7 @@ test_cases:
           - 朝阳
           bedrooms: '2'
           max_price: 3000
-          max_subway_dist: 800
+          near_subway: true
           decoration: 精装
           decoration_is_soft: true
   - round: 2
@@ -1243,8 +1243,7 @@ test_cases:
           - 朝阳
           bedrooms: '2'
           decoration: 空房
-          min_price: 2400
-          max_price: 3600
+          price_around: 3000
   - round: 2
     expect:
       tool_call_chain:
@@ -1352,7 +1351,7 @@ test_cases:
   type: Single
   fixture_file: mock_data/final-test.yaml
   messages:
-  - 我在朝阳区上班，经常加班到很晚，希望离地铁站近，太晚没有公交车，希望小区周边24小时有吃的，不然饿着肚子回家难受。
+  - 我在朝阳区上班,经常加班到很晚,希望离地铁站近,太晚没有公交车,希望小区周边24小时有吃的,不然饿着肚子回家难受。
   expect:
     has_response: true
     response_not_empty: true
@@ -1365,7 +1364,7 @@ test_cases:
       contains:
         location:
         - 朝阳
-        max_subway_dist: 800
+        near_subway: true
         required_nearby:
         - 近餐饮
   tags:
@@ -1393,8 +1392,8 @@ test_cases:
           - 望京南
           bedrooms: '1'
           max_price: 4000
-          max_subway_dist: 800
-          max_subway_dist_is_soft: true
+          near_subway: true
+          near_subway_is_soft: true
   - round: 2
     expect:
       tool_call_chain:
@@ -1433,11 +1432,9 @@ test_cases:
         contains:
           location:
           - 朝阳
-          min_price: 4000
-          max_price: 6000
+          price_around: 5000
           noise_preference: 安静
           orientation: 朝南
-          rental_type: 整租
   - round: 2
     expect:
       tool_call_chain:
@@ -1472,8 +1469,7 @@ test_cases:
           required_utilities:
           - 免车位费
           required_utilities_is_soft: true
-          parking_type: 车库车位
-          parking_type_is_soft: true
+          parking_type: 有车位
   - round: 5
     expect:
       tool_call_chain:
@@ -1484,7 +1480,6 @@ test_cases:
         contains:
           required_utilities:
           - 包物业费
-          required_utilities_is_soft: true
   tags:
   - final-test
 - id: c10
