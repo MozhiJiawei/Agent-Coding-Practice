@@ -37,16 +37,14 @@ SYSTEM_PROMPT = """你是智能租房助手，帮助用户在北京寻找和租�
 - 「这套/那套」从最近 search 返回的 items 确定 house_id；多套时取第一套
 
 update_preferences 提参示例（仅传用户提到的字段）：
-1) 海淀两居整租3000~6000 → location:["海淀"], bedrooms:"2", rental_type:"整租", min_price:3000, max_price:6000
-2) 换大兴看看两居5000左右 → clear_location:true, location:["大兴"], bedrooms:"2", min_price:4000, max_price:6000
-3) 80~100平两居或三居4000以内 → min_area:80, max_area:100, bedrooms:"2,3", max_price:4000
-4) 朝阳两居5000以内最好精装地铁从近到远 → location:["朝阳"], bedrooms:"2", max_price:5000, decoration:"精装", decoration_is_soft:true, sort_by:"subway", sort_order:"asc"
-5) 海淀合租3000民水民电希望月付最好房东直租 → location:["海淀"], rental_type:"合租", max_price:3000, utilities_type:"民水民电", payment_method:"月付", no_agent_fee:true, no_agent_fee_is_soft:true
-6) 13号线沿线两居近地铁 → subway_line:"13号线", max_subway_dist:800, sort_by:"subway", sort_order:"asc", bedrooms:"2"
-7) 朝阳两居要安静最好朝南有电梯尽量低楼层 → location:["朝阳"], bedrooms:"2", noise_preference:"安静", orientation:"朝南", orientation_is_soft:true, elevator:true, floor_pref:"低层", floor_pref_is_soft:true
-8) 月付房东直租押一付一可养猫3月10日前入住通勤30分钟内按价格从低到高 → payment_method:"月付", no_agent_fee:true, deposit_type:"押一", pet_policy:"可养猫", available_before:"2026-03-10", max_commute_minutes:30, sort_by:"price", sort_order:"asc"
-9) 希望线下看房仅周末、最多租3个月包宽带近医院南北通透房东好沟通 → viewing_method:"仅线下看房", viewing_time:"仅周末看房", lease_flexibility:"可租3个月", required_utilities:["包宽带"], required_nearby:["近医院"], house_feature:"南北通透", landlord_contract:"房东好沟通"
-10) 住宅不要公寓、车库车位24小时保安绿化好物业到位提前退租可协商 → property_type:"住宅", parking_type:"车库车位", security_requirement:"24小时保安", environment_preference:"绿化好环境佳", property_management:"物业管理到位", termination_sublet:"提前退租可协商"
+1) 朝阳两居最好精装 → location:["朝阳"], bedrooms:"2", decoration:"精装", decoration_is_soft:true
+2) 朝阳两居要精装、最好朝南，必须有电梯尽量低楼层，预算5000以内近地铁 → location:["朝阳"], bedrooms:"2", decoration:"精装", orientation:"朝南", orientation_is_soft:true, elevator:true, floor_pref:"低层", floor_pref_is_soft:true, max_price:5000, near_subway:true
+3) 海淀两居5000以内近地铁→ location:["海淀"], bedrooms:"2", max_price:5000, near_subway:true
+4) 两居预算五千左右、80平左右 → bedrooms:"2", price_around:5000, area_around:80
+5) 现在住得太吵采光差，想换安静朝南的（用户吐槽）→ 仅 update_preferences：noise_preference:"安静", orientation:"朝南"
+6) 月付房东直租可养猫、押一付一 → payment_method:"月付", no_agent_fee:true, pet_policy:"可养猫", deposit_type:"押一"
+7) 仅周末看房、可租3个月、包宽带近医院 → viewing_time:"仅周末看房", lease_flexibility:"可租3个月", required_utilities:["包宽带"], required_nearby:["近医院"]
+8) 南北通透、房东好沟通、绿化好物业到位 → house_feature:"南北通透", landlord_contract:"房东好沟通", environment_preference:"绿化好环境佳", property_management:"物业管理到位"
 
 输出规则：
 - 调用 search_by_preferences 后用自然语言描述房源，每次最多推荐 5 套
