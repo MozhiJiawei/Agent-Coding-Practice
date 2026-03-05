@@ -77,6 +77,7 @@ def _empty_chat_response(session_id: str, duration_ms: int) -> ChatResponse:
 @app.post("/api/v1/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest, req: Request):
     # 只处理第 X 个 session（按首次出现的顺序，1-based）。0 表示处理所有 session；非 0 时其余 session 返回空响应
+    # 说明：判题端有全局 300 时间片预算（见 docs/task.md），预算用尽后不再下发新用例，故可能出现「只跑了约十几个用例就停止」的现象，属判题规则而非本服务 bug。
     PROCESS_SESSION_INDEX = 0
     start_time = time.time()
     client = req.app.state.client
@@ -141,15 +142,16 @@ async def chat_endpoint(request: ChatRequest, req: Request):
         })
         # 累计 session 统计并打印摘要
         stats = session_stats.setdefault(request.session_id, {"total_tokens": 0, "total_time_slices": 0})
-        stats["total_tokens"] += result.get("total_tokens", 0)
-        stats["total_time_slices"] += result.get("total_time_slices", 0)
+        this_tokens = result.get("total_tokens", 0)
+        this_slices = result.get("total_time_slices", 0)
+        stats["total_tokens"] += this_tokens
+        stats["total_time_slices"] += this_slices
         llm_call_time_ms = result.get("llm_call_time_ms", 0)
         program_time_ms = duration_ms - llm_call_time_ms
         print(
-            f"[{request.session_id}] "
-            f"session累计token: {stats['total_tokens']} | "
-            f"折算时间片: {stats['total_time_slices']} | "
-            f"本次程序运行时间(扣除模型调用): {program_time_ms}ms"
+            f"[{request.session_id}] 本轮token: {this_tokens} 本轮时间片: {this_slices} | "
+            f"session累计token: {stats['total_tokens']} 累计时间片: {stats['total_time_slices']} | "
+            f"程序时间(扣模型): {program_time_ms}ms"
         )
         return chat_response
     except Exception as e:

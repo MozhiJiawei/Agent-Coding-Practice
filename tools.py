@@ -577,11 +577,11 @@ async def search_by_preferences(
             per_platform: list[list[dict]] = []
             for r in results:
                 if isinstance(r, Exception):
-                    log_event("TOOL_API_CALL", "", {"error": str(r)})
-                    log_event("TOOL_API_RESPONSE", "", {
-                        "api": "/api/houses/by_platform",
-                        "response": {"error": str(r)},
-                    })
+                    # log_event("TOOL_API_CALL", "", {"error": str(r)})
+                    # log_event("TOOL_API_RESPONSE", "", {
+                    #     "api": "/api/houses/by_platform",
+                    #     "response": {"error": str(r)},
+                    # })
                     per_platform.append([])
                     continue
                 if "error" not in r:
@@ -625,10 +625,10 @@ async def search_by_preferences(
                 near_per_platform: list[list[dict]] = []
                 for nr in near_results:
                     if isinstance(nr, Exception):
-                        log_event("TOOL_API_RESPONSE", "", {
-                            "api": "/api/houses/nearby",
-                            "response": {"error": str(nr)},
-                        })
+                        # log_event("TOOL_API_RESPONSE", "", {
+                        #     "api": "/api/houses/nearby",
+                        #     "response": {"error": str(nr)},
+                        # })
                         near_per_platform.append([])
                         continue
                     data = nr.get("data", nr)
@@ -671,110 +671,70 @@ TOOLS: list[dict] = [
         "type": "function",
         "function": {
             "name": "update_preferences",
-            "description": (
-                "提取或更新用户租房偏好（仅合并，不搜索），调用后须再调 search_by_preferences。\n\n"
-                "Few-shot 提参示例（仅传用户提到的字段）：\n"
-                "1) 「帮我找海淀区的两居室，整租，价格3000到6000」\n"
-                "   → location: [\"海淀\"], bedrooms: \"2\", rental_type: \"整租\", "
-                "min_price: 3000, max_price: 6000\n"
-                "2) 「换大兴区的看看吧，两居室，租金5000左右」\n"
-                "   → clear_location: true, location: [\"大兴\"], bedrooms: \"2\", "
-                "min_price: 4000, max_price: 6000  （左右按 0.8～1.2 倍）\n"
-                "3) 「80平以上、不超过100平的两居或三居，租金4000以内」\n"
-                "   → min_area: 80, max_area: 100, bedrooms: \"2,3\", max_price: 4000\n"
-                "4) 「朝阳两居预算5000以内，最好是精装修，地铁从近到远排」（软约束-精装）\n"
-                "   → location: [\"朝阳\"], bedrooms: \"2\", max_price: 5000"
-                "decoration: \"精装\", decoration_is_soft: true, sort_by: \"subway\", sort_order: \"asc\"\n"
-                "5) 「海淀合租3000以内，要民水民电，希望能月付、最好是房东直租」（软约束-月付/直租）\n"
-                "   → location: [\"海淀\"], rental_type: \"合租\", max_price: 3000, "
-                "utilities_type: \"民水民电\", payment_method: \"月付\", payment_method_is_soft: false, "
-                "no_agent_fee: true, no_agent_fee_is_soft: true\n"
-                "6) 「13号线沿线两居室， 近地铁」;「在链家上找海淀区的」\n"
-                "   → subway_line: \"13号线\, max_subway_dist: 800, sort_by: \"subway\", sort_order: \"asc\", bedrooms: \"2\"；"
-                ";location: [\"海淀\"], listing_platform: \"链家\"\n"
-                "7) 「朝阳两居要安静，最好朝南；希望有电梯，尽量低楼层」（软约束-朝向/楼层）\n"
-                "   → location: [\"朝阳\"], bedrooms: \"2\", noise_preference: \"安静\", "
-                "orientation: \"朝南\", orientation_is_soft: true, elevator: true, elevator_is_soft: false,"
-                "floor_pref: \"低层\", floor_pref_is_soft: true\n"
-                "8) 「月付、房东直租、押一付一、要能养猫；3月10号前入住，通勤30分钟内，按价格从低到高」\n"
-                "   → payment_method: \"月付\", no_agent_fee: true, deposit_type: \"押一\", "
-                "pet_policy: \"可养猫\", available_before: \"2026-03-10\", max_commute_minutes: 30, "
-                "sort_by: \"price\", sort_order: \"asc\"\n"
-                "9) 「只能线下看房、周末才能看；最多租3个月，宽带包在房租里，近医院，南北通透，房东好沟通」\n"
-                "   → viewing_method: \"仅线下看房\", viewing_time: \"仅周末看房\", "
-                "lease_flexibility: \"可租3个月\", required_utilities: [\"包宽带\"], "
-                "required_nearby: [\"近医院\"], house_feature: \"南北通透\", landlord_contract: \"房东好沟通\"\n"
-                "10) 「要住宅不要公寓；有车库车位，24小时保安，绿化好，物业到位；提前退租可协商」\n"
-                "   → property_type: \"住宅\", parking_type: \"车库车位\", "
-                "security_requirement: \"24小时保安\", environment_preference: \"绿化好环境佳\", "
-                "property_management: \"物业管理到位\", termination_sublet: \"提前退租可协商\"\n\n"
-                "软约束：用户语气为「最好/如果能/尽量/优先/有…更好/…就更好了/可以的话/理想情况/倾向于」时，"
-                "设主字段值并同时设 xxx_is_soft: true（匹配加分但不排除）；"
-                "用户语气肯定「要/希望/必须/需要/一定/只能/不能」时为硬约束（不设 xxx_is_soft 或设 false，不满足则排除）。"
-            ),
+            "description": "提取或更新用户租房偏好（仅合并不搜索），调用后须再调 search_by_preferences。仅传用户明确提及的字段；语气为「最好/尽量」时设 xxx_is_soft=true。",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "location": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "用户提到的位置，行政区/商圈/地标/地铁站/小区名均可。示例：[\"海淀\"]、[\"望京\"]、[\"国贸附近\"]、[\"百子湾\"]、[\"西二旗站\"]、[\"建清园南区\"]。多位置用数组：[\"朝阳\",\"海淀\"]"
+                        "description": "位置：行政区/商圈/地标/地铁站/小区名，多位置用数组"
                     },
                     "clear_location": {
                         "type": "boolean",
-                        "description": "true=清除之前的位置（用于「换XX看看」「改到XX」场景），默认 false"
+                        "description": "true=清除之前位置（换XX看看/改到XX），默认 false"
                     },
                     "min_price": {
                         "type": "integer",
-                        "description": "最低月租金（元）。「3000以上」→ min_price=3000"
+                        "description": "最低月租金(元)"
                     },
                     "max_price": {
                         "type": "integer",
-                        "description": "最高月租金（元）。「预算5000」「5000以内」→ max_price=5000；「3000左右」→ min_price=2500, max_price=3500"
+                        "description": "最高月租金(元)；左右可按0.8~1.2倍设区间"
                     },
                     "bedrooms": {
                         "type": "string",
-                        "description": "卧室数，字符串格式。「两居室」→\"2\"，「两居或三居」→\"2,3\"，「一居」→\"1\"。合租单间也传\"1\""
+                        "description": "卧室数，如 \"1\" \"2\" \"2,3\""
                     },
                     "rental_type": {
                         "type": "string",
                         "enum": ["整租", "合租"],
-                        "description": "整租或合租。「一个人住/自己住」→整租；「合租/找室友/有室友」→合租；「单间」→合租"
+                        "description": "整租或合租"
                     },
                     "decoration": {
                         "type": "string",
                         "enum": ["精装", "简装", "豪华", "毛坯", "空房"],
-                        "description": "装修类型。「精装修/精装」→精装，「空房/自己带家具」→空房，「毛坯」→毛坯"
+                        "description": "装修类型"
                     },
                     "elevator": {
                         "type": "boolean",
-                        "description": "是否要求有电梯。「有电梯/要电梯/老人腿脚不便」→true"
+                        "description": "是否要求有电梯"
                     },
                     "orientation": {
                         "type": "string",
                         "enum": ["朝南", "朝北", "朝东", "朝西", "南北", "东西", "西北"],
-                        "description": "朝向。「朝南/采光好」→朝南，「南北通透」→南北，「西北」→西北"
+                        "description": "朝向"
                     },
                     "floor_pref": {
                         "type": "string",
                         "enum": ["低层", "中层", "高层"],
-                        "description": "楼层偏好。「低楼层/一楼」→低层，「高层/视野好」→高层"
+                        "description": "楼层偏好"
                     },
                     "min_area": {
                         "type": "integer",
-                        "description": "最小面积（㎡）。「60平以上」→60"
+                        "description": "最小面积(㎡)"
                     },
                     "max_area": {
                         "type": "integer",
-                        "description": "最大面积（㎡）"
+                        "description": "最大面积(㎡)"
                     },
                     "max_subway_dist": {
                         "type": "integer",
-                        "description": "到最近地铁站最大距离（米）。「近地铁/交通方便」→800；「地铁500米内」→500；「地铁1公里」→1000；「走路10分钟」→800"
+                        "description": "地铁最大距离(米)，默认800"
                     },
                     "subway_line": {
                         "type": "string",
-                        "description": "地铁线路，使用包含匹配（如「13号线」也会匹配「13号线/昌平线」换乘站）。「13号线沿线」→\"13号线\""
+                        "description": "地铁线路，如13号线"
                     },
                     "utilities_type": {
                         "type": "string",
@@ -789,109 +749,114 @@ TOOLS: list[dict] = [
                     "listing_platform": {
                         "type": "string",
                         "enum": ["链家", "安居客", "58同城"],
-                        "description": "指定挂牌平台。用户说「在链家上找」→\"链家\""
+                        "description": "挂牌平台"
                     },
                     "available_before": {
                         "type": "string",
-                        "description": "可入住日期上限，YYYY-MM-DD。「3月份入住」→\"2026-03-01\"；「3月10号前入住」→\"2026-03-10\""
+                        "description": "可入住日期上限 YYYY-MM-DD"
                     },
                     "max_commute_minutes": {
                         "type": "integer",
-                        "description": "到西二旗通勤上限（分钟）。「通勤30分钟内」→30。用户仅表达通勤时间时只设本字段，不要推断 location"
+                        "description": "到西二旗通勤上限(分钟)；仅通勤时只设此项勿推断 location"
                     },
                     "noise_preference": {
                         "type": "string",
                         "enum": ["安静"],
-                        "description": "噪音偏好。「安静/不要吵/隔音好/睡眠浅/需要静养/睡眠不好/要安静」→必须设\"安静\""
+                        "description": "噪音偏好，安静→\"安静\""
                     },
                     "sort_by": {
                         "type": "string",
                         "enum": ["price", "area", "subway"],
-                        "description": "排序字段。「按价格排」→price，「按面积排」→area；「近地铁/最好近地铁/交通方便」→subway，并设 sort_order=asc"
+                        "description": "排序字段 price/area/subway"
                     },
                     "sort_order": {
                         "type": "string",
                         "enum": ["asc", "desc"],
-                        "description": "排序方向。「从低到高/从近到远/从便宜到贵」→asc，「从高到低/从大到小」→desc"
+                        "description": "排序方向 asc/desc"
                     },
                     "no_agent_fee": {
                         "type": "boolean",
-                        "description": "true=用户要求免中介费/不想交中介费/房东直租。false 不传"
+                        "description": "true=免中介费/房东直租"
                     },
                     "payment_method": {
                         "type": "string",
                         "enum": ["月付", "季付", "半年付", "年付"],
-                        "description": "付款周期偏好。「月付/按月付/能不能月付/希望月付」→月付；「季付」→季付。用户问付款方式、月付时用本字段，不要用 lease_flexibility（租期长短）。"
+                        "description": "付款周期(与租期 lease_flexibility 区分)"
                     },
                     "deposit_type": {
                         "type": "string",
                         "enum": ["押一", "押二", "押三"],
-                        "description": "押金偏好。「押一付一」→押一，「可以押二」→押二"
+                        "description": "押金偏好"
                     },
                     "pet_policy": {
                         "type": "string",
                         "enum": ["可养猫", "可养狗", "可养宠物", "不可养宠物", "仅限小型犬", "可养宠物需宠物押金"],
-                        "description": "宠物政策（硬约束）。「要能养猫」→可养猫，「能养狗」→可养狗"
+                        "description": "宠物政策"
                     },
                     "viewing_method": {
                         "type": "string",
                         "enum": ["仅线下看房", "仅线上VR看房", "仅线上AR看房", "仅线上图片看房", "线下+线上"],
-                        "description": "看房方式（硬约束）"
+                        "description": "看房方式"
                     },
                     "viewing_time": {
                         "type": "string",
                         "enum": ["全天可看房", "仅周末看房", "仅工作日看房", "工作日9-18点", "工作日14-18点", "工作日9-12点", "周末9-18点", "周末14-18点", "周末9-12点"],
-                        "description": "看房时间（硬约束）"
+                        "description": "看房时间"
                     },
                     "lease_flexibility": {
                         "type": "string",
                         "enum": ["可月租", "可租2个月", "可租3个月", "可租4个月", "可租5个月", "可半年租", "可年租", "仅接受年租"],
-                        "description": "租期长短灵活性（硬约束）。「可短租/可月租/最多租3个月」→可月租/可租3个月等。与付款周期 payment_method（月付/季付）区分：用户说「月付」时用 payment_method，不要用本字段"
+                        "description": "租期长短(月付用 payment_method)"
                     },
                     "required_utilities": {
                         "type": "array",
                         "items": {"type": "string", "enum": ["包水电费", "免水电费", "免宽带费", "包宽带", "包物业费", "免物业费", "包车位", "免车位费", "包取暖费", "免取暖费"]},
-                        "description": "必须包含的费用项（硬约束，房源 tags 须全部匹配）。「网费/宽带包含在房租里」→[\"包宽带\"]；「物业费包在房租里」→[\"包物业费\"]；「车位费包含/免费车位」→[\"免车位费\"]。注意：「包」表示含在租金内，「免」表示不另收费；用户说包含在房租里时用「包宽带」「包物业费」，不要用免宽带费/免物业费"
+                        "description": "须含费用项(包=含在租金内)，如包宽带/包物业费"
                     },
                     "termination_sublet": {
                         "type": "string",
                         "enum": ["提前退租可协商", "提前退租扣押金", "经同意可转租", "不可转租"],
-                        "description": "退租/转租政策（硬约束）"
+                        "description": "退租/转租政策"
                     },
                     "parking_type": {
                         "type": "string",
                         "enum": ["车库车位", "露天车位", "无车位"],
-                        "description": "车位有无及类型（硬约束）。仅表示要车库/露天/无车位。用户说车位免费→用 required_utilities: [免车位费]，不要用本字段"
+                        "description": "车位类型(免费车位用 required_utilities)"
                     },
                     "security_requirement": {
                         "type": "string",
                         "enum": ["24小时保安", "门禁刷卡", "门禁形同虚设", "无门禁"],
-                        "description": "安保/门禁要求（硬约束）"
+                        "description": "安保/门禁"
                     },
                     "property_management": {
                         "type": "string",
                         "enum": ["物业管理到位", "物业管理差"],
-                        "description": "物业管理要求（硬约束）"
+                        "description": "物业管理"
                     },
                     "environment_preference": {
                         "type": "string",
                         "enum": ["绿化好环境佳", "绿化少环境一般"],
-                        "description": "小区环境偏好（硬约束）"
+                        "description": "小区环境"
                     },
                     "required_nearby": {
                         "type": "array",
                         "items": {"type": "string", "enum": ["近公园", "近学校", "近菜市场", "近银行", "近医院", "近餐饮", "近健身房", "近警察局", "近商超", "近加油站"]},
-                        "description": "必须有的周边配套（硬约束，房源 tags 须全部匹配）"
+                        "description": "周边配套(tags须全匹配)"
+                    },
+                    "tag_preferences": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "软加分标签，如精装/朝南/有电梯"
                     },
                     "house_feature": {
                         "type": "string",
                         "enum": ["采光好", "南北通透", "高性价比"],
-                        "description": "房屋特点（硬约束）"
+                        "description": "房屋特点"
                     },
                     "landlord_contract": {
                         "type": "string",
                         "enum": ["合同规范条款清晰", "合同不规范", "房东好沟通", "房东不配合", "房东难联系"],
-                        "description": "合同/房东相关要求（硬约束）"
+                        "description": "合同/房东"
                     },
                     "decoration_is_soft": {"type": "boolean", "description": "true=软约束，对应 decoration"},
                     "elevator_is_soft": {"type": "boolean", "description": "true=软约束，对应 elevator"},
@@ -991,10 +956,10 @@ async def search_houses(client: httpx.AsyncClient, **kwargs) -> dict:
     try:
         base_params: dict = {k: v for k, v in kwargs.items() if v is not None}
         base_params["page"] = 1
-        log_event("TOOL_API_CALL", "", {
-            "api": "/api/houses/by_platform",
-            "params": dict(base_params),
-        })
+        # log_event("TOOL_API_CALL", "", {
+        #     "api": "/api/houses/by_platform",
+        #     "params": dict(base_params),
+        # })
 
         resp = await client.get(
             "/api/houses/by_platform",
@@ -1023,17 +988,17 @@ async def search_houses(client: httpx.AsyncClient, **kwargs) -> dict:
             page += 1
 
         ret = {"total": total, "items": all_items}
-        log_event("TOOL_API_RESPONSE", "", {
-            "api": "/api/houses/by_platform",
-            "response": _response_for_log(ret),
-        })
+        # log_event("TOOL_API_RESPONSE", "", {
+        #     "api": "/api/houses/by_platform",
+        #     "response": _response_for_log(ret),
+        # })
         return ret
     except Exception as e:
         err_resp = {"error": f"search_houses failed: {str(e)}"}
-        log_event("TOOL_API_RESPONSE", "", {
-            "api": "/api/houses/by_platform",
-            "response": err_resp,
-        })
+        # log_event("TOOL_API_RESPONSE", "", {
+        #     "api": "/api/houses/by_platform",
+        #     "response": err_resp,
+        # })
         return err_resp
 
 
@@ -1041,24 +1006,24 @@ async def search_houses(client: httpx.AsyncClient, **kwargs) -> dict:
 async def get_house_detail(client: httpx.AsyncClient, **kwargs) -> dict:
     try:
         house_id = str(kwargs.get("house_id", ""))
-        log_event("TOOL_API_CALL", "", {
-            "api": f"/api/houses/{house_id}",
-            "params": {"house_id": house_id},
-        })
+        # log_event("TOOL_API_CALL", "", {
+        #     "api": f"/api/houses/{house_id}",
+        #     "params": {"house_id": house_id},
+        # })
         resp = await client.get(f"/api/houses/{house_id}", headers=_get_headers())
         resp.raise_for_status()
         result = resp.json()
-        log_event("TOOL_API_RESPONSE", "", {
-            "api": f"/api/houses/{house_id}",
-            "response": result,
-        })
+        # log_event("TOOL_API_RESPONSE", "", {
+        #     "api": f"/api/houses/{house_id}",
+        #     "response": result,
+        # })
         return result
     except Exception as e:
         err_resp = {"error": f"get_house_detail failed: {str(e)}"}
-        log_event("TOOL_API_RESPONSE", "", {
-            "api": f"/api/houses/{house_id}",
-            "response": err_resp,
-        })
+        # log_event("TOOL_API_RESPONSE", "", {
+        #     "api": f"/api/houses/{house_id}",
+        #     "response": err_resp,
+        # })
         return err_resp
 
 
@@ -1073,26 +1038,26 @@ async def search_landmark(client: httpx.AsyncClient, **kwargs) -> dict:
             params["category"] = kwargs["category"]
         if kwargs.get("district") is not None:
             params["district"] = kwargs["district"]
-        log_event("TOOL_API_CALL", "", {
-            "api": "/api/landmarks/search",
-            "params": dict(params),
-        })
+        # log_event("TOOL_API_CALL", "", {
+        #     "api": "/api/landmarks/search",
+        #     "params": dict(params),
+        # })
 
         # 地标接口不需要 X-User-ID
         resp = await client.get("/api/landmarks/search", params=params)
         resp.raise_for_status()
         result = resp.json()
-        log_event("TOOL_API_RESPONSE", "", {
-            "api": "/api/landmarks/search",
-            "response": _response_for_log(result),
-        })
+        # log_event("TOOL_API_RESPONSE", "", {
+        #     "api": "/api/landmarks/search",
+        #     "response": _response_for_log(result),
+        # })
         return result
     except Exception as e:
         err_resp = {"error": f"search_landmark failed: {str(e)}"}
-        log_event("TOOL_API_RESPONSE", "", {
-            "api": "/api/landmarks/search",
-            "response": err_resp,
-        })
+        # log_event("TOOL_API_RESPONSE", "", {
+        #     "api": "/api/landmarks/search",
+        #     "response": err_resp,
+        # })
         return err_resp
 
 
@@ -1100,10 +1065,10 @@ async def search_landmark(client: httpx.AsyncClient, **kwargs) -> dict:
 async def search_nearby_landmark(client: httpx.AsyncClient, **kwargs) -> dict:
     try:
         params: dict = {k: v for k, v in kwargs.items() if v is not None}
-        log_event("TOOL_API_CALL", "", {
-            "api": "/api/houses/nearby",
-            "params": dict(params),
-        })
+        # log_event("TOOL_API_CALL", "", {
+        #     "api": "/api/houses/nearby",
+        #     "params": dict(params),
+        # })
         resp = await client.get(
             "/api/houses/nearby",
             params=params,
@@ -1111,17 +1076,17 @@ async def search_nearby_landmark(client: httpx.AsyncClient, **kwargs) -> dict:
         )
         resp.raise_for_status()
         result = resp.json()
-        log_event("TOOL_API_RESPONSE", "", {
-            "api": "/api/houses/nearby",
-            "response": _response_for_log(result),
-        })
+        # log_event("TOOL_API_RESPONSE", "", {
+        #     "api": "/api/houses/nearby",
+        #     "response": _response_for_log(result),
+        # })
         return result
     except Exception as e:
         err_resp = {"error": f"search_nearby_landmark failed: {str(e)}"}
-        log_event("TOOL_API_RESPONSE", "", {
-            "api": "/api/houses/nearby",
-            "response": err_resp,
-        })
+        # log_event("TOOL_API_RESPONSE", "", {
+        #     "api": "/api/houses/nearby",
+        #     "response": err_resp,
+        # })
         return err_resp
 
 
@@ -1132,10 +1097,10 @@ async def get_nearby_amenities(client: httpx.AsyncClient, **kwargs) -> dict:
         # FR16 要求 1000 米，覆盖 API 默认的 3000 米
         if "max_distance_m" not in params:
             params["max_distance_m"] = 1000
-        log_event("TOOL_API_CALL", "", {
-            "api": "/api/houses/nearby_landmarks",
-            "params": dict(params),
-        })
+        # log_event("TOOL_API_CALL", "", {
+        #     "api": "/api/houses/nearby_landmarks",
+        #     "params": dict(params),
+        # })
         resp = await client.get(
             "/api/houses/nearby_landmarks",
             params=params,
@@ -1143,17 +1108,17 @@ async def get_nearby_amenities(client: httpx.AsyncClient, **kwargs) -> dict:
         )
         resp.raise_for_status()
         result = resp.json()
-        log_event("TOOL_API_RESPONSE", "", {
-            "api": "/api/houses/nearby_landmarks",
-            "response": _response_for_log(result),
-        })
+        # log_event("TOOL_API_RESPONSE", "", {
+        #     "api": "/api/houses/nearby_landmarks",
+        #     "response": _response_for_log(result),
+        # })
         return result
     except Exception as e:
         err_resp = {"error": f"get_nearby_amenities failed: {str(e)}"}
-        log_event("TOOL_API_RESPONSE", "", {
-            "api": "/api/houses/nearby_landmarks",
-            "response": err_resp,
-        })
+        # log_event("TOOL_API_RESPONSE", "", {
+        #     "api": "/api/houses/nearby_landmarks",
+        #     "response": err_resp,
+        # })
         return err_resp
 
 
@@ -1168,10 +1133,10 @@ async def execute_action(client: httpx.AsyncClient, **kwargs) -> dict:
         if action not in valid_actions:
             return {"error": f"execute_action failed: unknown action {action}"}
 
-        log_event("TOOL_API_CALL", "", {
-            "api": f"/api/houses/{house_id}/{action}",
-            "params": {"house_id": house_id, "action": action, "listing_platform": listing_platform},
-        })
+        # log_event("TOOL_API_CALL", "", {
+        #     "api": f"/api/houses/{house_id}/{action}",
+        #     "params": {"house_id": house_id, "action": action, "listing_platform": listing_platform},
+        # })
         resp = await client.post(
             f"/api/houses/{house_id}/{action}",
             params={"listing_platform": listing_platform},
@@ -1179,17 +1144,17 @@ async def execute_action(client: httpx.AsyncClient, **kwargs) -> dict:
         )
         resp.raise_for_status()
         result = resp.json()
-        log_event("TOOL_API_RESPONSE", "", {
-            "api": f"/api/houses/{house_id}/{action}",
-            "response": result,
-        })
+        # log_event("TOOL_API_RESPONSE", "", {
+        #     "api": f"/api/houses/{house_id}/{action}",
+        #     "response": result,
+        # })
         return result
     except Exception as e:
         err_resp = {"error": f"execute_action failed: {str(e)}"}
-        log_event("TOOL_API_RESPONSE", "", {
-            "api": f"/api/houses/{house_id}/{action}",
-            "response": err_resp,
-        })
+        # log_event("TOOL_API_RESPONSE", "", {
+        #     "api": f"/api/houses/{house_id}/{action}",
+        #     "response": err_resp,
+        # })
         return err_resp
 
 
@@ -1197,24 +1162,24 @@ async def execute_action(client: httpx.AsyncClient, **kwargs) -> dict:
 async def get_houses_by_community(client: httpx.AsyncClient, **kwargs) -> dict:
     try:
         params: dict = {k: v for k, v in kwargs.items() if v is not None}
-        log_event("TOOL_API_CALL", "", {
-            "api": "/api/houses/by_community",
-            "params": dict(params),
-        })
+        # log_event("TOOL_API_CALL", "", {
+        #     "api": "/api/houses/by_community",
+        #     "params": dict(params),
+        # })
         resp = await client.get("/api/houses/by_community", params=params, headers=_get_headers())
         resp.raise_for_status()
         result = resp.json()
-        log_event("TOOL_API_RESPONSE", "", {
-            "api": "/api/houses/by_community",
-            "response": _response_for_log(result),
-        })
+        # log_event("TOOL_API_RESPONSE", "", {
+        #     "api": "/api/houses/by_community",
+        #     "response": _response_for_log(result),
+        # })
         return result
     except Exception as e:
         err_resp = {"error": f"get_houses_by_community failed: {str(e)}"}
-        log_event("TOOL_API_RESPONSE", "", {
-            "api": "/api/houses/by_community",
-            "response": err_resp,
-        })
+        # log_event("TOOL_API_RESPONSE", "", {
+        #     "api": "/api/houses/by_community",
+        #     "response": err_resp,
+        # })
         return err_resp
 
 
@@ -1222,24 +1187,24 @@ async def get_houses_by_community(client: httpx.AsyncClient, **kwargs) -> dict:
 async def get_house_listings(client: httpx.AsyncClient, **kwargs) -> dict:
     try:
         house_id = str(kwargs.get("house_id", ""))
-        log_event("TOOL_API_CALL", "", {
-            "api": f"/api/houses/listings/{house_id}",
-            "params": {"house_id": house_id},
-        })
+        # log_event("TOOL_API_CALL", "", {
+        #     "api": f"/api/houses/listings/{house_id}",
+        #     "params": {"house_id": house_id},
+        # })
         resp = await client.get(f"/api/houses/listings/{house_id}", headers=_get_headers())
         resp.raise_for_status()
         result = resp.json()
-        log_event("TOOL_API_RESPONSE", "", {
-            "api": f"/api/houses/listings/{house_id}",
-            "response": _response_for_log(result),
-        })
+        # log_event("TOOL_API_RESPONSE", "", {
+        #     "api": f"/api/houses/listings/{house_id}",
+        #     "response": _response_for_log(result),
+        # })
         return result
     except Exception as e:
         err_resp = {"error": f"get_house_listings failed: {str(e)}"}
-        log_event("TOOL_API_RESPONSE", "", {
-            "api": f"/api/houses/listings/{house_id}",
-            "response": err_resp,
-        })
+        # log_event("TOOL_API_RESPONSE", "", {
+        #     "api": f"/api/houses/listings/{house_id}",
+        #     "response": err_resp,
+        # })
         return err_resp
 
 

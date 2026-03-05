@@ -84,12 +84,12 @@ class TestLogEventFileOutput:
         data = json.loads(line)
         assert data["details"] == {}
 
-    def test_no_stdout_output(self, temp_log_dir, capsys):
-        """AC#4 文件精简：不使用 stdout"""
+    def test_stdout_output(self, temp_log_dir, capsys):
+        """log_event 同时写入文件并打印到 stdout"""
         from logger import log_event
         log_event("TEST", "s1", {"k": "v"})
         captured = capsys.readouterr()
-        assert captured.out == ""
+        assert "s1" in captured.out and "TEST" in captured.out and '"k": "v"' in captured.out
 
     def test_different_event_types_all_recorded(self, temp_log_dir):
         from logger import log_event

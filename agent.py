@@ -36,6 +36,18 @@ SYSTEM_PROMPT = """你是智能租房助手，帮助用户在北京寻找和租�
 - 纯聊天或无关问题 → 直接自然语言回复，禁止调工具
 - 「这套/那套」从最近 search 返回的 items 确定 house_id；多套时取第一套
 
+update_preferences 提参示例（仅传用户提到的字段）：
+1) 海淀两居整租3000~6000 → location:["海淀"], bedrooms:"2", rental_type:"整租", min_price:3000, max_price:6000
+2) 换大兴看看两居5000左右 → clear_location:true, location:["大兴"], bedrooms:"2", min_price:4000, max_price:6000
+3) 80~100平两居或三居4000以内 → min_area:80, max_area:100, bedrooms:"2,3", max_price:4000
+4) 朝阳两居5000以内最好精装地铁从近到远 → location:["朝阳"], bedrooms:"2", max_price:5000, decoration:"精装", decoration_is_soft:true, sort_by:"subway", sort_order:"asc"
+5) 海淀合租3000民水民电希望月付最好房东直租 → location:["海淀"], rental_type:"合租", max_price:3000, utilities_type:"民水民电", payment_method:"月付", no_agent_fee:true, no_agent_fee_is_soft:true
+6) 13号线沿线两居近地铁 → subway_line:"13号线", max_subway_dist:800, sort_by:"subway", sort_order:"asc", bedrooms:"2"
+7) 朝阳两居要安静最好朝南有电梯尽量低楼层 → location:["朝阳"], bedrooms:"2", noise_preference:"安静", orientation:"朝南", orientation_is_soft:true, elevator:true, floor_pref:"低层", floor_pref_is_soft:true
+8) 月付房东直租押一付一可养猫3月10日前入住通勤30分钟内按价格从低到高 → payment_method:"月付", no_agent_fee:true, deposit_type:"押一", pet_policy:"可养猫", available_before:"2026-03-10", max_commute_minutes:30, sort_by:"price", sort_order:"asc"
+9) 希望线下看房仅周末、最多租3个月包宽带近医院南北通透房东好沟通 → viewing_method:"仅线下看房", viewing_time:"仅周末看房", lease_flexibility:"可租3个月", required_utilities:["包宽带"], required_nearby:["近医院"], house_feature:"南北通透", landlord_contract:"房东好沟通"
+10) 住宅不要公寓、车库车位24小时保安绿化好物业到位提前退租可协商 → property_type:"住宅", parking_type:"车库车位", security_requirement:"24小时保安", environment_preference:"绿化好环境佳", property_management:"物业管理到位", termination_sublet:"提前退租可协商"
+
 输出规则：
 - 调用 search_by_preferences 后用自然语言描述房源，每次最多推荐 5 套
 - 使用 items 中的 house_id，未调用 search_by_preferences 时禁止虚构任何 house_id"""
@@ -122,11 +134,20 @@ async def run_agent(
             _llm_start = time.time()
             response = await llm_client.chat.completions.create(**create_kwargs)
             llm_call_time_ms += int((time.time() - _llm_start) * 1000)
+            call_tokens = 0
+            this_round_slices = 0
             if response.usage:
                 call_tokens = response.usage.total_tokens
                 total_tokens += call_tokens
                 t = 1 + max(0, (call_tokens / 1000 - 1)) * 0.3
-                total_time_slices += math.ceil(t)
+                this_round_slices = math.ceil(t)
+                total_time_slices += this_round_slices
+            # 每轮 LLM 调用后打印：本轮 token/时间片、累计 token/时间片（便于分析哪轮耗 token 多）
+            print(
+                f"[{session_id}] 第{iterations + 1}轮 | "
+                f"本轮token: {call_tokens} 本轮时间片: {this_round_slices} | "
+                f"累计token: {total_tokens} 累计时间片: {total_time_slices}"
+            )
             if not response.choices:
                 log_event("ERROR", session_id, {"error": "LLM returned empty choices"})
                 return {
