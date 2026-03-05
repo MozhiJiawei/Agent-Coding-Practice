@@ -8,7 +8,7 @@ import httpx
 from openai import AsyncOpenAI
 from tools import (
     TOOLS, get_house_detail, execute_action, get_house_listings,
-    update_preferences, search_by_preferences, UserPreferences,
+    update_preferences, UserPreferences,
 )
 from logger import log_event, current_session_id
 
@@ -25,16 +25,15 @@ for _t in TOOLS:
 SYSTEM_PROMPT = """你是智能租房助手，帮助用户在北京寻找和租赁房源。当前年份为 2026。
 
 工具调用流程：
-1. 用户表达租房需求 → 先 update_preferences 再 search_by_preferences（必须成对调用）
-2. 用户查看某套房源详情 → get_house_detail
-3. 用户跨平台比价 → get_house_listings
-4. 用户确认租房/退租/下架 → 先 get_house_detail 确认，再 execute_action
+1. 用户表达租房需求或找房 → 调用 update_preferences（会同时更新偏好并搜索，返回匹配的 top 5 房源）
+2. 用户吐槽当前住房（如太吵、采光差、想换房）→ 也调用 update_preferences（从吐槽推断偏好并触发搜索）
+3. 用户查看某套房源详情 → get_house_detail
+4. 用户跨平台比价 → get_house_listings
+5. 用户确认租房/退租/下架 → 先 get_house_detail 确认，再 execute_action
 
 调用边界：
-- 用户明确「找房/推荐/帮我找/想换房」→ 成对调用 update_preferences + search_by_preferences
-- 用户抱怨当前住房且可推断偏好（如太吵→安静、采光差→朝南、通勤长→近地铁）→ 可仅调 update_preferences
 - 纯聊天或无关问题 → 直接自然语言回复，禁止调工具
-- 「这套/那套」从最近 search 返回的 items 确定 house_id,多套时取第一套
+- 「这套/那套」从最近 update_preferences 返回的 items 确定 house_id，多套时取第一套
 
 update_preferences 提参示例（仅传用户提到的字段）：
 1) 朝阳，两居，最好精装 → location:["朝阳"], bedrooms:"2", decoration:"精装", decoration_is_soft:true
@@ -48,20 +47,58 @@ update_preferences 提参示例（仅传用户提到的字段）：
 9) 南北通透、希望房东好沟通、绿化好物业到位 → house_feature:"南北通透", landlord_contract:"房东好沟通", environment_preference:"绿化好环境佳", property_management:"物业管理到位"
 
 输出规则：
-- 调用 search_by_preferences 后用自然语言描述房源，每次最多推荐 5 套
-- 使用 items 中的 house_id,未调用 search_by_preferences 时禁止虚构任何 house_id"""
+- 调用 update_preferences 后用自然语言描述房源，每次最多推荐 5 套
+- 使用 items 中的 house_id；未调用 update_preferences 时禁止虚构任何 house_id"""
 
 
 MAX_ITERATIONS = 10
-HOUSE_SEARCH_TOOLS = {"update_preferences", "search_by_preferences"}
+HOUSE_SEARCH_TOOLS = {"update_preferences"}
 MODEL_PROXY_PORT = int(os.environ.get("MODEL_PROXY_PORT", "8888"))
 
-# 静态工具分发表（不含 update_preferences、search_by_preferences，因其需在运行时绑定 session_prefs）
+# 静态工具分发表（不含 update_preferences，因其需在运行时绑定 session_prefs）
 TOOL_DISPATCH: dict[str, Callable] = {
     "get_house_detail": get_house_detail,
     "get_house_listings": get_house_listings,
     "execute_action": execute_action,
 }
+
+
+def _preferences_summary(prefs: UserPreferences) -> dict:
+    """从当前 session 偏好中提取非空字段摘要，供 tool_results 携带。"""
+    raw = prefs.model_dump(exclude_none=True)
+    # 排除内部/上下文字段，只保留用户可理解的偏好
+    skip = {"mentioned_house_ids", "current_focus_house_id", "soft_constraint_keys", "clear_location"}
+    return {k: v for k, v in raw.items() if k not in skip and v != [] and v != ""}
+
+
+def _build_final_tool_results(
+    tool_results_log: list[dict],
+    session_prefs: UserPreferences,
+) -> list[dict]:
+    """在正式回复时，在 tool_results 中追加当前偏好摘要。TOP5 房屋结果已在对话回复中体现，不再在 tool 中携带 house_id。"""
+    pref = _preferences_summary(session_prefs)
+    return [
+        *tool_results_log,
+        {"tool_name": "current_preferences", "args": None, "result": json.dumps(pref, ensure_ascii=False)},
+    ]
+
+
+def _trim_tool_results_from_history(history: list) -> None:
+    """从持久化上下文中移除工具调用结果及仅含 tool_calls 的 assistant 消息，仅当轮内给模型看过一次，多轮不保留以节省 token。"""
+    kept: list = []
+    for msg in history:
+        if msg.get("role") == "tool":
+            continue
+        if msg.get("role") == "assistant" and msg.get("tool_calls"):
+            # 若有正文则保留消息但去掉 tool_calls，避免下一轮出现“有调用无结果”
+            if msg.get("content"):
+                m = {**msg, "tool_calls": None}
+                m.pop("tool_calls", None)
+                kept.append(m)
+            continue
+        kept.append(msg)
+    history.clear()
+    history.extend(kept)
 
 
 async def run_agent(
@@ -76,11 +113,10 @@ async def run_agent(
     if session_prefs is None:
         session_prefs = UserPreferences()
 
-    # 构建本地分发表：将 update_preferences、search_by_preferences 绑定到当前 session 的偏好对象
+    # 构建本地分发表：将 update_preferences 绑定到当前 session 的偏好对象（内部会执行搜索）
     local_dispatch: dict[str, Callable] = {
         **TOOL_DISPATCH,
         "update_preferences": partial(update_preferences, session_prefs=session_prefs),
-        "search_by_preferences": partial(search_by_preferences, session_prefs=session_prefs),
     }
 
     async with httpx.AsyncClient(trust_env=False, timeout=60.0) as llm_http_client:
@@ -105,6 +141,7 @@ async def run_agent(
         while True:
             if iterations >= MAX_ITERATIONS:
                 log_event("ERROR", session_id, {"error": "Tool call limit exceeded"})
+                _trim_tool_results_from_history(history)
                 return {
                     "response": "Tool call limit exceeded",
                     "status": "error",
@@ -149,6 +186,7 @@ async def run_agent(
             )
             if not response.choices:
                 log_event("ERROR", session_id, {"error": "LLM returned empty choices"})
+                _trim_tool_results_from_history(history)
                 return {
                     "response": "LLM returned empty choices",
                     "status": "error",
@@ -226,7 +264,7 @@ async def run_agent(
                         "result": json.dumps(result, ensure_ascii=False)[:500],
                     })
 
-                    if tool_name in ("update_preferences", "search_by_preferences"):
+                    if tool_name == "update_preferences":
                         for item in result.get("items", []):
                             hid = item.get("house_id")
                             if hid:
@@ -267,12 +305,30 @@ async def run_agent(
                 {"message": content, "houses": houses},
                 ensure_ascii=False,
             )
-            return {"response": response_str, "status": "success", "tool_results": tool_results_log, **_stats}
+            _trim_tool_results_from_history(history)
+            return {
+                "response": response_str,
+                "status": "success",
+                "tool_results": _build_final_tool_results(tool_results_log, session_prefs),
+                **_stats,
+            }
         if detail_house_id is not None:
             # 涉及单套房信息时按题目要求返回 {"message":"", "house":""}
             response_str = json.dumps(
                 {"message": content, "house": detail_house_id},
                 ensure_ascii=False,
             )
-            return {"response": response_str, "status": "success", "tool_results": tool_results_log, **_stats}
-        return {"response": content, "status": "success", "tool_results": tool_results_log, **_stats}
+            _trim_tool_results_from_history(history)
+            return {
+                "response": response_str,
+                "status": "success",
+                "tool_results": _build_final_tool_results(tool_results_log, session_prefs),
+                **_stats,
+            }
+        _trim_tool_results_from_history(history)
+        return {
+            "response": content,
+            "status": "success",
+            "tool_results": _build_final_tool_results(tool_results_log, session_prefs),
+            **_stats,
+        }

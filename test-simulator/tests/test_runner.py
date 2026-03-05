@@ -449,29 +449,28 @@ class TestToolCallChain:
             "tool_results": tool_results,
         }
 
-    def test_pass_update_then_search(self):
-        """先 update_preferences 再 search_by_preferences → 通过"""
+    def test_pass_update_preferences_chain(self):
+        """仅需找房时链式为 [update_preferences] → 通过"""
         resp = self._make_response([
             {"tool_name": "update_preferences", "args": {"location": ["海淀"]}},
-            {"tool_name": "search_by_preferences", "args": {}},
         ])
-        ok, msg = ASSERTION_RULES["tool_call_chain"](resp, ["update_preferences", "search_by_preferences"])
+        ok, msg = ASSERTION_RULES["tool_call_chain"](resp, ["update_preferences"])
         assert ok is True, msg
 
-    def test_fail_search_before_update(self):
-        """search 在 update 之前 → 失败"""
+    def test_fail_chain_wrong_first(self):
+        """期望先 update_preferences 时，实际先调其他工具 → 失败"""
         resp = self._make_response([
-            {"tool_name": "search_by_preferences", "args": {}},
+            {"tool_name": "get_house_detail", "args": {"house_id": "HF_1"}},
             {"tool_name": "update_preferences", "args": {}},
         ])
-        ok, msg = ASSERTION_RULES["tool_call_chain"](resp, ["update_preferences", "search_by_preferences"])
+        ok, msg = ASSERTION_RULES["tool_call_chain"](resp, ["update_preferences"])
         assert ok is False
         assert "update_preferences" in msg
 
-    def test_fail_only_update(self):
-        """仅 update 无 search → 失败"""
+    def test_fail_chain_too_short(self):
+        """期望 [update_preferences, get_house_detail] 时，仅 [update_preferences] → 失败"""
         resp = self._make_response([{"tool_name": "update_preferences", "args": {}}])
-        ok, msg = ASSERTION_RULES["tool_call_chain"](resp, ["update_preferences", "search_by_preferences"])
+        ok, msg = ASSERTION_RULES["tool_call_chain"](resp, ["update_preferences", "get_house_detail"])
         assert ok is False
         assert "至少" in msg or "实际" in msg
 

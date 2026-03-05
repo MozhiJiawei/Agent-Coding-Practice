@@ -28,6 +28,8 @@ def _response_for_log(response: dict, max_items: int = 20) -> dict:
 # 模块顶层常量（必须在模块加载时读取一次）
 # 支持环境变量覆盖，与 debug_init_houses.py 一致；tools 不创建 client，client 由 main 传入且已设置 trust_env=False 不走代理
 RENTAL_API_BASE = os.environ.get("RENTAL_API_BASE", "http://7.225.29.223:8080")
+# 每次查询后端最多返回的房源数量
+MAX_HOUSES_PER_QUERY = 200
 USER_ID = os.environ["USER_ID"]  # 模块加载时读取，不在函数内读取
 
 
@@ -213,7 +215,7 @@ async def update_preferences(
     session_prefs: UserPreferences,
     **kwargs,
 ) -> dict:
-    """提取并合并用户租房偏好到 session，不执行搜索。调用后需再调用 search_by_preferences 获取匹配房源。"""
+    """提取并合并用户租房偏好到 session，并立即按当前偏好搜索，返回匹配的 top 5 房源（更新偏好 + 搜索一体）。"""
     # Step 0: 语义字段转换（近地铁、XX左右）
     if kwargs.get("near_subway") is True:
         session_prefs.sort_by = "subway"
@@ -301,11 +303,8 @@ async def update_preferences(
         else:
             setattr(session_prefs, key, value)
 
-    return {
-        "preferences_summary": session_prefs.model_dump(
-            exclude_none=True, exclude={"clear_location"}
-        ),
-    }
+    # 更新偏好后自动执行搜索，返回与 search 一致的结构（含 items）
+    return await _search_after_preferences(client, session_prefs)
 
 
 def build_search_params(prefs: UserPreferences) -> dict:
@@ -575,11 +574,11 @@ def merge_cross_platform_houses(items_per_platform: list[list[dict]]) -> list[di
     return list(by_id.values())
 
 
-async def search_by_preferences(
+async def _search_after_preferences(
     client: httpx.AsyncClient,
     session_prefs: UserPreferences,
 ) -> dict:
-    """按当前 session 偏好搜索并返回 top 5 精简房源列表。需在 update_preferences 之后调用。
+    """按当前 session 偏好搜索并返回 top 5 精简房源列表（内部用，由 update_preferences 调用）。
     未指定 listing_platform 时按「搜三遍取并集」做跨平台搜索，兼容各平台房屋 tags 差异。"""
     raw_items: list[dict] = []
     total_raw = 0
@@ -673,6 +672,7 @@ async def search_by_preferences(
                         seen_ids.add(h["house_id"])
                         raw_items.append(h)
 
+    raw_items = raw_items[:MAX_HOUSES_PER_QUERY]
     filtered = post_filter_and_rank(raw_items, session_prefs)
     top5 = filtered[:5]
     scores: dict[str, int] = {}
@@ -695,13 +695,22 @@ async def search_by_preferences(
     }
 
 
-# ── Story 8.1: 5 工具体系 TOOLS 列表（意图接口 v2）────────────────────────────────
+async def search_by_preferences(
+    client: httpx.AsyncClient,
+    session_prefs: UserPreferences,
+) -> dict:
+    """按当前 session 偏好搜索并返回 top 5 精简房源（供测试用，工具层已合并到 update_preferences）。"""
+    return await _search_after_preferences(client, session_prefs)
+
+
+# ── Story 8.1: 4 工具体系 TOOLS 列表（意图接口 v2，update_preferences=更新偏好+搜索）────────────────────────────────
 TOOLS: list[dict] = [
     {
         "type": "function",
         "function": {
             "name": "update_preferences",
-            "description": "只有用户吐槽时才进行推测，否则直接传用户本轮实际表达的内容；"
+            "description": "更新用户租房偏好并立即按当前偏好搜索，返回匹配的 top 5 房源。找房、推荐、吐槽当前住房（可推断偏好如太吵→安静、采光差→朝南）时均调用本工具，调用即会触发搜索。"
+                           "只有用户吐槽时才对偏好进行推测，否则直接传用户本轮实际表达的内容；"
                            "软约束：用户语气为「最好/如果能/尽量/优先/有…更好/…就更好了/可以的话/理想情况/倾向于」时，"
                            "设主字段值并同时设 xxx_is_soft: true（匹配加分但不排除）；"
                            "用户语气肯定「要/希望/必须/需要/一定/只能/不能」时为硬约束（不设 xxx_is_soft 或设 false，不满足则排除）。",
@@ -934,18 +943,6 @@ TOOLS: list[dict] = [
     {
         "type": "function",
         "function": {
-            "name": "search_by_preferences",
-            "description": "按当前已合并的偏好搜索房源，返回匹配的 top 5 精简列表。必须在 update_preferences 之后调用。当用户说「帮我找找」「找一下」等明确找房意图时，若本轮有新增偏好须先 update_preferences 再调用本工具；若偏好已在之前轮次设置且本轮仅表达找房意图，可直接调用本工具。",
-            "parameters": {
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
             "name": "get_house_detail",
             "description": "获取单套房源完整详情：地址、户型、面积、租金、装修、朝向、楼层、设施、噪音评级、标签等。",
             "parameters": {
@@ -1003,6 +1000,10 @@ async def search_houses(client: httpx.AsyncClient, **kwargs) -> dict:
     try:
         base_params: dict = {k: v for k, v in kwargs.items() if v is not None}
         base_params["page"] = 1
+        base_params["page_size"] = min(
+            int(base_params.get("page_size", MAX_HOUSES_PER_QUERY)),
+            MAX_HOUSES_PER_QUERY,
+        )
         # log_event("TOOL_API_CALL", "", {
         #     "api": "/api/houses/by_platform",
         #     "params": dict(base_params),
@@ -1021,7 +1022,7 @@ async def search_houses(client: httpx.AsyncClient, **kwargs) -> dict:
         total: int = inner.get("total", len(all_items))
 
         page = 2
-        while len(all_items) < total:
+        while len(all_items) < total and len(all_items) < MAX_HOUSES_PER_QUERY:
             next_params = {**base_params, "page": page}
             next_resp = await client.get(
                 "/api/houses/by_platform",
@@ -1034,6 +1035,7 @@ async def search_houses(client: httpx.AsyncClient, **kwargs) -> dict:
             all_items.extend(next_inner.get("items", []))
             page += 1
 
+        all_items = all_items[:MAX_HOUSES_PER_QUERY]
         ret = {"total": total, "items": all_items}
         # log_event("TOOL_API_RESPONSE", "", {
         #     "api": "/api/houses/by_platform",
@@ -1112,6 +1114,10 @@ async def search_landmark(client: httpx.AsyncClient, **kwargs) -> dict:
 async def search_nearby_landmark(client: httpx.AsyncClient, **kwargs) -> dict:
     try:
         params: dict = {k: v for k, v in kwargs.items() if v is not None}
+        params["page_size"] = min(
+            int(params.get("page_size", MAX_HOUSES_PER_QUERY)),
+            MAX_HOUSES_PER_QUERY,
+        )
         # log_event("TOOL_API_CALL", "", {
         #     "api": "/api/houses/nearby",
         #     "params": dict(params),
@@ -1123,6 +1129,11 @@ async def search_nearby_landmark(client: httpx.AsyncClient, **kwargs) -> dict:
         )
         resp.raise_for_status()
         result = resp.json()
+        inner = result.get("data", result)
+        if isinstance(inner, dict) and "items" in inner:
+            items = inner.get("items", [])
+            if len(items) > MAX_HOUSES_PER_QUERY:
+                inner["items"] = items[:MAX_HOUSES_PER_QUERY]
         # log_event("TOOL_API_RESPONSE", "", {
         #     "api": "/api/houses/nearby",
         #     "response": _response_for_log(result),

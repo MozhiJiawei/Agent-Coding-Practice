@@ -76,11 +76,10 @@ class TestToolsConstant:
         for tool in TOOLS:
             assert tool.get("type") == "function", f"tool missing type=function: {tool}"
 
-    def test_tool_names_are_five_tools(self):
-        """5 个工具 — update_preferences、search_by_preferences、get_house_detail、get_house_listings、execute_action"""
+    def test_tool_names_are_four_tools(self):
+        """4 个工具 — update_preferences（更新偏好+搜索）、get_house_detail、get_house_listings、execute_action"""
         expected_names = {
             "update_preferences",
-            "search_by_preferences",
             "get_house_detail",
             "get_house_listings",
             "execute_action",
@@ -112,12 +111,6 @@ class TestToolsConstant:
             if tool["function"]["name"] == "update_preferences":
                 required = tool["function"]["parameters"].get("required", [])
                 assert required == [], f"update_preferences should have no required params, got {required}"
-
-    def test_search_by_preferences_has_no_required_params(self):
-        for tool in TOOLS:
-            if tool["function"]["name"] == "search_by_preferences":
-                required = tool["function"]["parameters"].get("required", [])
-                assert required == [], f"search_by_preferences should have no required params, got {required}"
 
     def test_get_house_detail_requires_house_id(self):
         for tool in TOOLS:

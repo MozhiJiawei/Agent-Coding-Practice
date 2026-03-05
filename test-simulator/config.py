@@ -41,10 +41,11 @@ class ExpectRules(BaseModel):
     houses_match: list[str] | None = None           # 精确匹配模式
     houses_match_subset: bool | None = None         # 子集匹配模式
     house_count_min: int | None = None              # 数量下限模式
+    house_count_max: int | None = None              # 数量上限模式（如 0 表示无房）
     status_success: bool | None = None
     round_count: int | None = None
     tool_call_args: ToolCallArgsExpect | None = None  # 验证工具提参
-    tool_call_chain: list[str] | None = None          # 链式调用顺序，如 ["update_preferences", "search_by_preferences"]
+    tool_call_chain: list[str] | None = None          # 链式调用顺序，如 ["update_preferences"]
     no_tool_call: bool | None = None                  # 验证未调用任何工具
     message_content: list[str] | None = None          # 校验 agent 回复文本是否包含这些子字符串（全部包含才通过）
 

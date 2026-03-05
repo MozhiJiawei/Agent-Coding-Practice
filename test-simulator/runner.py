@@ -107,7 +107,7 @@ def _houses_match_subset(response: dict, expected: Any) -> tuple[bool, str]:
 
     expected 为 houses_match 中的 ID 列表（子集预期 IDs）；
     若为空列表，仅检查 actual 非空。
-    当期望有房源但 actual 为空时，若未调用 search_by_preferences 则给出链式调用提示。
+    当期望有房源但 actual 为空时，若未调用 update_preferences 则给出提示。
     """
     actual = extract_house_ids(response.get("response", ""))
     tool_results = response.get("tool_results", [])
@@ -116,10 +116,10 @@ def _houses_match_subset(response: dict, expected: Any) -> tuple[bool, str]:
     if isinstance(expected, list) and expected:
         missing = set(expected) - set(actual)
         if missing:
-            if not actual and "search_by_preferences" not in called_tools:
+            if not actual and "update_preferences" not in called_tools:
                 return (
                     False,
-                    "houses_match_subset: search_by_preferences 未被调用（找房需先 update_preferences 再 search_by_preferences），houses 为空",
+                    "houses_match_subset: update_preferences 未被调用（找房需调用 update_preferences，会更新偏好并搜索），houses 为空",
                 )
             return (False, f"houses_match_subset: missing IDs {sorted(missing)} in {actual}")
         return (True, "")
@@ -139,6 +139,19 @@ def _house_count_min(response: dict, expected: Any) -> tuple[bool, str]:
     if count >= minimum:
         return (True, "")
     return (False, f"house_count_min: expected ≥{minimum} houses, got {count}")
+
+
+def _house_count_max(response: dict, expected: Any) -> tuple[bool, str]:
+    """无房检查：返回房源数不得超过 expected。"""
+    actual = extract_house_ids(response.get("response", ""))
+    count = len(actual)
+    try:
+        maximum = int(expected) if expected is not None else 0
+    except (ValueError, TypeError):
+        return (False, f"house_count_max: invalid expected value {expected!r}")
+    if count <= maximum:
+        return (True, "")
+    return (False, f"house_count_max: expected ≤{maximum} houses, got {count}")
 
 
 def _status_success(response: dict, expected: Any) -> tuple[bool, str]:
@@ -253,9 +266,9 @@ def _tool_call_args(response: dict, expected: Any) -> tuple[bool, str]:
 
 
 def _tool_call_chain(response: dict, expected: Any) -> tuple[bool, str]:
-    """验证工具按预期顺序链式调用（先 update_preferences，再 search_by_preferences 等）。
+    """验证工具按预期顺序链式调用（如仅需找房则为 ["update_preferences"]）。
 
-    expected 为工具名列表，如 ["update_preferences", "search_by_preferences"]。
+    expected 为工具名列表，如 ["update_preferences"]。
     实际调用序列的前缀必须与 expected 一致（允许实际有更多后续调用）。
     """
     if not isinstance(expected, list) or not expected:
@@ -313,6 +326,7 @@ ASSERTION_RULES: dict[str, Any] = {
     "houses_match": _houses_match,
     "houses_match_subset": _houses_match_subset,
     "house_count_min": _house_count_min,
+    "house_count_max": _house_count_max,
     "status_success": _status_success,
     "tool_call_args": _tool_call_args,
     "tool_call_chain": _tool_call_chain,
@@ -347,6 +361,8 @@ def check_assertions(
         checks.append(("houses_match_subset", subset_ids))
     if expect.house_count_min is not None:
         checks.append(("house_count_min", expect.house_count_min))
+    if expect.house_count_max is not None:
+        checks.append(("house_count_max", expect.house_count_max))
     if expect.status_success is not None:
         checks.append(("status_success", expect.status_success))
     if expect.tool_call_args is not None:

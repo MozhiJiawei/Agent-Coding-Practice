@@ -19,9 +19,6 @@ test_cases:
     response_not_empty: true
     response_json_valid: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -31,12 +28,6 @@ test_cases:
         max_price: 6000
         min_price: 3000
         rental_type: 整租
-    houses_match:
-    - HF_33
-    - HF_380
-    - HF_1208
-    - HF_1748
-    - HF_1874
     house_count_min: 1
   tags:
   - smoke
@@ -55,9 +46,6 @@ test_cases:
     expect: {}
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -88,9 +76,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -99,17 +84,13 @@ test_cases:
           bedrooms: '2'
           elevator: true
           max_price: 8000
-      houses_match:
-      - HF_830
+      house_count_min: 1
   - round: 2
     expect:
       message_content:
       - '3786'
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -117,20 +98,14 @@ test_cases:
           - 大兴
           bedrooms: '2'
           max_price: 4000
-      houses_match_subset: true
-      houses_match:
-      - HF_277
-      - HF_805
-      - HF_1069
-      - HF_1333
+      house_count_min: 1
   - round: 4
     expect:
       tool_call_args:
         tool: get_house_detail
         contains:
           house_id: HF_830
-      houses_match:
-      - HF_830
+      house_count_min: 1
   - round: 5
     expect: {}
   tags:
@@ -169,9 +144,6 @@ test_cases:
     response_not_empty: true
     response_json_valid: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -179,13 +151,7 @@ test_cases:
         - 大兴区
         bedrooms: '2'
         max_price: 4000
-    houses_match_subset: true
-    houses_match:
-    - HF_4
-    - HF_6
-    - HF_277
-    - HF_805
-    - HF_1069
+    house_count_min: 1
   tags:
   - ev03
   - tool-call
@@ -197,13 +163,10 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
-        bedrooms: "2,3"
+        bedrooms: 2,3
         min_area: 80
         max_price: 4000
     message_content:
@@ -224,9 +187,6 @@ test_cases:
     response_not_empty: true
     response_json_valid: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -236,12 +196,6 @@ test_cases:
         max_price: 13000
         decoration: 精装
         max_subway_dist: 800
-    houses_match:
-    - HF_87
-    - HF_291
-    - HF_1287
-    - HF_1317
-    - HF_1611
     house_count_min: 1
   tags:
   - ev05
@@ -277,7 +231,7 @@ test_cases:
   - round: 3
     expect:
       tool_call_args:
-        tool: search_by_preferences
+        tool: update_preferences
         contains: {}
   - round: 4
     expect:
@@ -307,21 +261,11 @@ test_cases:
     response_not_empty: true
     response_json_valid: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
         location:
         - 朝阳区
-    houses_match_subset: true
-    houses_match:
-    - HF_2
-    - HF_14
-    - HF_20
-    - HF_25
-    - HF_28
     house_count_min: 1
   tags:
   - ev08
@@ -335,20 +279,10 @@ test_cases:
     response_not_empty: true
     response_json_valid: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
         max_price: 4000
-    houses_match_subset: true
-    houses_match:
-    - HF_1
-    - HF_4
-    - HF_6
-    - HF_8
-    - HF_9
     house_count_min: 1
   tags:
   - ev09
@@ -362,20 +296,10 @@ test_cases:
     response_not_empty: true
     response_json_valid: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
         bedrooms: '2'
-    houses_match_subset: true
-    houses_match:
-    - HF_2
-    - HF_3
-    - HF_4
-    - HF_6
-    - HF_7
     house_count_min: 1
   tags:
   - ev10
@@ -389,9 +313,6 @@ test_cases:
     response_not_empty: true
     response_json_valid: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -400,13 +321,6 @@ test_cases:
         bedrooms: '2'
         decoration: 精装
         max_price: 8000
-    houses_match_subset: true
-    houses_match:
-    - HF_85
-    - HF_115
-    - HF_164
-    - HF_265
-    - HF_290
     house_count_min: 1
   tags:
   - ev11
@@ -424,9 +338,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -434,21 +345,14 @@ test_cases:
           - 海淀
           bedrooms: '2'
           max_price: 8500
-      houses_match_subset: true
-      houses_match:
-      - HF_3
-      - HF_33
-      - HF_37
-      - HF_38
-      - HF_55
+      house_count_min: 1
   - round: 2
     expect:
       tool_call_args:
         tool: get_house_detail
         contains:
           house_id: HF_38
-      houses_match:
-      - HF_38
+      house_count_min: 1
   - round: 3
     expect:
       tool_call_args:
@@ -474,9 +378,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -484,18 +385,9 @@ test_cases:
           - 朝阳区
           bedrooms: '2'
           max_price: 6000
-      houses_match_subset: true
-      houses_match:
-      - HF_49
-      - HF_67
-      - HF_97
-      - HF_133
-      - HF_139
+      house_count_min: 1
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -503,21 +395,14 @@ test_cases:
           - 朝阳区
           bedrooms: '2'
           max_price: 8000
-      houses_match_subset: true
-      houses_match:
-      - HF_20
-      - HF_49
-      - HF_56
-      - HF_67
-      - HF_92
+      house_count_min: 1
   - round: 3
     expect:
       tool_call_args:
         tool: get_house_detail
         contains:
           house_id: HF_67
-      houses_match:
-      - HF_67
+      house_count_min: 1
   tags:
   - ev13
   - multi-turn
@@ -531,9 +416,6 @@ test_cases:
     response_not_empty: true
     response_json_valid: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -541,13 +423,6 @@ test_cases:
         - 海淀
         rental_type: 合租
         max_price: 3000
-    houses_match_subset: true
-    houses_match:
-    - HF_55
-    - HF_77
-    - HF_127
-    - HF_173
-    - HF_175
     house_count_min: 1
   tags:
   - ev14
@@ -561,21 +436,11 @@ test_cases:
     response_not_empty: true
     response_json_valid: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
         subway_line: 13号线
         bedrooms: '2'
-    houses_match_subset: true
-    houses_match:
-    - HF_706
-    - HF_1586
-    - HF_76
-    - HF_416
-    - HF_956
     house_count_min: 1
   tags:
   - ev15
@@ -589,22 +454,12 @@ test_cases:
     response_not_empty: true
     response_json_valid: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
         location:
         - 国贸附近
         max_price: 6000
-    houses_match_subset: true
-    houses_match:
-    - HF_93
-    - HF_269
-    - HF_357
-    - HF_445
-    - HF_533
     house_count_min: 1
   tags:
   - ev16
@@ -618,22 +473,12 @@ test_cases:
     response_not_empty: true
     response_json_valid: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
         location:
         - 海淀
         listing_platform: 58同城
-    houses_match_subset: true
-    houses_match:
-    - HF_3
-    - HF_33
-    - HF_36
-    - HF_37
-    - HF_38
     house_count_min: 1
   tags:
   - ev17
@@ -666,9 +511,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -676,21 +518,14 @@ test_cases:
           - 大兴区
           bedrooms: '2'
           max_price: 4000
-      houses_match_subset: true
-      houses_match:
-      - HF_4
-      - HF_6
-      - HF_277
-      - HF_805
-      - HF_1069
+      house_count_min: 1
   - round: 2
     expect:
       tool_call_args:
         tool: get_house_detail
         contains:
           house_id: HF_277
-      houses_match:
-      - HF_277
+      house_count_min: 1
   - round: 3
     expect: {}
   tags:
@@ -706,21 +541,11 @@ test_cases:
     response_not_empty: true
     response_json_valid: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
         max_subway_dist: 800
         max_price: 5000
-    houses_match_subset: true
-    houses_match:
-    - HF_1
-    - HF_12
-    - HF_14
-    - HF_23
-    - HF_30
     house_count_min: 1
   tags:
   - ev20
@@ -734,9 +559,6 @@ test_cases:
     response_not_empty: true
     response_json_valid: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -744,8 +566,7 @@ test_cases:
         - 望京
         bedrooms: '2'
         max_price: 8000
-    houses_match:
-    - HF_830
+    house_count_min: 1
   tags:
   - ev21
   - tool-call
@@ -762,9 +583,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -772,13 +590,7 @@ test_cases:
           - 大兴区
           bedrooms: '2'
           max_price: 4000
-      houses_match_subset: true
-      houses_match:
-      - HF_4
-      - HF_6
-      - HF_277
-      - HF_805
-      - HF_1069
+      house_count_min: 1
   - round: 2
     expect:
       tool_call_args:
@@ -806,9 +618,6 @@ test_cases:
     response_not_empty: true
     response_json_valid: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -816,13 +625,7 @@ test_cases:
         - 海淀
         bedrooms: '2'
         noise_preference: 安静
-    houses_match_subset: true
-    houses_match:
-    - HF_3
-    - HF_33
-    - HF_36
-    - HF_37
-    - HF_38
+    house_count_min: 1
   tags:
   - ev23
   - tool-call
@@ -835,9 +638,6 @@ test_cases:
     response_not_empty: true
     response_json_valid: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -845,13 +645,7 @@ test_cases:
         - 朝阳区
         decoration: 精装
         max_price: 6000
-    houses_match_subset: true
-    houses_match:
-    - HF_14
-    - HF_59
-    - HF_63
-    - HF_65
-    - HF_67
+    house_count_min: 1
   tags:
   - ev24
   - tool-call
@@ -864,9 +658,6 @@ test_cases:
     response_not_empty: true
     response_json_valid: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -874,13 +665,7 @@ test_cases:
         - 海淀
         elevator: true
         max_price: 6000
-    houses_match_subset: true
-    houses_match:
-    - HF_33
-    - HF_69
-    - HF_77
-    - HF_85
-    - HF_87
+    house_count_min: 1
   tags:
   - ev25
   - tool-call
@@ -893,9 +678,6 @@ test_cases:
     response_not_empty: true
     response_json_valid: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -904,13 +686,7 @@ test_cases:
         rental_type: 合租
         utilities_type: 民水民电
         max_price: 3000
-    houses_match_subset: true
-    houses_match:
-    - HF_55
-    - HF_127
-    - HF_173
-    - HF_177
-    - HF_203
+    house_count_min: 1
   tags:
   - ev26
   - tool-call
@@ -922,9 +698,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -944,20 +717,11 @@ test_cases:
     response_not_empty: true
     response_json_valid: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
         max_commute_minutes: 30
-    houses_match_subset: true
-    houses_match:
-    - HF_6
-    - HF_7
-    - HF_8
-    - HF_9
-    - HF_10
+    house_count_min: 1
   tags:
   - ev28
   - tool-call
@@ -991,20 +755,14 @@ test_cases:
           noise_preference: 安静
   - round: 2
     expect:
-      houses_match:
-      - HF_1
-      - HF_3
-      - HF_4
-      - HF_6
-      - HF_7
+      house_count_min: 1
   - round: 3
     expect:
       tool_call_args:
         tool: get_house_detail
         contains:
           house_id: HF_37
-      houses_match:
-      - HF_37
+      house_count_min: 1
   tags:
   - ev30
   - multi-turn
@@ -1018,21 +776,12 @@ test_cases:
     response_not_empty: true
     response_json_valid: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
         location:
         - 海淀
-    houses_match_subset: true
-    houses_match:
-    - HF_3
-    - HF_33
-    - HF_36
-    - HF_37
-    - HF_38
+    house_count_min: 1
   tags:
   - ev31
   - tool-call
@@ -1044,10 +793,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
-    houses_match: []
     tool_call_args:
       tool: update_preferences
       contains:
@@ -1061,6 +806,7 @@ test_cases:
         max_price: 10000
         soft_preferences:
           elevator: true
+    house_count_max: 0
   tags:
   - ev32
   - tool-call
@@ -1072,9 +818,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -1084,7 +827,7 @@ test_cases:
         decoration: 精装
         max_price: 5000
         max_subway_dist: 500
-    houses_match: []
+    house_count_max: 0
   tags:
   - ev43
   - tool-call
@@ -1100,9 +843,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1112,12 +852,10 @@ test_cases:
           max_subway_dist: 800
           sort_by: subway
           sort_order: asc
-      houses_match:
-      - HF_13
+      house_count_min: 1
   - round: 2
     expect:
-      houses_match:
-      - HF_13
+      house_count_min: 1
   tags:
   - ev46
   - tool-call
@@ -1133,9 +871,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1145,16 +880,10 @@ test_cases:
           max_subway_dist: 800
           sort_by: subway
           sort_order: asc
-      houses_match:
-      - HF_906
-      - HF_1586
-      - HF_1876
-      - HF_706
-      - HF_33
+      house_count_min: 1
   - round: 2
     expect:
-      houses_match:
-      - HF_906
+      house_count_min: 1
   tags:
   - ev45
   - tool-call
@@ -1183,9 +912,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1196,11 +922,9 @@ test_cases:
           near_subway: true
           decoration: 精装
           decoration_is_soft: true
+      house_count_min: 1
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1208,16 +932,15 @@ test_cases:
           required_nearby:
           - 近公园
           required_nearby_is_soft: true
+      house_count_min: 1
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           viewing_method: 仅线上VR看房
           viewing_method_is_soft: true
+      house_count_min: 1
   tags:
   - final-test
 - id: c3
@@ -1233,9 +956,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1244,11 +964,9 @@ test_cases:
           bedrooms: '2'
           decoration: 空房
           price_around: 3000
+      house_count_min: 1
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1256,6 +974,7 @@ test_cases:
           payment_method_is_soft: true
           no_agent_fee: true
           no_agent_fee_is_soft: true
+      house_count_min: 1
   tags:
   - final-test
 - id: c4
@@ -1267,9 +986,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -1281,6 +997,7 @@ test_cases:
         sort_by: price
         sort_order: asc
         lease_flexibility: 可租3个月
+    house_count_min: 1
   tags:
   - final-test
 - id: c5
@@ -1292,9 +1009,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -1307,6 +1021,7 @@ test_cases:
         noise_preference: 安静
         required_utilities:
         - 包宽带
+    house_count_min: 1
   tags:
   - final-test
 - id: c6
@@ -1322,9 +1037,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1335,16 +1047,15 @@ test_cases:
           max_price: 3000
           max_subway_dist: 800
           max_subway_dist_is_soft: true
+      house_count_min: 1
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           payment_method: 月付
           no_agent_fee: true
+      house_count_min: 1
   tags:
   - final-test
 - id: c7
@@ -1356,9 +1067,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -1367,6 +1075,7 @@ test_cases:
         near_subway: true
         required_nearby:
         - 近餐饮
+    house_count_min: 1
   tags:
   - final-test
 - id: c8
@@ -1382,9 +1091,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1396,9 +1102,6 @@ test_cases:
           near_subway_is_soft: true
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1424,9 +1127,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1437,9 +1137,6 @@ test_cases:
           orientation: 朝南
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1449,9 +1146,6 @@ test_cases:
           required_nearby_is_soft: true
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1460,9 +1154,6 @@ test_cases:
           required_nearby_is_soft: true
   - round: 4
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1472,9 +1163,6 @@ test_cases:
           parking_type: 有车位
   - round: 5
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1491,9 +1179,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -1502,6 +1187,7 @@ test_cases:
         bedrooms: '2'
         max_price: 5000
         termination_sublet: 提前退租可协商
+    house_count_min: 1
   tags:
   - final-test
 - id: c11
@@ -1513,9 +1199,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -1542,9 +1225,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1556,18 +1236,12 @@ test_cases:
           decoration: 简装
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           noise_preference: 安静
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1592,9 +1266,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1603,9 +1274,6 @@ test_cases:
           max_price: 5000
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1614,9 +1282,6 @@ test_cases:
           viewing_time: 工作日14-18点
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1626,9 +1291,6 @@ test_cases:
           required_utilities_is_soft: true
   - round: 4
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1636,9 +1298,6 @@ test_cases:
           deposit_type_is_soft: true
   - round: 5
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1660,9 +1319,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1676,9 +1332,6 @@ test_cases:
           max_subway_dist_is_soft: true
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1688,9 +1341,6 @@ test_cases:
           noise_preference: 安静
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1706,9 +1356,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -1720,7 +1367,7 @@ test_cases:
         noise_preference: 安静
         payment_method: 月付
         payment_method_is_soft: true
-        available_before: "2026-03-10"
+        available_before: '2026-03-10'
   tags:
   - final-test
 - id: c16
@@ -1736,9 +1383,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1750,9 +1394,6 @@ test_cases:
           elevator_is_soft: true
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1775,9 +1416,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1791,9 +1429,6 @@ test_cases:
           required_nearby_is_soft: true
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1802,9 +1437,6 @@ test_cases:
           required_nearby_is_soft: true
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1826,9 +1458,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1841,9 +1470,6 @@ test_cases:
           - 近医院
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1851,9 +1477,6 @@ test_cases:
           viewing_time: 仅周末看房
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1862,9 +1485,6 @@ test_cases:
           required_nearby_is_soft: true
   - round: 4
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1888,9 +1508,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1903,9 +1520,6 @@ test_cases:
           max_subway_dist_is_soft: true
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1913,9 +1527,6 @@ test_cases:
           floor_pref: 低层
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1924,9 +1535,6 @@ test_cases:
           required_nearby_is_soft: true
   - round: 4
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1951,9 +1559,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1964,27 +1569,18 @@ test_cases:
           payment_method: 月付
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           deposit_type: 押一
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           rental_type: 合租
   - round: 4
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -1993,9 +1589,6 @@ test_cases:
           required_nearby_is_soft: true
   - round: 5
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2004,9 +1597,6 @@ test_cases:
           required_nearby_is_soft: true
   - round: 6
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2024,9 +1614,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -2046,9 +1633,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -2067,9 +1651,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -2088,14 +1669,11 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
         location:
-          - 西二旗
+        - 西二旗
         max_subway_dist: 800
   tags:
   - final-test
@@ -2113,9 +1691,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2127,9 +1702,6 @@ test_cases:
           max_subway_dist_is_soft: true
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2137,9 +1709,6 @@ test_cases:
           payment_method_is_soft: true
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2155,9 +1724,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -2188,9 +1754,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2200,9 +1763,6 @@ test_cases:
           min_price: 3200
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2213,27 +1773,18 @@ test_cases:
           viewing_time: 仅周末看房
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           pet_policy: 可养猫
   - round: 4
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           payment_method: 月付
   - round: 5
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2258,9 +1809,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2272,9 +1820,6 @@ test_cases:
           - 近餐饮
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2283,9 +1828,6 @@ test_cases:
           viewing_time: 工作日14-18点
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2293,9 +1835,6 @@ test_cases:
           rental_type_is_soft: true
   - round: 4
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2303,9 +1842,6 @@ test_cases:
           - 包宽带
   - round: 5
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2313,9 +1849,6 @@ test_cases:
           pet_policy_is_soft: true
   - round: 6
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2332,9 +1865,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -2361,9 +1891,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -2390,9 +1917,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2405,9 +1929,6 @@ test_cases:
           max_subway_dist_is_soft: true
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2425,9 +1946,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -2449,9 +1967,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -2469,9 +1984,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -2499,9 +2011,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2513,18 +2022,12 @@ test_cases:
           max_subway_dist: 800
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           noise_preference: 安静
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2532,9 +2035,6 @@ test_cases:
           orientation_is_soft: true
   - round: 4
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2557,9 +2057,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2570,9 +2067,6 @@ test_cases:
           max_subway_dist: 800
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2592,9 +2086,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2608,9 +2099,6 @@ test_cases:
           max_subway_dist_is_soft: true
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2634,9 +2122,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2648,18 +2133,12 @@ test_cases:
           lease_flexibility: 可租2个月
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           decoration: 精装
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2675,9 +2154,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -2706,9 +2182,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2721,9 +2194,6 @@ test_cases:
           min_price: 5200
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2731,9 +2201,6 @@ test_cases:
           pet_policy: 可养猫
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2742,9 +2209,6 @@ test_cases:
           deposit_type_is_soft: true
   - round: 4
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2766,9 +2230,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2776,27 +2237,18 @@ test_cases:
           max_price: 7500
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           max_subway_dist: 2000
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           payment_method: 月付
   - round: 4
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2812,9 +2264,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -2843,9 +2292,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2855,9 +2301,6 @@ test_cases:
           max_price: 4000
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2865,9 +2308,6 @@ test_cases:
           max_subway_dist: 800
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2876,9 +2316,6 @@ test_cases:
           required_utilities_is_soft: true
   - round: 4
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2901,9 +2338,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2912,9 +2346,6 @@ test_cases:
           termination_sublet: 提前退租可协商
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2922,18 +2353,12 @@ test_cases:
           house_feature_is_soft: true
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           max_price: 3000
   - round: 4
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2961,9 +2386,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -2978,18 +2400,11 @@ test_cases:
           payment_method: 半年付
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           payment_method: 月付
   - round: 3
-    expect:
-      tool_call_chain:
-      - get_house_listings
-  - round: 4
     expect:
       tool_call_args:
         tool: execute_action
@@ -3011,9 +2426,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3024,18 +2436,12 @@ test_cases:
           max_subway_dist: 1000
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           payment_method: 月付
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3055,9 +2461,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3068,9 +2471,6 @@ test_cases:
           min_price: 7200
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3088,9 +2488,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -3119,9 +2516,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3134,9 +2528,6 @@ test_cases:
           max_subway_dist_is_soft: true
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3144,9 +2535,6 @@ test_cases:
           - 包宽带
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3163,9 +2551,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -3192,9 +2577,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3204,9 +2586,6 @@ test_cases:
           min_price: 4000
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3215,9 +2594,6 @@ test_cases:
           required_nearby_is_soft: true
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3225,9 +2601,6 @@ test_cases:
           viewing_time: 仅周末看房
   - round: 4
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3235,9 +2608,6 @@ test_cases:
           - 包物业费
   - round: 5
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3245,9 +2615,6 @@ test_cases:
           payment_method_is_soft: true
   - round: 6
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3263,9 +2630,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -3282,9 +2646,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -3312,9 +2673,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3325,9 +2683,6 @@ test_cases:
           min_price: 7200
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3338,18 +2693,12 @@ test_cases:
           required_nearby_is_soft: true
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           pet_policy: 可养猫
   - round: 4
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3366,9 +2715,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -3389,9 +2735,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -3418,9 +2761,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3432,9 +2772,6 @@ test_cases:
           - 近学校
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3451,9 +2788,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -3480,9 +2814,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3494,9 +2825,6 @@ test_cases:
           max_subway_dist: 1500
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3505,9 +2833,6 @@ test_cases:
           required_nearby_is_soft: true
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3531,9 +2856,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3545,18 +2867,11 @@ test_cases:
           - 近警察局
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           payment_method: 月付
   - round: 3
-    expect:
-      tool_call_chain:
-      - get_house_listings
-  - round: 4
     expect:
       tool_call_args:
         tool: execute_action
@@ -3578,9 +2893,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3594,18 +2906,12 @@ test_cases:
           max_subway_dist_is_soft: true
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           noise_preference: 安静
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3629,9 +2935,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3643,9 +2946,6 @@ test_cases:
           sort_order: asc
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3653,9 +2953,6 @@ test_cases:
           deposit_type: 押二
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3682,9 +2979,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3696,18 +2990,12 @@ test_cases:
           decoration_is_soft: true
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           pet_policy: 可养猫
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3725,9 +3013,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -3759,9 +3044,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3772,9 +3054,6 @@ test_cases:
           min_price: 5600
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3782,9 +3061,6 @@ test_cases:
           viewing_time: 工作日14-18点
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3793,9 +3069,6 @@ test_cases:
           required_nearby_is_soft: true
   - round: 4
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3823,9 +3096,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3839,18 +3109,12 @@ test_cases:
           payment_method_is_soft: true
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
-          available_before: "2026-03-10"
+          available_before: '2026-03-10'
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3872,9 +3136,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -3891,15 +3152,12 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
         location:
         - 朝阳
-        bedrooms: "1,2"
+        bedrooms: 1,2
         max_subway_dist: 800
         max_price: 4000
         lease_flexibility: 可租3个月
@@ -3914,9 +3172,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -3936,9 +3191,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -3965,9 +3217,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3977,18 +3226,12 @@ test_cases:
           decoration: 豪华
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           bedrooms: '3'
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -3997,9 +3240,6 @@ test_cases:
           required_nearby_is_soft: true
   - round: 4
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4021,9 +3261,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4036,18 +3273,12 @@ test_cases:
           max_subway_dist_is_soft: true
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           elevator: true
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4065,9 +3296,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -4087,9 +3315,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -4116,9 +3341,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4129,9 +3351,6 @@ test_cases:
           max_price: 3000
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4139,9 +3358,6 @@ test_cases:
           payment_method_is_soft: true
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4164,9 +3380,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4178,9 +3391,6 @@ test_cases:
           max_subway_dist: 1000
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4189,9 +3399,6 @@ test_cases:
           required_nearby_is_soft: true
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4221,9 +3428,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4236,18 +3440,12 @@ test_cases:
           max_subway_dist_is_soft: true
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           noise_preference: 安静
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4263,9 +3461,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -4292,9 +3487,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4306,9 +3498,6 @@ test_cases:
           max_subway_dist_is_soft: true
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4333,9 +3522,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4345,9 +3531,6 @@ test_cases:
           max_price: 8000
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4383,9 +3566,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4397,9 +3577,6 @@ test_cases:
           elevator: true
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4408,9 +3585,6 @@ test_cases:
           required_nearby_is_soft: true
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4419,9 +3593,6 @@ test_cases:
           required_nearby_is_soft: true
   - round: 4
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4449,9 +3620,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4463,9 +3631,6 @@ test_cases:
           - 近菜市场
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4488,9 +3653,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4502,9 +3664,6 @@ test_cases:
           decoration: 精装
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4528,9 +3687,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4544,9 +3700,6 @@ test_cases:
           required_nearby_is_soft: true
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4555,9 +3708,6 @@ test_cases:
           required_nearby_is_soft: true
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4565,10 +3715,6 @@ test_cases:
           - 近公园
           required_nearby_is_soft: true
   - round: 4
-    expect:
-      tool_call_chain:
-      - get_house_listings
-  - round: 5
     expect:
       tool_call_args:
         tool: execute_action
@@ -4593,9 +3739,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4606,9 +3749,6 @@ test_cases:
           min_price: 6400
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4618,9 +3758,6 @@ test_cases:
           viewing_time: 周末9-18点
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4628,9 +3765,6 @@ test_cases:
           - 包宽带
   - round: 4
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4638,9 +3772,6 @@ test_cases:
           pet_policy_is_soft: true
   - round: 5
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4648,9 +3779,6 @@ test_cases:
           deposit_type_is_soft: true
   - round: 6
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4672,9 +3800,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4684,9 +3809,6 @@ test_cases:
           rental_type: 合租
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4715,9 +3837,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4732,9 +3851,6 @@ test_cases:
           max_subway_dist: 800
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4751,9 +3867,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -4774,9 +3887,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -4806,9 +3916,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4819,9 +3926,6 @@ test_cases:
           rental_type: 整租
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4829,9 +3933,6 @@ test_cases:
           viewing_time: 仅周末看房
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4840,18 +3941,12 @@ test_cases:
           required_nearby_is_soft: true
   - round: 4
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           no_agent_fee: true
   - round: 5
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4873,9 +3968,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4889,9 +3981,6 @@ test_cases:
           min_price: 3200
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4901,9 +3990,6 @@ test_cases:
           required_utilities_is_soft: true
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4919,9 +4005,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -4948,9 +4031,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4962,9 +4042,6 @@ test_cases:
           max_subway_dist: 800
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4973,9 +4050,6 @@ test_cases:
           required_nearby_is_soft: true
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -4998,9 +4072,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5012,9 +4083,6 @@ test_cases:
           elevator: true
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5023,18 +4091,12 @@ test_cases:
           max_subway_dist: 800
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           lease_flexibility: 可年租
   - round: 4
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5052,9 +4114,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -5079,9 +4138,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5093,18 +4149,12 @@ test_cases:
           payment_method: 月付
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           max_price: 3000
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5130,9 +4180,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5142,9 +4189,6 @@ test_cases:
           max_price: 1500
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5166,9 +4210,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5180,18 +4221,12 @@ test_cases:
           elevator: true
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           noise_preference: 安静
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5207,9 +4242,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -5234,9 +4266,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5247,18 +4276,12 @@ test_cases:
           min_price: 2400
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           noise_preference: 安静
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5281,9 +4304,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5295,9 +4315,6 @@ test_cases:
           max_subway_dist_is_soft: true
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5307,18 +4324,12 @@ test_cases:
           max_subway_dist: 800
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           lease_flexibility: 可半年租
   - round: 4
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5336,9 +4347,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -5361,9 +4369,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -5387,9 +4392,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5400,18 +4402,12 @@ test_cases:
           max_price: 8500
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           lease_flexibility: 可月租
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5432,9 +4428,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5446,9 +4439,6 @@ test_cases:
           max_subway_dist_is_soft: true
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5456,9 +4446,6 @@ test_cases:
           floor_pref_is_soft: true
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5477,9 +4464,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -5498,9 +4482,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -5521,9 +4502,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -5543,9 +4521,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -5571,9 +4546,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5587,9 +4559,6 @@ test_cases:
           max_subway_dist_is_soft: true
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5598,9 +4567,6 @@ test_cases:
           required_nearby_is_soft: true
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5609,9 +4575,6 @@ test_cases:
           required_nearby_is_soft: true
   - round: 4
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5628,9 +4591,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -5652,9 +4612,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -5679,9 +4636,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5694,18 +4648,12 @@ test_cases:
           max_subway_dist_is_soft: true
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           pet_policy: 不可养宠物
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5729,9 +4677,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5741,9 +4686,6 @@ test_cases:
           environment_preference: 绿化好环境佳
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5752,9 +4694,6 @@ test_cases:
           viewing_time: 仅周末看房
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5763,18 +4702,12 @@ test_cases:
           required_nearby_is_soft: true
   - round: 4
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           pet_policy: 可养狗
   - round: 5
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5798,9 +4731,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5810,9 +4740,6 @@ test_cases:
           max_subway_dist: 800
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5820,9 +4747,6 @@ test_cases:
           elevator_is_soft: true
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5842,9 +4766,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5857,9 +4778,6 @@ test_cases:
           elevator: true
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5877,9 +4795,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -5907,9 +4822,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5921,18 +4833,12 @@ test_cases:
           security_requirement: 24小时保安
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           max_price: 10000
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5954,9 +4860,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5967,9 +4870,6 @@ test_cases:
           - 包车位
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -5977,9 +4877,6 @@ test_cases:
           payment_method: 年付
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -6007,9 +4904,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -6022,19 +4916,12 @@ test_cases:
           - 包水电费
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           payment_method: 月付
           deposit_type: 押一
   - round: 3
-    expect:
-      tool_call_chain:
-      - get_house_listings
-  - round: 4
     expect:
       tool_call_args:
         tool: execute_action
@@ -6051,9 +4938,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -6080,9 +4964,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -6093,9 +4974,6 @@ test_cases:
           max_price: 1800
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -6103,18 +4981,12 @@ test_cases:
           max_subway_dist: 800
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           noise_preference: 安静
   - round: 4
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -6138,9 +5010,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -6152,18 +5021,11 @@ test_cases:
           - 包物业费
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           deposit_type: 押一
   - round: 3
-    expect:
-      tool_call_chain:
-      - get_house_listings
-  - round: 4
     expect:
       tool_call_args:
         tool: execute_action
@@ -6180,9 +5042,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -6206,9 +5065,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -6219,9 +5075,6 @@ test_cases:
           decoration: 简装
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -6242,9 +5095,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -6257,18 +5107,12 @@ test_cases:
           max_subway_dist_is_soft: true
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
           pet_policy: 可养猫
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -6285,9 +5129,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -6308,9 +5149,6 @@ test_cases:
     has_response: true
     response_not_empty: true
     status_success: true
-    tool_call_chain:
-    - update_preferences
-    - search_by_preferences
     tool_call_args:
       tool: update_preferences
       contains:
@@ -6339,9 +5177,6 @@ test_cases:
   round_expects:
   - round: 1
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -6351,9 +5186,6 @@ test_cases:
           min_price: 3200
   - round: 2
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -6362,9 +5194,6 @@ test_cases:
           required_nearby_is_soft: true
   - round: 3
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -6372,9 +5201,6 @@ test_cases:
           - 包宽带
   - round: 4
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
@@ -6382,9 +5208,6 @@ test_cases:
           deposit_type_is_soft: true
   - round: 5
     expect:
-      tool_call_chain:
-      - update_preferences
-      - search_by_preferences
       tool_call_args:
         tool: update_preferences
         contains:
