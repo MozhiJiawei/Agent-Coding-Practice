@@ -31,7 +31,8 @@ class SimulatorConfig(BaseModel):
 
 class ToolCallArgsExpect(BaseModel):
     tool: str       # 工具名，如 "update_preferences"
-    contains: dict  # 预期参数集合（精确匹配：实际 args 的键必须与此完全一致；location/decoration 值仍为模糊等价）
+    contains: dict  # 预期参数集合。v2: 实际 args 的键与 contains 完全一致；v3 full_intent: 实际只需包含 contains，允许多键
+    full_intent: bool = False  # v3 全量意图：为 true 时实际 args 允许包含 contains 之外的键，不判 WARN
 
 
 class ExpectRules(BaseModel):

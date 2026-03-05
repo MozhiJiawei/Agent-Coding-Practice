@@ -910,10 +910,12 @@ test_cases:
     response_not_empty: true
     status_success: true
   round_expects:
+  # v3 全量意图：每轮 contains = 该轮结束后的全量偏好
   - round: 1
     expect:
       tool_call_args:
         tool: update_preferences
+        full_intent: true
         contains:
           location:
           - 朝阳
@@ -927,7 +929,15 @@ test_cases:
     expect:
       tool_call_args:
         tool: update_preferences
+        full_intent: true
         contains:
+          location:
+          - 朝阳
+          bedrooms: '2'
+          max_price: 3000
+          near_subway: true
+          decoration: 精装
+          decoration_is_soft: true
           pet_policy: 可养狗
           required_nearby:
           - 近公园
@@ -937,7 +947,19 @@ test_cases:
     expect:
       tool_call_args:
         tool: update_preferences
+        full_intent: true
         contains:
+          location:
+          - 朝阳
+          bedrooms: '2'
+          max_price: 3000
+          near_subway: true
+          decoration: 精装
+          decoration_is_soft: true
+          pet_policy: 可养狗
+          required_nearby:
+          - 近公园
+          required_nearby_is_soft: true
           viewing_method: 仅线上VR看房
           viewing_method_is_soft: true
       house_count_min: 1
@@ -954,10 +976,12 @@ test_cases:
     response_not_empty: true
     status_success: true
   round_expects:
+  # v3 全量意图：每轮 contains = 该轮结束后的全量偏好
   - round: 1
     expect:
       tool_call_args:
         tool: update_preferences
+        full_intent: true
         contains:
           location:
           - 朝阳
@@ -969,7 +993,13 @@ test_cases:
     expect:
       tool_call_args:
         tool: update_preferences
+        full_intent: true
         contains:
+          location:
+          - 朝阳
+          bedrooms: '2'
+          decoration: 空房
+          price_around: 3000
           payment_method: 月付
           payment_method_is_soft: true
           no_agent_fee: true
@@ -988,6 +1018,7 @@ test_cases:
     status_success: true
     tool_call_args:
       tool: update_preferences
+      full_intent: true
       contains:
         location:
         - 双合站
@@ -1011,6 +1042,7 @@ test_cases:
     status_success: true
     tool_call_args:
       tool: update_preferences
+      full_intent: true
       contains:
         location:
         - 朝阳

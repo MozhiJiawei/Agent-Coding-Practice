@@ -174,11 +174,12 @@ def _tag_list_equivalent(expected: list, actual: list) -> bool:
 
 
 def _tool_call_args(response: dict, expected: Any) -> tuple[bool, str]:
-    """验证指定工具被调用，且参数匹配：实际 args 需包含 contains 中声明的键；多出的键视为“超出 expect 范围”。
+    """验证指定工具被调用，且参数匹配：实际 args 需包含 contains 中声明的键。
 
-    expected 为 ToolCallArgsExpect.model_dump()，含 tool 和 contains 两个字段。
+    expected 为 ToolCallArgsExpect.model_dump()，含 tool、contains，及可选 full_intent。
     - 缺少 contains 中声明的参数 → 硬失败（红灯）。
-    - 大模型多传了未在 contains 中声明的参数（超出 expect 范围）→ 软失败，用例标为黄灯（WARN）。
+    - v2（full_intent 未设或 False）：大模型多传了未在 contains 中声明的参数 → 软失败（黄灯）。
+    - v3 全量意图（full_intent: true）：实际 args 允许包含 contains 之外的键，不判 WARN。
     contains 中以 _is_soft 结尾的键仅作为“软断言”标记；当某字段配置了 XX_is_soft: true 且该字段识别错误时，亦为软失败（黄灯）。
     软约束字段 XX_is_soft：若模型传入 false 而用例未在 contains 中配置，视为通过（符合默认值，见 intent_interface_design_v2）。
     location/decoration 等值仍按现有规则做模糊等价。
@@ -187,10 +188,10 @@ def _tool_call_args(response: dict, expected: Any) -> tuple[bool, str]:
         return (False, "tool_call_args: invalid expected config")
     tool_name = expected.get("tool", "")
     contains = expected.get("contains", {}) or {}
+    full_intent = bool(expected.get("full_intent"))
 
     # 仅用非 _is_soft 的键参与“声明参数”校验，未配置 XX_is_soft 时等价为 false，校验通过
     expected_keys = {k for k in contains.keys() if not (isinstance(k, str) and k.endswith("_is_soft"))}
-    allowed_keys = set(contains.keys())  # 实际 args 允许的键 = contains 全部，避免 contains 里写了 _is_soft 仍被判为"未声明"
 
     tool_results = response.get("tool_results", [])
     matching = [r for r in tool_results if r.get("tool_name") == tool_name]
@@ -203,14 +204,16 @@ def _tool_call_args(response: dict, expected: Any) -> tuple[bool, str]:
     mismatches: list[str] = []
     soft_mismatches: list[str] = []
     actual_keys = set(actual_args.keys())
+    # v3 全量意图：允许实际 args 为 contains 的超集，不把多出的键视为 extra
+    allowed_keys = actual_keys if full_intent else set(contains.keys())
     extra = actual_keys - allowed_keys
     # 软约束标记 XX_is_soft：若模型传入 false 且用例未配置，视为通过（符合默认值，见 intent_interface_design_v2）
     extra = {k for k in extra if not (
         isinstance(k, str) and k.endswith("_is_soft") and actual_args.get(k) is False
     )}
     missing = expected_keys - actual_keys
-    if extra:
-        # 大模型输出的超出 expect 范围的参数（未在 contains 中声明）统一视为软失败（黄灯）
+    if extra and not full_intent:
+        # v2: 大模型输出的超出 expect 范围的参数（未在 contains 中声明）统一视为软失败（黄灯）
         extra_list = sorted(extra)
         soft_mismatches.append(f"存在未在 contains 中声明的参数: {extra_list!r}")
     if missing:
