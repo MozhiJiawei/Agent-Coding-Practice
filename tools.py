@@ -703,16 +703,13 @@ async def search_by_preferences(
     return await _search_after_preferences(client, session_prefs)
 
 
-# ── Story 8.1: 4 工具体系 TOOLS 列表（意图接口 v2，update_preferences=更新偏好+搜索）────────────────────────────────
+# ── Story 8.1: 4 工具体系 TOOLS 列表（意图接口 v3：主 Agent 仅偏好键值，无 xxx_is_soft；软意图由编排层+子 Agent 注入）────────────────────────────────
 TOOLS: list[dict] = [
     {
         "type": "function",
         "function": {
             "name": "update_preferences",
-            "description": "更新用户租房偏好（用户最新一轮表达的内容）并立即按当前偏好搜索，返回匹配的 top 5 房源。找房、推荐、吐槽当前住房时均调用本工具，调用即会触发搜索。"
-                           "软约束：用户语气为「最好是/如果能/尽量/优先/有…更好/…就更好了/可以的话/理想情况/倾向于」时，"
-                           "设主字段值并同时设 xxx_is_soft: true（匹配加分但不排除）；"
-                           "用户语气肯定「要/希望/必须/需要/一定/只能/不能」时为硬约束（不设 xxx_is_soft 或设 false，不满足则排除）。",
+            "description": "更新用户租房偏好（用户最新一轮表达的内容）并立即按当前偏好搜索，返回匹配的 top 5 房源。找房、推荐、吐槽当前住房时均调用本工具，调用即会触发搜索。仅传用户本轮提到的偏好字段与取值，未提及的字段不传；用户说 N 左右可用 price_around/area_around，近地铁用 near_subway。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -755,7 +752,7 @@ TOOLS: list[dict] = [
                     "orientation": {
                         "type": "string",
                         "enum": ["朝南", "朝北", "朝东", "朝西", "南北", "东西", "西北"],
-                        "description": "朝向"
+                        "description": "朝向, 采光好时推断朝南"
                     },
                     "floor_pref": {
                         "type": "string",
@@ -784,7 +781,7 @@ TOOLS: list[dict] = [
                     },
                     "near_subway": {
                         "type": "boolean",
-                        "description": "true=近地铁,结果按地铁距离从近到远排序"
+                        "description": "true=近地铁"
                     },
                     "subway_line": {
                         "type": "string",
@@ -911,29 +908,7 @@ TOOLS: list[dict] = [
                         "type": "string",
                         "enum": ["合同规范条款清晰", "合同不规范", "房东好沟通", "房东不配合", "房东难联系"],
                         "description": "合同/房东"
-                    },
-                    "decoration_is_soft": {"type": "boolean", "description": "true=软约束，对应 decoration"},
-                    "elevator_is_soft": {"type": "boolean", "description": "true=软约束，对应 elevator"},
-                    "near_subway_is_soft": {"type": "boolean", "description": "true=软约束，对应 near_subway"},
-                    "orientation_is_soft": {"type": "boolean", "description": "true=软约束，对应 orientation"},
-                    "floor_pref_is_soft": {"type": "boolean", "description": "true=软约束，对应 floor_pref"},
-                    "rental_type_is_soft": {"type": "boolean", "description": "true=软约束，对应 rental_type"},
-                    "pet_policy_is_soft": {"type": "boolean", "description": "true=软约束，对应 pet_policy"},
-                    "viewing_method_is_soft": {"type": "boolean", "description": "true=软约束，对应 viewing_method"},
-                    "viewing_time_is_soft": {"type": "boolean", "description": "true=软约束，对应 viewing_time"},
-                    "lease_flexibility_is_soft": {"type": "boolean", "description": "true=软约束，对应 lease_flexibility"},
-                    "termination_sublet_is_soft": {"type": "boolean", "description": "true=软约束，对应 termination_sublet"},
-                    "parking_type_is_soft": {"type": "boolean", "description": "true=软约束，对应 parking_type"},
-                    "security_requirement_is_soft": {"type": "boolean", "description": "true=软约束，对应 security_requirement"},
-                    "property_management_is_soft": {"type": "boolean", "description": "true=软约束，对应 property_management"},
-                    "environment_preference_is_soft": {"type": "boolean", "description": "true=软约束，对应 environment_preference"},
-                    "house_feature_is_soft": {"type": "boolean", "description": "true=软约束，对应 house_feature"},
-                    "landlord_contract_is_soft": {"type": "boolean", "description": "true=软约束，对应 landlord_contract"},
-                    "required_utilities_is_soft": {"type": "boolean", "description": "true=软约束，对应 required_utilities"},
-                    "required_nearby_is_soft": {"type": "boolean", "description": "true=软约束，对应 required_nearby"},
-                    "payment_method_is_soft": {"type": "boolean", "description": "true=软约束，对应 payment_method"},
-                    "deposit_type_is_soft": {"type": "boolean", "description": "true=软约束，对应 deposit_type"},
-                    "no_agent_fee_is_soft": {"type": "boolean", "description": "true=软约束，对应 no_agent_fee"}
+                    }
                 },
                 "required": []
             }
@@ -992,6 +967,220 @@ TOOLS: list[dict] = [
         }
     }
 ]
+
+# 意图接口 v3：支持软约束的字段名（子 Agent 输出的 soft_fields 仅限此集合，且须在 extracted_preferences 中出现）
+SOFT_CONSTRAINT_FIELD_NAMES = frozenset({
+    "decoration", "elevator", "orientation", "floor_pref", "rental_type", "max_subway_dist", "near_subway",
+    "pet_policy", "viewing_method", "viewing_time", "lease_flexibility", "termination_sublet", "parking_type",
+    "security_requirement", "property_management", "environment_preference", "house_feature", "landlord_contract",
+    "required_utilities", "required_nearby", "payment_method", "deposit_type", "no_agent_fee",
+})
+
+# 规则提取字段：以下字段由 extract_preferences_by_rules 从用户原文中匹配，主 Agent schema 中不暴露
+RULE_EXTRACTED_FIELD_NAMES = frozenset({
+    "listing_platform", "landlord_contract", "house_feature", "tag_preferences", "required_nearby",
+    "environment_preference", "property_management", "security_requirement", "parking_type", "termination_sublet",
+    "required_utilities", "lease_flexibility", "viewing_time", "viewing_method", "pet_policy", "deposit_type",
+    "payment_method", "no_agent_fee", "utilities_type",
+})
+
+
+def extract_preferences_by_rules(user_message: str) -> dict:
+    """从用户本轮原文中按关键词规则抽取偏好字段（挂牌平台、付款/押金/宠物等），仅返回能匹配到的键值对。不做软/硬判断。"""
+    if not (user_message and user_message.strip()):
+        return {}
+    msg = user_message.strip()
+    out: dict = {}
+
+    # listing_platform（挂牌平台，先匹配的优先）
+    if "链家" in msg:
+        out["listing_platform"] = "链家"
+    elif "安居客" in msg:
+        out["listing_platform"] = "安居客"
+    elif "58同城" in msg or ("58" in msg and "同城" in msg):
+        out["listing_platform"] = "58同城"
+
+    # no_agent_fee
+    if any(k in msg for k in ("房东直租", "免中介", "无中介", "不想交中介费", "不通过中介", "不想通过中介", "能省一点是一点")):
+        out["no_agent_fee"] = True
+
+    # payment_method（优先匹配更长/更具体的）
+    if "半年付" in msg or "半年" in msg and "付" in msg:
+        out["payment_method"] = "半年付"
+    elif "季付" in msg or "按季度" in msg:
+        out["payment_method"] = "季付"
+    elif "年付" in msg and "仅接受" not in msg:
+        out["payment_method"] = "年付"
+    elif any(k in msg for k in ("月付", "能月付", "月付最好", "可以月付", "希望能月付", "押一付一", "按月付")):
+        out["payment_method"] = "月付"
+
+    # deposit_type
+    if "押二" in msg or "两个月押金" in msg or "两个月押" in msg or "接受押二" in msg:
+        out["deposit_type"] = "押二"
+    elif "押三" in msg:
+        out["deposit_type"] = "押三"
+    elif any(k in msg for k in ("押一付一", "押一", "只押一个月", "押金只押一个月")):
+        out["deposit_type"] = "押一"
+
+    # pet_policy（优先级：小型犬 > 养狗 > 养猫 > 不养 > 可养宠物）
+    if "小型犬" in msg or "小型狗" in msg:
+        out["pet_policy"] = "仅限小型犬"
+    elif any(k in msg for k in ("养狗", "能养狗", "金毛", "遛狗")):
+        out["pet_policy"] = "可养狗"
+    elif any(k in msg for k in ("养猫", "能养猫", "有猫", "养了只猫")):
+        out["pet_policy"] = "可养猫"
+    elif any(k in msg for k in ("不养宠物", "不能养宠物", "但是不养宠物")):
+        out["pet_policy"] = "不可养宠物"
+    elif any(k in msg for k in ("养宠物", "可养宠物", "允许宠物", "仓鼠", "房东允许")):
+        out["pet_policy"] = "可养宠物"
+
+    # viewing_method
+    if "线下或线上" in msg or "线下+线上" in msg or "都行" in msg and "看房" in msg:
+        out["viewing_method"] = "线下+线上"
+    elif "线上AR" in msg or "AR看房" in msg:
+        out["viewing_method"] = "仅线上AR看房"
+    elif "线上图片" in msg or "图片看房" in msg:
+        out["viewing_method"] = "仅线上图片看房"
+    elif "实地看房" in msg or "线下看房" in msg or "去实地" in msg or "实地看看房" in msg:
+        out["viewing_method"] = "仅线下看房"
+    elif "VR看房" in msg or "线上VR" in msg or "不用跑现场" in msg:
+        out["viewing_method"] = "仅线上VR看房"
+
+    # viewing_time
+    if ("全天" in msg and "看房" in msg) or "随时可以看房" in msg or "全天能约" in msg:
+        out["viewing_time"] = "全天可看房"
+    elif "工作日14" in msg or "下午能看房" in msg or ("下午才起床" in msg and "看房" in msg):
+        out["viewing_time"] = "工作日14-18点"
+    elif "工作日9" in msg or ("工作日白天" in msg and "看房" in msg):
+        out["viewing_time"] = "工作日9-18点"
+    elif "仅周末看房" in msg or "周末看房" in msg or "只能周末" in msg or ("只有周末" in msg and "看房" in msg) or "周末方便" in msg:
+        out["viewing_time"] = "仅周末看房"
+
+    # lease_flexibility
+    if "可年租" in msg or "年租" in msg and "仅接受" in msg:
+        out["lease_flexibility"] = "仅接受年租"
+    elif "可年租" in msg or "年租" in msg:
+        out["lease_flexibility"] = "可年租"
+    elif "可半年租" in msg:
+        out["lease_flexibility"] = "可半年租"
+    elif "可租3个月" in msg or "最多租三个月" in msg or "租三个月" in msg or "我最多租三个月" in msg:
+        out["lease_flexibility"] = "可租3个月"
+    elif "可租2个月" in msg or "只租两个月" in msg:
+        out["lease_flexibility"] = "可租2个月"
+    elif "可月租" in msg or "短租" in msg or "只住一个多月" in msg:
+        out["lease_flexibility"] = "可月租"
+
+    # required_utilities（数组，多关键词合并）
+    ru: list[str] = []
+    if "包宽带" in msg or "网费包含" in msg or "宽带包" in msg or "网费能直接包含" in msg:
+        ru.append("包宽带")
+    if "包水电" in msg or "水电包" in msg or "包在房租里" in msg and ("水电" in msg or "杂费" in msg):
+        ru.append("包水电费")
+    if "包物业" in msg or "物业费包" in msg or "物业费能包" in msg:
+        ru.append("包物业费")
+    if "免车位费" in msg or "免费车位" in msg or "车位最好免费" in msg:
+        ru.append("免车位费")
+    if "包车位" in msg or "车位包在房租" in msg:
+        ru.append("包车位")
+    if ru:
+        out["required_utilities"] = list(dict.fromkeys(ru))
+
+    # required_nearby（数组）
+    rn: list[str] = []
+    if "近公园" in msg or "附近有公园" in msg or "公园" in msg and ("附近" in msg or "遛狗" in msg or "遛弯" in msg):
+        rn.append("近公园")
+    if "近医院" in msg or "离医院近" in msg or "医院近" in msg or ("复查" in msg and "医院" in msg) or "三甲医院" in msg or "离医院近点" in msg:
+        rn.append("近医院")
+    if "近菜市场" in msg or "菜市场" in msg and "附近" in msg or "买菜" in msg:
+        rn.append("近菜市场")
+    if "近餐饮" in msg or "24小时有吃的" in msg or "有吃的" in msg or "餐馆" in msg or "吃饭" in msg and "附近" in msg or "便利店" in msg and "吃饭" in msg:
+        rn.append("近餐饮")
+    if "近健身房" in msg or "健身" in msg and "附近" in msg:
+        rn.append("近健身房")
+    if "近学校" in msg or "学校附近" in msg or "高校附近" in msg:
+        rn.append("近学校")
+    if "近商超" in msg or "便利店" in msg:
+        rn.append("近商超")
+    if rn:
+        out["required_nearby"] = list(dict.fromkeys(rn))
+
+    # parking_type
+    if "车库" in msg or "地下车库" in msg:
+        out["parking_type"] = "车库车位"
+    elif "有车位" in msg or "小区有车位" in msg:
+        out["parking_type"] = "有车位"
+
+    # termination_sublet
+    if "协商退租" in msg or "商量退租" in msg or "可以协商退租" in msg or "提前退租可协商" in msg:
+        out["termination_sublet"] = "提前退租可协商"
+    if "可转租" in msg or "经同意可转租" in msg:
+        out["termination_sublet"] = "经同意可转租"
+
+    # security_requirement
+    if "24小时保安" in msg:
+        out["security_requirement"] = "24小时保安"
+    elif "门禁" in msg and "形同虚设" not in msg and "无门禁" not in msg:
+        out["security_requirement"] = "门禁刷卡"
+
+    # property_management
+    if "物业到位" in msg or "物业管理到位" in msg or "物业好" in msg:
+        out["property_management"] = "物业管理到位"
+    elif "物业管理差" in msg:
+        out["property_management"] = "物业管理差"
+
+    # environment_preference
+    if "绿化好" in msg or "环境好" in msg or "小区环境" in msg and ("好" in msg or "适合跑步" in msg):
+        out["environment_preference"] = "绿化好环境佳"
+    elif "绿化少" in msg or "环境一般" in msg:
+        out["environment_preference"] = "绿化少环境一般"
+
+    # house_feature
+    if "高性价比" in msg or "性价比高" in msg:
+        out["house_feature"] = "高性价比"
+    elif "南北通透" in msg:
+        out["house_feature"] = "南北通透"
+    elif "采光好" in msg:
+        out["house_feature"] = "采光好"
+
+    # landlord_contract
+    if "房东好沟通" in msg or "好沟通的房东" in msg:
+        out["landlord_contract"] = "房东好沟通"
+
+    # utilities_type
+    if "民水民电" in msg:
+        out["utilities_type"] = "民水民电"
+    elif "商水商电" in msg:
+        out["utilities_type"] = "商水商电"
+
+    # tag_preferences（软偏好标签，与 decoration/orientation 等区分：规则层只做关键词→标签值）
+    tags: list[str] = []
+    if "朝南" in msg and "朝南" not in (out.get("house_feature") or ""):
+        tags.append("朝南")
+    if "精装" in msg or "精装修" in msg:
+        tags.append("精装")
+    if "有电梯" in msg:
+        tags.append("有电梯")
+    if tags:
+        out["tag_preferences"] = list(dict.fromkeys(tags))
+
+    return out
+
+
+# 主 Agent 用 TOOLS（v3）：update_preferences 中移除规则提取的 19 个字段与所有 xxx_is_soft，主 Agent 只做其余偏好抽取
+def _build_tools_main() -> list[dict]:
+    import copy
+    tools_main = copy.deepcopy(TOOLS)
+    for t in tools_main:
+        if t.get("type") == "function" and t.get("function", {}).get("name") == "update_preferences":
+            props = (t["function"].get("parameters") or {}).get("properties") or {}
+            for key in list(props.keys()):
+                if key in RULE_EXTRACTED_FIELD_NAMES or key.endswith("_is_soft"):
+                    props.pop(key, None)
+            break
+    return tools_main
+
+
+TOOLS_MAIN: list[dict] = _build_tools_main()
 
 
 # ── Task 2: search_houses ───────────────────────────────────────────────────

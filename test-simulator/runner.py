@@ -20,6 +20,7 @@ from config import (
     TestCase,
     TokenCounter,
     TokenUsage,
+    ToolCallArgsExpect,
 )
 
 # ── 辅助函数 ──────────────────────────────────────────────────────────────────
@@ -174,21 +175,18 @@ def _tag_list_equivalent(expected: list, actual: list) -> bool:
 
 
 def _tool_call_args(response: dict, expected: Any) -> tuple[bool, str]:
-    """验证指定工具被调用，且参数匹配：实际 args 需包含 contains 中声明的键。
+    """验证指定工具被调用，且参数匹配：严格校验模型输出意图与用例定义一致。
 
-    expected 为 ToolCallArgsExpect.model_dump()，含 tool、contains，及可选 full_intent。
+    expected 为 ToolCallArgsExpect.model_dump()，含 tool、contains。
     - 缺少 contains 中声明的参数 → 硬失败（红灯）。
-    - v2（full_intent 未设或 False）：大模型多传了未在 contains 中声明的参数 → 软失败（黄灯）。
-    - v3 全量意图（full_intent: true）：实际 args 允许包含 contains 之外的键，不判 WARN。
+    - 多出 contains 未声明的参数 → 软失败（黄灯）；例外：XX_is_soft 若模型传 false 且用例未定义视为通过，若模型传 true 且用例未定义视为错误。
     contains 中以 _is_soft 结尾的键仅作为“软断言”标记；当某字段配置了 XX_is_soft: true 且该字段识别错误时，亦为软失败（黄灯）。
-    软约束字段 XX_is_soft：若模型传入 false 而用例未在 contains 中配置，视为通过（符合默认值，见 intent_interface_design_v2）。
     location/decoration 等值仍按现有规则做模糊等价。
     """
     if not isinstance(expected, dict):
         return (False, "tool_call_args: invalid expected config")
     tool_name = expected.get("tool", "")
     contains = expected.get("contains", {}) or {}
-    full_intent = bool(expected.get("full_intent"))
 
     # 仅用非 _is_soft 的键参与“声明参数”校验，未配置 XX_is_soft 时等价为 false，校验通过
     expected_keys = {k for k in contains.keys() if not (isinstance(k, str) and k.endswith("_is_soft"))}
@@ -204,18 +202,28 @@ def _tool_call_args(response: dict, expected: Any) -> tuple[bool, str]:
     mismatches: list[str] = []
     soft_mismatches: list[str] = []
     actual_keys = set(actual_args.keys())
-    # v3 全量意图：允许实际 args 为 contains 的超集，不把多出的键视为 extra
-    allowed_keys = actual_keys if full_intent else set(contains.keys())
-    extra = actual_keys - allowed_keys
-    # 软约束标记 XX_is_soft：若模型传入 false 且用例未配置，视为通过（符合默认值，见 intent_interface_design_v2）
-    extra = {k for k in extra if not (
+    contains_keys = set(contains.keys())
+    # 多出的键 = 实际有、用例未声明的
+    extra = actual_keys - contains_keys
+    # 软约束标记 XX_is_soft：若模型传入 false 且用例未配置，视为通过（符合默认值）
+    extra_after_forgive = {k for k in extra if not (
         isinstance(k, str) and k.endswith("_is_soft") and actual_args.get(k) is False
     )}
+    # 用例未声明但模型传了 true 的 *_is_soft → 一律判错
+    extra_soft_true = {k for k in extra if (
+        isinstance(k, str) and k.endswith("_is_soft") and actual_args.get(k) is True
+    )}
     missing = expected_keys - actual_keys
-    if extra and not full_intent:
-        # v2: 大模型输出的超出 expect 范围的参数（未在 contains 中声明）统一视为软失败（黄灯）
-        extra_list = sorted(extra)
-        soft_mismatches.append(f"存在未在 contains 中声明的参数: {extra_list!r}")
+
+    if extra_soft_true:
+        soft_mismatches.append(
+            f"存在未在 contains 中声明的参数且值为 true（应为 false 或勿传）: {sorted(extra_soft_true)!r}"
+        )
+    extra_other = extra_after_forgive - extra_soft_true
+    if extra_other:
+        soft_mismatches.append(
+            f"存在未在 contains 中声明的参数: {sorted(extra_other)!r}"
+        )
     if missing:
         mismatches.append(f"缺少参数: {sorted(missing)!r}")
 
@@ -333,6 +341,93 @@ ASSERTION_RULES: dict[str, Any] = {
     "no_tool_call": _no_tool_call,
     "message_content": _message_content,
 }
+
+# ── 多轮累积偏好（用于 round_expects 中 update_preferences 的全量校验）────────────
+
+
+def _merge_preference_dict(base: dict, update: dict) -> dict:
+    """合并偏好字典：update 覆盖 base 同名字段（后轮覆盖前轮）。"""
+    out = dict(base)
+    for k, v in update.items():
+        out[k] = v
+    return out
+
+
+def _get_cumulative_expected_preferences(case: TestCase, up_to_round: int) -> dict | None:
+    """从 round_expects 的 1..up_to_round 轮中合并所有 update_preferences 的 contains。
+    仅当至少有一轮声明了 update_preferences 时返回非空合并结果，否则返回 None。
+    """
+    merged: dict = {}
+    for rexp in sorted(case.round_expects, key=lambda r: r.round):
+        if rexp.round > up_to_round or rexp.round < 1:
+            continue
+        tca = rexp.expect.tool_call_args
+        if tca is None or (tca.tool or "").strip() != "update_preferences":
+            continue
+        contains = (tca.contains or {}).copy()
+        merged = _merge_preference_dict(merged, contains)
+    return merged if merged else None
+
+
+def _get_cumulative_actual_preferences(rounds_detail: list[RoundDetail], up_to_round: int) -> dict | None:
+    """从 rounds_detail 的 1..up_to_round 轮中合并所有 update_preferences 调用的 args。
+    仅当至少有一轮实际调用了 update_preferences 时返回非空合并结果，否则返回 None。
+    """
+    merged: dict = {}
+    for rd in rounds_detail:
+        if rd.round_num > up_to_round or rd.round_num < 1 or rd.agent_response_raw is None:
+            continue
+        tool_results = rd.agent_response_raw.get("tool_results") or []
+        for tr in tool_results:
+            if (tr.get("tool_name") or "").strip() != "update_preferences":
+                continue
+            args = (tr.get("args") or {}).copy()
+            merged = _merge_preference_dict(merged, args)
+    return merged if merged else None
+
+
+def _build_multi_round_preference_response_and_expect(
+    body: dict,
+    round_expect: RoundExpect,
+    case: TestCase,
+    rounds_detail: list[RoundDetail],
+    current_round: int,
+) -> tuple[dict, ExpectRules] | None:
+    """当本轮 round_expect 含有 update_preferences 的 tool_call_args 时，构建「全量偏好」的 response 与 expect。
+
+    返回 (synthetic_response, synthetic_expect) 用于 check_assertions；若无需累积校验则返回 None（沿用原 body/expect）。
+    """
+    tca = round_expect.expect.tool_call_args
+    if tca is None or (tca.tool or "").strip() != "update_preferences":
+        return None
+
+    cumulative_expected = _get_cumulative_expected_preferences(case, current_round)
+    cumulative_actual = _get_cumulative_actual_preferences(rounds_detail, current_round)
+    # 若本轮 expect 没有写 update_preferences 的 contains，或没有历史实际调用，不改为累积校验
+    if cumulative_expected is None:
+        return None
+
+    # 用累积的「期望」覆盖本轮 expect 的 tool_call_args.contains；用累积的「实际」构建本轮的 tool_results（仅替换 update_preferences 一条）
+    synthetic_tool_results: list[dict] = []
+    if cumulative_actual is not None:
+        synthetic_tool_results.append({"tool_name": "update_preferences", "args": cumulative_actual})
+    current_results = body.get("tool_results") or []
+    for tr in current_results:
+        if (tr.get("tool_name") or "").strip() == "update_preferences":
+            continue
+        synthetic_tool_results.append(tr)
+
+    synthetic_response = {**body, "tool_results": synthetic_tool_results}
+    synthetic_tca = ToolCallArgsExpect(
+        tool="update_preferences",
+        contains=cumulative_expected,
+    )
+    synthetic_expect = round_expect.expect.model_copy(
+        update={"tool_call_args": synthetic_tca},
+        deep=True,
+    )
+    return (synthetic_response, synthetic_expect)
+
 
 # ── check_assertions ──────────────────────────────────────────────────────────
 
@@ -532,11 +627,19 @@ async def _execute_case(
         )
 
         # 每轮独立断言（round_expects）：失败只记录，不终止，继续多轮
+        # 多轮时若本轮 expect 含 update_preferences，则按「历史全量偏好」校验：期望=合并 1..当前轮 的 contains，实际=合并 1..当前轮 的 tool 调用 args
         round_expect: RoundExpect | None = next(
             (rexp for rexp in case.round_expects if rexp.round == rounds), None
         )
         if round_expect is not None and body is not None:
-            r_passed, r_reason, r_soft = check_assertions(body, round_expect.expect, case)
+            pair = _build_multi_round_preference_response_and_expect(
+                body, round_expect, case, rounds_detail, rounds
+            )
+            if pair is not None:
+                resp_to_check, expect_to_check = pair
+                r_passed, r_reason, r_soft = check_assertions(resp_to_check, expect_to_check, case)
+            else:
+                r_passed, r_reason, r_soft = check_assertions(body, round_expect.expect, case)
             if not r_passed:
                 if r_soft:
                     soft_failure_items.append(f"[Round {rounds}] {r_reason}")

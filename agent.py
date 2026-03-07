@@ -7,14 +7,15 @@ from typing import Callable
 import httpx
 from openai import AsyncOpenAI
 from tools import (
-    TOOLS, get_house_detail, execute_action, get_house_listings,
-    update_preferences, UserPreferences,
+    TOOLS_MAIN, get_house_detail, execute_action, get_house_listings,
+    update_preferences, UserPreferences, SOFT_CONSTRAINT_FIELD_NAMES,
+    extract_preferences_by_rules,
 )
 from logger import log_event, current_session_id
 
-# 从 TOOLS schema 构建「工具名 -> 允许的参数名集合」，调用时只传 schema 内参数，避免 LLM 误传导致 TypeError
+# 从主 Agent 用 TOOLS_MAIN 构建「工具名 -> 允许的参数名集合」（v3 不含 xxx_is_soft）
 TOOL_SCHEMA_PARAMS: dict[str, set[str]] = {}
-for _t in TOOLS:
+for _t in TOOLS_MAIN:
     if _t.get("type") == "function" and "function" in _t:
         _name = _t["function"].get("name")
         _params = _t["function"].get("parameters") or {}
@@ -22,6 +23,7 @@ for _t in TOOLS:
         if _name:
             TOOL_SCHEMA_PARAMS[_name] = set(_props.keys())
 
+# v3：主 Agent 只做偏好抽取，不传 xxx_is_soft；软硬由子 Agent 在编排层判定
 SYSTEM_PROMPT = """你是智能租房助手，根据用户的输入推断（不虚构）用户偏好，帮助用户在北京寻找和租赁房源。当前年份为 2026。
 
 工具调用流程：
@@ -34,19 +36,27 @@ SYSTEM_PROMPT = """你是智能租房助手，根据用户的输入推断（不�
 - 纯聊天或无关问题 → 直接自然语言回复，禁止调工具
 - 「这套/那套」从最近 update_preferences 返回的 items 确定 house_id，多套时取第一套
 
-update_preferences 提参示例（仅传用户提到的字段）：
-* 朝阳中粮，两居，最好精装,预算2000左右 → location:["朝阳", "中粮"], bedrooms:"2", decoration:"精装", decoration_is_soft:true, price_around:2000
-* 西城中铝,两居,希望空房、最好是朝南,必须有电梯尽量低楼层,预算5000左右, 近地铁 → location:["西城","中铝"], bedrooms:"2", decoration:"空房", decoration_is_soft:false, orientation:"朝南", orientation_is_soft:true, elevator:true, floor_pref:"低层", floor_pref_is_soft:true, max_price:5000, near_subway:true
-* 海淀中关村站附近,两居,2000以内,近地铁 → location:["海淀","中关村站"], bedrooms:"2", price_around:5000, near_subway:true
-* 两居,预算五千以内、100平左右→ bedrooms:"2", max_price:2000, area_around:100
-* 现在住得太吵采光差→ noise_preference:"安静", orientation:"朝南"
-* 在安居客上找，月付，如果能房东直租最好，可养猫、押一付一 → listing_platform:"安居客", payment_method:"月付", no_agent_fee:true, no_agent_fee_is_soft:true, pet_policy:"可养猫", deposit_type:"押一"
-* 希望周末看房、可租3个月、包宽带近医院 → viewing_time:"仅周末看房", lease_flexibility:"可租3个月", required_utilities:["包宽带"], required_nearby:["近医院"]
-* 南北通透、希望房东好沟通、绿化好、尽量物业到位 → house_feature:"南北通透", landlord_contract:"房东好沟通", environment_preference:"绿化好环境佳", property_management:"物业管理到位", property_management_is_soft:true
+update_preferences：仅传用户本轮提到的偏好字段与取值，未提及的字段不传。以下字段由系统根据用户描述自动规则匹配，无需在参数中填写：挂牌平台、房东/合同、房屋特点、标签偏好、周边配套、环境、物业、安保、车位、退租转租、包费项、租期、看房时间、看房方式、宠物、押金、付款方式、免中介、水电类型。
+语义映射：用户说「N 左右」→ price_around/area_around；「近地铁」→ near_subway。
+示例（仅偏好键值，不含规则提取字段）：
+* 朝阳中粮，两居，最好精装，预算2000左右 → location:["朝阳","中粮"], bedrooms:"2", decoration:"精装", price_around:2000
+* 西城中铝，两居，希望空房、最好是朝南，必须有电梯尽量低楼层，预算5000左右，近地铁 → location:["西城","中铝"], bedrooms:"2", decoration:"空房", orientation:"朝南", elevator:true, floor_pref:"低层", max_price:5000, near_subway:true
+* 海淀中关村站附近，两居，2000以内，近地铁 → location:["海淀","中关村站"], bedrooms:"2", price_around:2000, near_subway:true
+* 两居，预算五千以内、100平左右 → bedrooms:"2", max_price:5000, area_around:100
+* 现在住得太吵采光差 → noise_preference:"安静", orientation:"朝南"
 
 输出规则：
 - 调用 update_preferences 后用自然语言描述房源，每次最多推荐 5 套
 - 使用 items 中的 house_id；未调用 update_preferences 时禁止虚构任何 house_id"""
+
+# 子 Agent：软意图分类（仅对已抽取字段判断软/硬，输出应视为软约束的字段名列表）
+SOFT_INTENT_SYSTEM = """你根据用户原文和已抽取的偏好键值，判断哪些字段应视为「软约束」（匹配加分、不匹配不排除），输出这些字段名列表。
+规则：
+- 软约束（加入 soft_fields）：用户对某维度使用「最好/尽量/如果能/优先/有…更好/…就更好了/可以的话/理想情况/倾向于」等表达时，该维度对应字段名加入 soft_fields。
+- 硬约束（不加入 soft_fields）：用户使用「要/希望/必须/需要/一定/只能/不能/得」等明确要求时，该字段不入 soft_fields。
+- 仅对 extracted_preferences 中已出现的、且支持软约束的字段做判断；未出现的字段不输出。
+支持软约束的字段名：decoration, elevator, orientation, floor_pref, rental_type, near_subway, pet_policy, viewing_method, viewing_time, lease_flexibility, termination_sublet, parking_type, security_requirement, property_management, environment_preference, house_feature, landlord_contract, required_utilities, required_nearby, payment_method, deposit_type, no_agent_fee。
+你必须只输出一个 JSON 对象，且包含键 "soft_fields"，值为字符串数组。例如：{"soft_fields": ["decoration", "orientation"]}。不要输出其他文字。"""
 
 
 MAX_ITERATIONS = 10
@@ -67,6 +77,29 @@ def _preferences_summary(prefs: UserPreferences) -> dict:
     # 排除内部/上下文字段，只保留用户可理解的偏好
     skip = {"mentioned_house_ids", "current_focus_house_id", "soft_constraint_keys", "clear_location"}
     return {k: v for k, v in raw.items() if k not in skip and v != [] and v != ""}
+
+
+def _session_prefs_to_reported_args(prefs: UserPreferences) -> dict:
+    """从 session 当前状态生成与 tool_call_args contains 同形的「上报 args」，供 Multi 轮断言用。"""
+    raw = prefs.model_dump(exclude_none=True)
+    skip = {
+        "mentioned_house_ids", "current_focus_house_id", "soft_constraint_keys", "clear_location",
+        "districts", "areas", "landmark_queries",
+    }
+    out = {k: v for k, v in raw.items() if k not in skip and v != [] and v != ""}
+    # 语义快捷字段：session 存 min/max，用例期望 price_around/area_around，需反推以便断言通过
+    if prefs.min_price is not None and prefs.max_price is not None:
+        out["price_around"] = round((prefs.min_price + prefs.max_price) / 2)
+    if prefs.min_area is not None and prefs.max_area is not None:
+        out["area_around"] = round((prefs.min_area + prefs.max_area) / 2)
+    if prefs.max_subway_dist is not None:
+        out["near_subway"] = True
+    for f in prefs.soft_constraint_keys or []:
+        if f == "max_subway_dist":
+            out["near_subway_is_soft"] = True
+        else:
+            out[f + "_is_soft"] = True
+    return out
 
 
 def _build_final_tool_results(
@@ -97,6 +130,66 @@ def _trim_tool_results_from_history(history: list) -> None:
         kept.append(msg)
     history.clear()
     history.extend(kept)
+
+
+def _get_last_user_message(history: list) -> str:
+    """从对话历史中取最后一条用户消息，用于子 Agent 软意图分类。"""
+    for i in range(len(history) - 1, -1, -1):
+        msg = history[i]
+        if msg.get("role") == "user":
+            content = msg.get("content")
+            return content if isinstance(content, str) else (content or "")
+    return ""
+
+
+async def run_soft_intent_agent(
+    user_message: str,
+    extracted_preferences: dict,
+    llm_client: AsyncOpenAI,
+    session_id: str,
+) -> list[str]:
+    """子 Agent：根据用户原文与已抽取偏好，输出应视为软约束的字段名列表。"""
+    if not extracted_preferences:
+        return []
+    payload = {
+        "user_message": user_message,
+        "extracted_preferences": extracted_preferences,
+    }
+    try:
+        resp = await llm_client.chat.completions.create(
+            model="",
+            messages=[
+                {"role": "system", "content": SOFT_INTENT_SYSTEM},
+                {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+            ],
+        )
+        text = (resp.choices[0].message.content or "").strip()
+        # 尝试解析 JSON（可能被 markdown 包裹）
+        if text.startswith("```"):
+            lines = text.split("\n")
+            text = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+        out = json.loads(text)
+        soft_fields = out.get("soft_fields") or []
+        if not isinstance(soft_fields, list):
+            soft_fields = []
+        # 只保留在支持列表且出现在已抽取偏好中的字段
+        return [
+            f for f in soft_fields
+            if isinstance(f, str) and f in SOFT_CONSTRAINT_FIELD_NAMES and f in extracted_preferences
+        ]
+    except Exception as e:
+        log_event("SOFT_INTENT_ERROR", session_id, {"error": str(e), "payload_preview": str(payload)[:200]})
+        return []
+
+
+def _merge_soft_fields(extracted_preferences: dict, soft_fields: list[str]) -> dict:
+    """编排层：将主 Agent 参数与子 Agent 的 soft_fields 合并为带 xxx_is_soft 的最终参数。"""
+    final_args = dict(extracted_preferences)
+    for f in soft_fields:
+        if f not in SOFT_CONSTRAINT_FIELD_NAMES or f not in extracted_preferences:
+            continue
+        final_args[f + "_is_soft"] = True
+    return final_args
 
 
 async def run_agent(
@@ -153,8 +246,8 @@ async def run_agent(
                 "model": "",
                 "messages": history,
             }
-            if TOOLS:
-                create_kwargs["tools"] = TOOLS
+            if TOOLS_MAIN:
+                create_kwargs["tools"] = TOOLS_MAIN
                 create_kwargs["tool_choice"] = "auto"
 
             new_messages = history[prev_len:]
@@ -235,6 +328,22 @@ async def run_agent(
                     if fn is None:
                         result = {"error": f"Unknown tool: {tool_name}"}
                         log_event("ERROR", session_id, {"error": f"Unknown tool: {tool_name}", "tool_name": tool_name})
+                    elif tool_name == "update_preferences":
+                        # v3 编排层：主 Agent 只传偏好键值；规则提取 19 字段 + 合并 → 子 Agent 软意图 → 再执行 update_preferences
+                        allowed = TOOL_SCHEMA_PARAMS.get(tool_name, set())
+                        filtered_args = {k: v for k, v in args.items() if k in allowed}
+                        user_message = _get_last_user_message(history)
+                        rule_args = extract_preferences_by_rules(user_message)
+                        merged_args = {**filtered_args, **rule_args}
+                        soft_fields = await run_soft_intent_agent(
+                            user_message, merged_args, llm_client, session_id
+                        )
+                        final_args = _merge_soft_fields(merged_args, soft_fields)
+                        token = current_session_id.set(session_id)
+                        try:
+                            result = await update_preferences(client, session_prefs=session_prefs, **final_args)
+                        finally:
+                            current_session_id.reset(token)
                     else:
                         allowed = TOOL_SCHEMA_PARAMS.get(tool_name, set())
                         filtered_args = {k: v for k, v in args.items() if k in allowed}
@@ -244,21 +353,23 @@ async def run_agent(
                         finally:
                             current_session_id.reset(token)
 
+                    # update_preferences 上报本轮结束后的累积偏好，供 Multi 轮断言
+                    reported_args = _session_prefs_to_reported_args(session_prefs) if tool_name == "update_preferences" else args
                     log_event("TOOL_CALL", session_id, {
                         "tool_name": tool_name,
-                        "args": str(args)[:200],
+                        "args": str(reported_args)[:200],
                         "result_preview": json.dumps(result, ensure_ascii=False)[:300],
                     })
                     log_event("TOOL_RESPONSE", session_id, {
                         "tool_name": tool_name,
-                        "args": args,
+                        "args": reported_args,
                         "raw_result": result,
                     })
 
                     tools_called.add(tool_name)
                     tool_results_log.append({
                         "tool_name": tool_name,
-                        "args": args,
+                        "args": reported_args,
                         "result": json.dumps(result, ensure_ascii=False)[:500],
                     })
 

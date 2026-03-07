@@ -438,19 +438,17 @@ class TestToolCallArgs:
         assert "期望 True" in msg or "True" in msg
         assert "实际 False" in msg or "False" in msg
 
-    def test_pass_full_intent_extra_keys_allowed(self):
-        """v3 全量意图：full_intent=true 时实际 args 可包含 contains 之外的键，不判 WARN"""
-        expect = {
-            "tool": "update_preferences",
-            "full_intent": True,
-            "contains": {"location": ["海淀"], "bedrooms": "2"},
-        }
+    def test_fail_extra_keys_not_in_contains_soft(self):
+        """严格校验：模型多传了 contains 未声明的参数（非 _is_soft）→ 软失败"""
+        expect = {"tool": "update_preferences", "contains": {"location": ["海淀"], "bedrooms": "2"}}
         resp = self._make_response(
             "update_preferences",
             {"location": ["海淀"], "bedrooms": "2", "max_price": 5000, "decoration": "精装"},
         )
         ok, msg = ASSERTION_RULES["tool_call_args"](resp, expect)
-        assert ok is True, msg
+        assert ok is False, msg
+        assert msg.startswith("SOFT: ")
+        assert "未在 contains 中声明的参数" in msg
 
 
 class TestToolCallChain:

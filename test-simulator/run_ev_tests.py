@@ -141,6 +141,12 @@ async def run(args: argparse.Namespace) -> int:
 
 
 if __name__ == "__main__":
+    # Windows: 使用 Selector 事件循环，避免 ProactorEventLoop 导致进程无法退出（run_e2e.ps1 等调用时能正常退出）
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     args = parse_args()
     exit_code = asyncio.run(run(args))
+    # Windows: 直接退出进程，避免 asyncio/线程池等导致子进程不退出、run_e2e.ps1 无法结束
+    if sys.platform == "win32":
+        os._exit(exit_code)
     sys.exit(exit_code)

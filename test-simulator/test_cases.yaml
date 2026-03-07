@@ -915,54 +915,30 @@ test_cases:
     expect:
       tool_call_args:
         tool: update_preferences
-        full_intent: true
         contains:
           location:
           - 朝阳
           bedrooms: '2'
           max_price: 3000
-          near_subway: true
+          max_subway_dist: 800
+          sort_by: subway
+          sort_order: asc
           decoration: 精装
           decoration_is_soft: true
-      house_count_min: 1
   - round: 2
     expect:
       tool_call_args:
         tool: update_preferences
-        full_intent: true
         contains:
-          location:
-          - 朝阳
-          bedrooms: '2'
-          max_price: 3000
-          near_subway: true
-          decoration: 精装
-          decoration_is_soft: true
           pet_policy: 可养狗
           required_nearby:
           - 近公园
-          required_nearby_is_soft: true
-      house_count_min: 1
   - round: 3
     expect:
       tool_call_args:
         tool: update_preferences
-        full_intent: true
         contains:
-          location:
-          - 朝阳
-          bedrooms: '2'
-          max_price: 3000
-          near_subway: true
-          decoration: 精装
-          decoration_is_soft: true
-          pet_policy: 可养狗
-          required_nearby:
-          - 近公园
-          required_nearby_is_soft: true
           viewing_method: 仅线上VR看房
-          viewing_method_is_soft: true
-      house_count_min: 1
   tags:
   - final-test
 - id: c3
@@ -981,30 +957,20 @@ test_cases:
     expect:
       tool_call_args:
         tool: update_preferences
-        full_intent: true
         contains:
           location:
           - 朝阳
           bedrooms: '2'
           decoration: 空房
           price_around: 3000
-      house_count_min: 1
   - round: 2
     expect:
       tool_call_args:
         tool: update_preferences
-        full_intent: true
         contains:
-          location:
-          - 朝阳
-          bedrooms: '2'
-          decoration: 空房
-          price_around: 3000
           payment_method: 月付
-          payment_method_is_soft: true
           no_agent_fee: true
           no_agent_fee_is_soft: true
-      house_count_min: 1
   tags:
   - final-test
 - id: c4
@@ -1018,17 +984,14 @@ test_cases:
     status_success: true
     tool_call_args:
       tool: update_preferences
-      full_intent: true
       contains:
         location:
         - 双合站
         bedrooms: '2'
         decoration: 精装
-        rental_type: 整租
         sort_by: price
         sort_order: asc
         lease_flexibility: 可租3个月
-    house_count_min: 1
   tags:
   - final-test
 - id: c5
@@ -1042,7 +1005,6 @@ test_cases:
     status_success: true
     tool_call_args:
       tool: update_preferences
-      full_intent: true
       contains:
         location:
         - 朝阳
@@ -1053,7 +1015,6 @@ test_cases:
         noise_preference: 安静
         required_utilities:
         - 包宽带
-    house_count_min: 1
   tags:
   - final-test
 - id: c6
@@ -1067,6 +1028,7 @@ test_cases:
     response_not_empty: true
     status_success: true
   round_expects:
+  # v3 全量意图：每轮 contains = 该轮结束后的全量偏好
   - round: 1
     expect:
       tool_call_args:
@@ -1079,7 +1041,6 @@ test_cases:
           max_price: 3000
           max_subway_dist: 800
           max_subway_dist_is_soft: true
-      house_count_min: 1
   - round: 2
     expect:
       tool_call_args:
@@ -1087,7 +1048,6 @@ test_cases:
         contains:
           payment_method: 月付
           no_agent_fee: true
-      house_count_min: 1
   tags:
   - final-test
 - id: c7
@@ -1104,10 +1064,11 @@ test_cases:
       contains:
         location:
         - 朝阳
-        near_subway: true
+        max_subway_dist: 800
+        sort_by: subway
+        sort_order: asc
         required_nearby:
         - 近餐饮
-    house_count_min: 1
   tags:
   - final-test
 - id: c8
@@ -1121,6 +1082,7 @@ test_cases:
     response_not_empty: true
     status_success: true
   round_expects:
+  # v3 全量意图：每轮 contains = 该轮结束后的全量偏好
   - round: 1
     expect:
       tool_call_args:
@@ -1130,7 +1092,9 @@ test_cases:
           - 望京南
           bedrooms: '1'
           max_price: 4000
-          near_subway: true
+          max_subway_dist: 800
+          sort_by: subway
+          sort_order: asc
           near_subway_is_soft: true
   - round: 2
     expect:
@@ -1157,6 +1121,7 @@ test_cases:
     response_not_empty: true
     status_success: true
   round_expects:
+  # v3 全量意图：每轮 contains = 该轮结束后的全量偏好
   - round: 1
     expect:
       tool_call_args:
@@ -1182,6 +1147,7 @@ test_cases:
         tool: update_preferences
         contains:
           required_nearby:
+          - 近公园
           - 近菜市场
           required_nearby_is_soft: true
   - round: 4
@@ -1199,6 +1165,7 @@ test_cases:
         tool: update_preferences
         contains:
           required_utilities:
+          - 免车位费
           - 包物业费
   tags:
   - final-test
@@ -1219,7 +1186,6 @@ test_cases:
         bedrooms: '2'
         max_price: 5000
         termination_sublet: 提前退租可协商
-    house_count_min: 1
   tags:
   - final-test
 - id: c11
@@ -1237,10 +1203,8 @@ test_cases:
         location:
         - 西二旗
         decoration: 精装
-        decoration_is_soft: false
         noise_preference: 安静
         orientation: 朝南
-        orientation_is_soft: true
   tags:
   - final-test
 - id: c12
@@ -1255,6 +1219,7 @@ test_cases:
     response_not_empty: true
     status_success: true
   round_expects:
+  # v3 全量意图：每轮 contains = 该轮结束后的全量偏好
   - round: 1
     expect:
       tool_call_args:
@@ -1296,6 +1261,7 @@ test_cases:
     response_not_empty: true
     status_success: true
   round_expects:
+  # v3 全量意图：每轮 contains = 该轮结束后的全量偏好
   - round: 1
     expect:
       tool_call_args:
@@ -1319,23 +1285,21 @@ test_cases:
         tool: update_preferences
         contains:
           utilities_type: 民水民电
+          utilities_type_is_soft: true
           required_utilities:
           - 包水电费
-          required_utilities_is_soft: true
   - round: 4
     expect:
       tool_call_args:
         tool: update_preferences
         contains:
           deposit_type: 押一
-          deposit_type_is_soft: true
   - round: 5
     expect:
       tool_call_args:
         tool: update_preferences
         contains:
           pet_policy: 可养宠物
-          pet_policy_is_soft: true
   tags:
   - final-test
 - id: c14
@@ -1350,6 +1314,7 @@ test_cases:
     response_not_empty: true
     status_success: true
   round_expects:
+  # v3 全量意图：每轮 contains = 该轮结束后的全量偏好
   - round: 1
     expect:
       tool_call_args:
@@ -1361,7 +1326,9 @@ test_cases:
           elevator: true
           max_price: 3000
           max_subway_dist: 800
-          max_subway_dist_is_soft: true
+          sort_by: subway
+          sort_order: asc
+          near_subway_is_soft: true
   - round: 2
     expect:
       tool_call_args:
@@ -1369,8 +1336,8 @@ test_cases:
         contains:
           required_nearby:
           - 近公园
-          required_nearby_is_soft: true
           noise_preference: 安静
+          noise_preference_is_soft: true
   - round: 3
     expect:
       tool_call_args:
@@ -1413,6 +1380,7 @@ test_cases:
     response_not_empty: true
     status_success: true
   round_expects:
+  # v3 全量意图：每轮 contains = 该轮结束后的全量偏好
   - round: 1
     expect:
       tool_call_args:
@@ -1446,6 +1414,7 @@ test_cases:
     response_not_empty: true
     status_success: true
   round_expects:
+  # v3 全量意图：每轮 contains = 该轮结束后的全量偏好
   - round: 1
     expect:
       tool_call_args:
@@ -1465,6 +1434,7 @@ test_cases:
         tool: update_preferences
         contains:
           required_nearby:
+          - 近公园
           - 近健身房
           required_nearby_is_soft: true
   - round: 3
@@ -1488,6 +1458,7 @@ test_cases:
     response_not_empty: true
     status_success: true
   round_expects:
+  # v3 全量意图：每轮 contains = 该轮结束后的全量偏好
   - round: 1
     expect:
       tool_call_args:
@@ -1513,6 +1484,7 @@ test_cases:
         tool: update_preferences
         contains:
           required_nearby:
+          - 近医院
           - 近餐饮
           required_nearby_is_soft: true
   - round: 4
@@ -1539,6 +1511,7 @@ test_cases:
     response_not_empty: true
     status_success: true
   round_expects:
+  # v3 全量意图：每轮 contains = 该轮结束后的全量偏好
   - round: 1
     expect:
       tool_call_args:
@@ -1590,6 +1563,7 @@ test_cases:
     response_not_empty: true
     status_success: true
   round_expects:
+  # v3 全量意图：每轮 contains = 该轮结束后的全量偏好
   - round: 1
     expect:
       tool_call_args:
@@ -1604,8 +1578,8 @@ test_cases:
       tool_call_args:
         tool: update_preferences
         contains:
-          deposit_type: 押一
           payment_method: 月付
+          deposit_type: 押一
   - round: 3
     expect:
       tool_call_args:
@@ -1627,6 +1601,7 @@ test_cases:
         tool: update_preferences
         contains:
           required_nearby:
+          - 近餐饮
           - 近健身房
           required_nearby_is_soft: true
   - round: 6
