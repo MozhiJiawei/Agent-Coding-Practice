@@ -174,6 +174,86 @@ def _tag_list_equivalent(expected: list, actual: list) -> bool:
     return exp_set == act_set
 
 
+def _expand_near_subway_to_derived(args: dict) -> dict:
+    """将 near_subway 拆解为 tools.py 中的派生字段：max_subway_dist, sort_by, sort_order。
+    返回新 dict，不修改入参。与 tools.update_preferences 中 near_subway 逻辑一致。
+    """
+    out = dict(args)
+    if out.get("near_subway") is not True:
+        return out
+    out.pop("near_subway", None)
+    out.setdefault("max_subway_dist", 800)
+    out.setdefault("sort_by", "subway")
+    out.setdefault("sort_order", "asc")
+    if args.get("near_subway_is_soft") is True:
+        out["max_subway_dist_is_soft"] = True
+    out.pop("near_subway_is_soft", None)
+    return out
+
+
+def _expand_contains_near_subway(contains: dict) -> dict:
+    """若 contains 中有 near_subway，拆解为 max_subway_dist + sort_by + sort_order，便于与 actual 派生形式一致校验。"""
+    c = contains or {}
+    if c.get("near_subway") is not True:
+        return dict(c)
+    out = {k: v for k, v in c.items() if k not in ("near_subway", "near_subway_is_soft")}
+    out.setdefault("max_subway_dist", 800)
+    out.setdefault("sort_by", "subway")
+    out.setdefault("sort_order", "asc")
+    if c.get("near_subway_is_soft") is True:
+        out["max_subway_dist_is_soft"] = True
+    return out
+
+
+def _actual_keys_for_extra_check(actual_args: dict, contains: dict) -> set:
+    """用于「多出参数」校验的 actual 键集合：near_subway 已拆解，price_around/area_around 的派生键不参与 extra。"""
+    expanded = _expand_near_subway_to_derived(actual_args)
+    keys = set(expanded.keys())
+    # price_around → min_price/max_price 为派生，若 contains 声明了 price_around 则不把 min/max 算作 extra
+    if "price_around" in contains and "price_around" in expanded:
+        keys.discard("min_price")
+        keys.discard("max_price")
+    # area_around → min_area/max_area 为派生
+    if "area_around" in contains and "area_around" in expanded:
+        keys.discard("min_area")
+        keys.discard("max_area")
+    return keys
+
+
+def _check_around_derived_values(actual_args: dict) -> list[str]:
+    """校验 price_around/area_around 的 min/max 是否为 tools.py 规定的 0.8~1.2 倍。返回不匹配时的错误信息列表。"""
+    errs: list[str] = []
+    # price_around → min_price = round(x*0.8), max_price = round(x*1.2)
+    if "price_around" in actual_args and actual_args.get("price_around") is not None:
+        try:
+            x = int(actual_args["price_around"])
+            want_min = int(round(x * 0.8))
+            want_max = int(round(x * 1.2))
+            if "min_price" in actual_args and actual_args.get("min_price") is not None:
+                if int(actual_args["min_price"]) != want_min:
+                    errs.append(f"price_around 派生: min_price 应为 {want_min} (round({x}*0.8)), 实际 {actual_args['min_price']}")
+            if "max_price" in actual_args and actual_args.get("max_price") is not None:
+                if int(actual_args["max_price"]) != want_max:
+                    errs.append(f"price_around 派生: max_price 应为 {want_max} (round({x}*1.2)), 实际 {actual_args['max_price']}")
+        except (TypeError, ValueError):
+            pass
+    # area_around → min_area = round(x*0.8), max_area = round(x*1.2)
+    if "area_around" in actual_args and actual_args.get("area_around") is not None:
+        try:
+            x = int(actual_args["area_around"])
+            want_min = int(round(x * 0.8))
+            want_max = int(round(x * 1.2))
+            if "min_area" in actual_args and actual_args.get("min_area") is not None:
+                if int(actual_args["min_area"]) != want_min:
+                    errs.append(f"area_around 派生: min_area 应为 {want_min} (round({x}*0.8)), 实际 {actual_args['min_area']}")
+            if "max_area" in actual_args and actual_args.get("max_area") is not None:
+                if int(actual_args["max_area"]) != want_max:
+                    errs.append(f"area_around 派生: max_area 应为 {want_max} (round({x}*1.2)), 实际 {actual_args['max_area']}")
+        except (TypeError, ValueError):
+            pass
+    return errs
+
+
 def _tool_call_args(response: dict, expected: Any) -> tuple[bool, str]:
     """验证指定工具被调用，且参数匹配：严格校验模型输出意图与用例定义一致。
 
@@ -182,14 +262,17 @@ def _tool_call_args(response: dict, expected: Any) -> tuple[bool, str]:
     - 多出 contains 未声明的参数 → 软失败（黄灯）；例外：XX_is_soft 若模型传 false 且用例未定义视为通过，若模型传 true 且用例未定义视为错误。
     contains 中以 _is_soft 结尾的键仅作为“软断言”标记；当某字段配置了 XX_is_soft: true 且该字段识别错误时，亦为软失败（黄灯）。
     location/decoration 等值仍按现有规则做模糊等价。
+    near_subway / price_around / area_around 按 tools.py 逻辑拆解后参与校验：near_subway 视为 max_subway_dist+sort_by+sort_order，price_around 的 min/max、area_around 的 min/max 不单独算作未声明参数。
     """
     if not isinstance(expected, dict):
         return (False, "tool_call_args: invalid expected config")
     tool_name = expected.get("tool", "")
     contains = expected.get("contains", {}) or {}
+    # 将 contains 中的 near_subway 拆解为派生键，与 actual 拆解后一致比较
+    contains_normalized = _expand_contains_near_subway(contains)
 
     # 仅用非 _is_soft 的键参与“声明参数”校验，未配置 XX_is_soft 时等价为 false，校验通过
-    expected_keys = {k for k in contains.keys() if not (isinstance(k, str) and k.endswith("_is_soft"))}
+    expected_keys = {k for k in contains_normalized.keys() if not (isinstance(k, str) and k.endswith("_is_soft"))}
 
     tool_results = response.get("tool_results", [])
     matching = [r for r in tool_results if r.get("tool_name") == tool_name]
@@ -199,12 +282,17 @@ def _tool_call_args(response: dict, expected: Any) -> tuple[bool, str]:
         return (False, f"tool_call_args: 工具 '{tool_name}' 未被调用（实际调用：{called}）")
 
     actual_args = matching[0].get("args") or {}
+    # actual 中 near_subway 拆解为 max_subway_dist + sort_by + sort_order，后续用展开后的 dict 做取值比较
+    actual_normalized = _expand_near_subway_to_derived(actual_args)
     mismatches: list[str] = []
     soft_mismatches: list[str] = []
-    actual_keys = set(actual_args.keys())
-    contains_keys = set(contains.keys())
-    # 多出的键 = 实际有、用例未声明的
-    extra = actual_keys - contains_keys
+    # 校验 price_around/area_around 若同时传了 min/max，是否满足 tools.py 的 0.8~1.2 倍
+    around_derived_errs = _check_around_derived_values(actual_args)
+    mismatches.extend(around_derived_errs)
+    actual_keys_for_extra = _actual_keys_for_extra_check(actual_args, contains)
+    contains_keys = set(contains_normalized.keys())
+    # 多出的键 = 实际有、用例未声明的（已按 near_subway/price_around/area_around 拆解与剔除派生键）
+    extra = actual_keys_for_extra - contains_keys
     # 软约束标记 XX_is_soft：若模型传入 false 且用例未配置，视为通过（符合默认值）
     extra_after_forgive = {k for k in extra if not (
         isinstance(k, str) and k.endswith("_is_soft") and actual_args.get(k) is False
@@ -213,7 +301,6 @@ def _tool_call_args(response: dict, expected: Any) -> tuple[bool, str]:
     extra_soft_true = {k for k in extra if (
         isinstance(k, str) and k.endswith("_is_soft") and actual_args.get(k) is True
     )}
-    missing = expected_keys - actual_keys
 
     if extra_soft_true:
         soft_mismatches.append(
@@ -224,21 +311,23 @@ def _tool_call_args(response: dict, expected: Any) -> tuple[bool, str]:
         soft_mismatches.append(
             f"存在未在 contains 中声明的参数: {sorted(extra_other)!r}"
         )
+    # missing 基于拆解后的 contains 与 actual 键集
+    missing = expected_keys - set(actual_normalized.keys())
     if missing:
         mismatches.append(f"缺少参数: {sorted(missing)!r}")
 
     def is_soft_key(key: str) -> bool:
         soft_flag = key + "_is_soft"
-        return bool(contains.get(soft_flag) if isinstance(contains.get(soft_flag), bool) else False)
+        return bool(contains_normalized.get(soft_flag) if isinstance(contains_normalized.get(soft_flag), bool) else False)
 
-    for key, expected_val in contains.items():
+    for key, expected_val in contains_normalized.items():
         if isinstance(key, str) and key.endswith("_is_soft"):
             # 校验模型返回的 *_is_soft 与用例期望一致（如 no_agent_fee_is_soft: true）
-            actual_soft = actual_args.get(key)
+            actual_soft = actual_normalized.get(key)
             if actual_soft is not None and actual_soft != expected_val:
                 soft_mismatches.append(f"{key}: 期望 {expected_val!r}, 实际 {actual_soft!r}")
             continue
-        actual_val = actual_args.get(key)
+        actual_val = actual_normalized.get(key)
         mismatch_msg: str | None = None
         if key == "location" and isinstance(expected_val, list) and isinstance(actual_val, list):
             if not _locations_equivalent(expected_val, actual_val):

@@ -920,9 +920,7 @@ test_cases:
           - 朝阳
           bedrooms: '2'
           max_price: 3000
-          max_subway_dist: 800
-          sort_by: subway
-          sort_order: asc
+          near_subway: true
           decoration: 精装
           decoration_is_soft: true
   - round: 2
@@ -989,6 +987,7 @@ test_cases:
         - 双合站
         bedrooms: '2'
         decoration: 精装
+        rental_type: 整租
         sort_by: price
         sort_order: asc
         lease_flexibility: 可租3个月
@@ -1064,9 +1063,7 @@ test_cases:
       contains:
         location:
         - 朝阳
-        max_subway_dist: 800
-        sort_by: subway
-        sort_order: asc
+        near_subway: true
         required_nearby:
         - 近餐饮
   tags:

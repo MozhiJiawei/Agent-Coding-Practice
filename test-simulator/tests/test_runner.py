@@ -450,6 +450,80 @@ class TestToolCallArgs:
         assert msg.startswith("SOFT: ")
         assert "未在 contains 中声明的参数" in msg
 
+    def test_pass_near_subway_expanded_to_derived(self):
+        """near_subway 按 tools.py 拆解校验：actual 传 near_subway: true，contains 写 near_subway → 拆解为 max_subway_dist+sort_by+sort_order 后一致，通过"""
+        expect = {"tool": "update_preferences", "contains": {"location": ["朝阳"], "bedrooms": "2", "max_price": 3000, "near_subway": True, "decoration": "精装", "decoration_is_soft": True}}
+        resp = self._make_response(
+            "update_preferences",
+            {"location": ["朝阳"], "max_price": 3000, "bedrooms": "2", "decoration": "精装", "max_subway_dist": 800, "sort_by": "subway", "sort_order": "asc", "near_subway": True, "decoration_is_soft": True},
+        )
+        ok, msg = ASSERTION_RULES["tool_call_args"](resp, expect)
+        assert ok is True, msg
+
+    def test_pass_near_subway_contains_derived_form(self):
+        """contains 写派生形式 max_subway_dist+sort_by+sort_order，actual 传 near_subway: true → 拆解后一致，通过"""
+        expect = {"tool": "update_preferences", "contains": {"location": ["朝阳"], "max_subway_dist": 800, "sort_by": "subway", "sort_order": "asc"}}
+        resp = self._make_response(
+            "update_preferences",
+            {"location": ["朝阳"], "near_subway": True},
+        )
+        ok, msg = ASSERTION_RULES["tool_call_args"](resp, expect)
+        assert ok is True, msg
+
+    def test_pass_price_around_derived_keys_not_extra(self):
+        """price_around 拆解：actual 传 price_around+min_price+max_price，contains 只写 price_around → min/max 不判为未声明参数，通过"""
+        expect = {"tool": "update_preferences", "contains": {"location": ["朝阳"], "bedrooms": "2", "decoration": "空房", "price_around": 3000}}
+        resp = self._make_response(
+            "update_preferences",
+            {"location": ["朝阳"], "bedrooms": "2", "decoration": "空房", "price_around": 3000, "min_price": 2400, "max_price": 3600},
+        )
+        ok, msg = ASSERTION_RULES["tool_call_args"](resp, expect)
+        assert ok is True, msg
+
+    def test_pass_area_around_derived_keys_not_extra(self):
+        """area_around 拆解：actual 传 area_around+min_area+max_area，contains 只写 area_around → min/max 不判为未声明参数，通过"""
+        expect = {"tool": "update_preferences", "contains": {"area_around": 100}}
+        resp = self._make_response(
+            "update_preferences",
+            {"area_around": 100, "min_area": 80, "max_area": 120},
+        )
+        ok, msg = ASSERTION_RULES["tool_call_args"](resp, expect)
+        assert ok is True, msg
+
+    def test_fail_price_around_derived_values_not_08_12(self):
+        """price_around 派生校验：若传了 min_price/max_price 则必须为 round(center*0.8) 与 round(center*1.2)，否则失败"""
+        expect = {"tool": "update_preferences", "contains": {"price_around": 3000}}
+        # 3000*0.8=2400, 3000*1.2=3600；传 2000/4000 则不符合
+        resp = self._make_response(
+            "update_preferences",
+            {"price_around": 3000, "min_price": 2000, "max_price": 4000},
+        )
+        ok, msg = ASSERTION_RULES["tool_call_args"](resp, expect)
+        assert ok is False, msg
+        assert "price_around 派生" in msg or "2400" in msg or "3600" in msg
+
+    def test_pass_price_around_derived_values_correct_08_12(self):
+        """price_around 派生值正确（0.8/1.2 倍）时通过"""
+        expect = {"tool": "update_preferences", "contains": {"price_around": 3000}}
+        resp = self._make_response(
+            "update_preferences",
+            {"price_around": 3000, "min_price": 2400, "max_price": 3600},
+        )
+        ok, msg = ASSERTION_RULES["tool_call_args"](resp, expect)
+        assert ok is True, msg
+
+    def test_fail_area_around_derived_values_not_08_12(self):
+        """area_around 派生校验：min_area/max_area 须为 round(center*0.8) 与 round(center*1.2)"""
+        expect = {"tool": "update_preferences", "contains": {"area_around": 100}}
+        # 100*0.8=80, 100*1.2=120；传 70/130 则不符合
+        resp = self._make_response(
+            "update_preferences",
+            {"area_around": 100, "min_area": 70, "max_area": 130},
+        )
+        ok, msg = ASSERTION_RULES["tool_call_args"](resp, expect)
+        assert ok is False, msg
+        assert "area_around 派生" in msg or "80" in msg or "120" in msg
+
 
 class TestToolCallChain:
     """tool_call_chain: 验证链式调用顺序"""
